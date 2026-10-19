@@ -1,0 +1,66 @@
+original backend
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.087 s -- in cn.sec.hn.openbackupsaas.OpenbackupsaasApplicationTests
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+[INFO] Total time:  4.607 s
+[INFO] Finished at: 2026-10-19T01:48:05+08:00
+
+candidate backend
+[INFO] Tests are skipped.
+[INFO] BUILD SUCCESS
+[INFO] Total time:  11.205 s
+[INFO] Finished at: 2026-10-19T01:49:26+08:00
+
+clean frontend install
+
+added 151 packages in 911ms
+
+
+clean frontend build
+
+> frontend-engineering-vue@0.0.0 build
+> run-p type-check "build-only {@}" --
+
+
+> frontend-engineering-vue@0.0.0 build-only
+> vite build
+
+
+> frontend-engineering-vue@0.0.0 type-check
+> vue-tsc --build
+
+vite v8.3.4 building client environment for production...
+transforming...
+✓ 27 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  0.42 kB │ gzip:  0.28 kB
+dist/assets/index-CyVfN59t.css   3.56 kB │ gzip:  1.16 kB
+dist/assets/index-BjrqleB5.js   73.19 kB │ gzip: 28.33 kB
+
+✓ built in 254ms
+
+
+Element Plus frontend build
+
+> frontend-engineering-vue@0.0.0 build
+> run-p type-check "build-only {@}" --
+
+
+> frontend-engineering-vue@0.0.0 type-check
+> vue-tsc --build
+
+
+> frontend-engineering-vue@0.0.0 build-only
+> vite build
+
+vite v8.3.4 building client environment for production...
+transforming...
+✓ 1582 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  0.42 kB │ gzip:  0.28 kB
+dist/assets/index-D3eTPlho.css  29.62 kB │ gzip:  4.56 kB
+dist/assets/index-DD_GtlX0.js   89.52 kB │ gzip: 34.43 kB
+
+✓ built in 185ms

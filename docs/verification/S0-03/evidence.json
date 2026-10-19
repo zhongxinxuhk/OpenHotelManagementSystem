@@ -1,0 +1,27 @@
+{
+  "checked_at": "2026-10-19",
+  "timezone": "Asia/Shanghai",
+  "source_files_unchanged": 37,
+  "scope": "source and configuration only; build output excluded",
+  "baseline_backend": "verify passed, 1 context test",
+  "candidate_backend": "package passed with tests skipped; no runtime DB validation",
+  "baseline_frontend": "clean npm ci and type check/build passed",
+  "candidate_frontend": "Element Plus 2.14.7 button type check/build passed; no browser test",
+  "database_runtime": "not run; Docker daemon unavailable",
+  "npm_audit_baseline": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "npm_audit_candidate": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  }
+}

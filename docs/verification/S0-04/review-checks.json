@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-19",
+  "scope": "documentation structure, reference and source integrity checks only",
+  "markdown_files_checked": 21,
+  "errors": [],
+  "data_model_scenarios": 30,
+  "scenario_status": "SPECIFIED / NOT_RUN",
+  "invariants_mapped": 14,
+  "business_decisions_open": 16,
+  "source_manifest_files_checked": 37,
+  "source_files_changed_since_S0_03_manifest": [],
+  "sql_execution": "NOT_RUN",
+  "database_tests": "NOT_RUN",
+  "mermaid_render": "NOT_RUN",
+  "git_diff_check": "PASS",
+  "table_header_check": "PASS"
+}
