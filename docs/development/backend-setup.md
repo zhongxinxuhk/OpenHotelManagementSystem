@@ -95,6 +95,7 @@ cn.sec.hn.openbackupsaas
 ├── reservation/domain/ mapper/ service/  订单、订单行、统一占用事实；`StayRange`（半开区间）、统一锁序与冲突翻译
 ├── journal/domain/ mapper/ service/   库存效果流水、关键审计、Outbox 事件；与业务写入同事务，三表只追加
 ├── command/domain/ mapper/ service/   幂等记录、规范化请求摘要、命令入口；`GET /api/v1/operations/*` 结果查询
+├── reservation/domain/ mapper/ service/ web/  订单、订单行、统一占用事实；`ReservationCommandService`（原子建单 + 自动选房 + 统一锁序）、`POST /api/v1/hotels/{hotelId}/reservations`
 ├── shared/security/                   TenantContext / TenantContextHolder / Authz / PmsPrincipal / SessionTokens / HotelAccess
 ├── room/ reservation/ inventory/ pricing/
 ├── frontdesk/ payment/ channel/ integration/ audit/ reporting/
@@ -117,6 +118,7 @@ cn.sec.hn.openbackupsaas
 | GET | `/api/v1/hotels/{hotelId}/rooms/{id}` | Bearer + `room:read` | 房间详情（含只读 `housekeepingStatus`） |
 | PATCH | `/api/v1/hotels/{hotelId}/rooms/{id}` | Bearer + `room:write` | 改房型归属/楼层/备注；**不收清洁状态** |
 | POST | `/api/v1/hotels/{hotelId}/rooms/{id}/status` | Bearer + `room:write` | 启停房间 |
+| POST | `/api/v1/hotels/{hotelId}/reservations` | Bearer + `reservation:write` | 创建订单（原子建单 + 自动选房，幂等键 `Idempotency-Key` 由 `X-Caller-Namespace` 划定作用域） |
 | GET | `/api/v1/operations/{operationId}` | Bearer + `operation:read` | 按操作标识查结果（提交成功但响应丢失的恢复路径） |
 | GET | `/api/v1/operations/lookup?hotelId&namespace&command&key` | Bearer + `operation:read` | 按幂等键查结果 |
 
@@ -140,7 +142,7 @@ cn.sec.hn.openbackupsaas
 | **占用事实与排斥**：`room_occupancy` 统一预订/封房，GiST 排斥 + 半开区间 CHECK + 统一锁序（`OccupancyService`）| 订单命令与接口（S1-08/S1-09）、超时释放 Worker（S1-10）、库存流水与审计（S1-06）、房态投影（S1-12） |
 | **认证与授权**：不透明 Bearer 令牌 + 服务端会话（库内只存 SHA-256）、RBAC 权限点、门店数据范围断言、租户上下文（ADR-016） | 登录失败锁定/限流（S6-05）、闲置超时与滑动续期（未定案） |
 | **迁移账号与应用账号分权**（`pms_migrator` DDL / `pms_app` 仅 DML，均非超级用户） | 生产环境的账号与密钥管理制度（S6-05） |
-| **105 个测试：19 单元/上下文 + 86 真实 PostgreSQL 集成** | 并发与竞态测试（S1-13）、故障注入（S2-08） |
+| **110 个测试：19 单元/上下文 + 91 真实 PostgreSQL 集成** | 并发与竞态测试（S1-13）、故障注入（S2-08） |
 | CI：后端 `verify`（含 postgres 17 service）、前端 `tsc/lint/build` | CI 尚未实际执行过（未推送） |
 
 ## 6. 门禁命令与期望

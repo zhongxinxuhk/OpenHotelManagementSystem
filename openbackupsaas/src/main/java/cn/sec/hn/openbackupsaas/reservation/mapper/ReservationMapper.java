@@ -3,6 +3,7 @@ package cn.sec.hn.openbackupsaas.reservation.mapper;
 import cn.sec.hn.openbackupsaas.reservation.domain.Reservation;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine;
 import cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy;
+import cn.sec.hn.openbackupsaas.reservation.domain.StayRange;
 import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -28,6 +29,18 @@ import java.util.UUID;
 public interface ReservationMapper {
 
     int insertReservation(Reservation reservation);
+
+    /**
+     * 整个入住区间都空闲的房间（按房型、门店）。
+     *
+     * <p>用 {@code NOT EXISTS} 而不是"先查占用再在内存里比对"：
+     * 区间重叠是数据库的判定，交给 SQL 判定才不会和应用层的半开语义走偏。
+     * 有效状态集合与占用排斥谓词一致（HELD/CONFIRMED/CHECKED_IN/BLOCKED）。
+     */
+    List<PhysicalRoom> findAvailableRooms(@Param("tenantId") UUID tenantId,
+                                          @Param("hotelId") UUID hotelId,
+                                          @Param("roomTypeId") UUID roomTypeId,
+                                          @Param("range") StayRange range);
 
     Optional<Reservation> findReservation(@Param("tenantId") UUID tenantId,
                                           @Param("hotelId") UUID hotelId,

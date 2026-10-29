@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-08）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-09）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-08`（S1-07 持久化幂等与提交不确定恢复，DONE） |
-| 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02—S1-07 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
+| 当前轮次 | `R-20261030-09`（S1-08 原子锁房与订单创建，DONE） |
+| 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02—S1-08 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
 | 已通过门禁 | 无（G0 未开审） |
-| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等六域已落库（V1—V6 共 18 张表，复合外键 + CHECK + GiST 排斥）；**105 个测试全部通过（含 86 个真实 PostgreSQL 集成用例）**；订单命令、发布器与支付仍未实现 |
+| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单七域已落库（V1—V6.1 共 19 张表，复合外键 + CHECK + GiST 排斥）；**110 个测试全部通过（含 91 个真实 PostgreSQL 集成用例）**；确认/取消、发布器与支付仍未实现 |
 | 前端工程状态 | `frontend-admin-pro/` 工程文件已就位；`npm ci` 受本机代理阻塞，见 [S3-01a 记录](../verification/S3-01a/2026-10-30-dependency-install.md) |
-| 功能项完成度 | 约 14.4%（124 项，DONE 9 项，见 feature-catalog §1） |
-| 下一轮目标 | ①`S1-08` 原子锁房与订单创建（幂等接入真实命令）；②`S1-09` 确认、取消与 No-show |
+| 功能项完成度 | 约 15.3%（124 项，DONE 9 项，见 feature-catalog §1） |
+| 下一轮目标 | ①`S1-09` 确认、取消与 No-show；②`S1-10` 超时领取与幂等释放 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 7（S0-03、S1-02—S1-07） |
+| DONE | 8（S0-03、S1-02—S1-08） |
 | VERIFYING | 4（S0-01、S0-02、S0-04、S1-01） |
 | BLOCKED | 2（S3-01a 环境阻塞、S5-01 渠道授权） |
-| TODO | 53 |
+| TODO | 52 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -159,6 +159,40 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261030-09 S1-08 原子锁房与订单创建
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. `ReservationCommandService`：经 `IdempotencyService.execute` 幂等入口，在**一个短事务**里创建订单 + 订单行 + 全部房间 HELD 占用 + 逐晚流水 + 审计 + 事件（均记到同一命令 operation_id）。
+  2. 内部自动选房（D-03）：按房型挑"整个入住区间都空闲"的房间；某行挑不到 → 整单结构化冲突（409），不做部分承诺。
+  3. 统一锁序（S0-04）：先插订单 → 按 id 升序一次性锁全部房间 → 再写占用；锁后重核可用，避免并发双卖与死锁。
+  4. HTTP：`POST /api/v1/hotels/{hotelId}/reservations`（`reservation:write`，经 `HotelAccess` + `X-Caller-Namespace`）。
+  5. 测试：`ReservationCommandIntegrationTest` 5 例（多房多晚原子、任一冲突整单回滚、幂等重放、并发热点仅一赢家、日期非法）。
+- 本轮明确不做：确认/取消/No-show（S1-09）、超时释放（S1-10）、可售查询与投影（S1-12）、订单列表/详情（S1-11）、住客与渠道实际取值（S3-04/L 域）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：D-02、D-03、D-12（来源字段随订单落库）；S1-08
+- 变更文件：
+  - 新增迁移：`V6_1__reservation_permissions.sql`
+  - 新增模块：`reservation/service/ReservationCommandService.java`、`reservation/domain/ReservationConflictException.java`、`reservation/web/{ReservationController,CreateReservationRequest,ReservationView}.java`
+  - 修改：`reservation/service/OccupancyService.java`（抽出包级 `writeHeldOccupancy`，`hold` 委托之）、`reservation/mapper/ReservationMapper.java` + XML（`findAvailableRooms`）、`journal/domain/AuditActions.java`（新增 `reservation.create`）、`test/support/NoDatabaseStubConfig.java`、`test/resources/db/integration-cleanup.sql`
+  - 新增测试：`reservation/ReservationCommandIntegrationTest.java`
+- 验证（本轮实际执行，详见 [S1-08 记录](../verification/S1-08/2026-10-30-reservation-create.md)）：
+  - `./mvnw -o -q -DskipTests compile` → 退出码 0
+  - `PMS_IT_DB=true ./mvnw -B -ntp test` → `Tests run: 110, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（本轮新增 5 个）
+  - 无库：`./mvnw -B -ntp test` → 110 run / **91 skipped** / 0 failure → BUILD SUCCESS
+  - `PMS_IT_DB=true ./mvnw -o -B -ntp verify` → 110 tests / 0 failure → **BUILD SUCCESS**（12.2s）
+  - 数据库核对：`flyway_schema_history` V1—V6.1 全 success
+  - 关键用例：2 房×3 晚 → 1 单/2 行/2 占用/6 流水；房型 B 0 间 → 整单回滚且 0 残留；同键重放拿回同一订单 id；1 房 2 并发 → 仅 1 成功；日期反转/相等被 `StayRange` 拒
+  - 未覆盖：确认/取消（S1-09）、超时释放（S1-10）、可售投影（S1-12）、订单列表/详情（S1-11）、HTTP 403/404 专用 MockMvc 测试（控制器接线经上下文加载隐含验证）
+- 本轮发现（已处理 / 转下轮）：
+  1. **自动选房不能"先查再写"**：读阶段选中、写之前可能被别人抢走。故锁定全部房间后再重核一次可用性，把竞态在业务层挡成结构化冲突。
+  2. **`OccupancyService.hold` 重构为委托 `writeHeldOccupancy`**：独立占房仍自带系统级幂等记录；命令级占用不再各建一条，统一记到命令 operation_id。
+  3. 建单审计用独立动作 `reservation.create`，不再误用 `occupancy.hold`。
+  4. 客户端命名空间经 `X-Caller-Namespace` 进入幂等作用域，避免跨主体键复用。
+- 回写确认：feature-catalog ✓（D-02/D-03 → VERIFYING）、§1 快照 ✓、规划 §1.3 ✓
+- 下一步：`S1-09` 确认、取消与 No-show
 
 ---
 

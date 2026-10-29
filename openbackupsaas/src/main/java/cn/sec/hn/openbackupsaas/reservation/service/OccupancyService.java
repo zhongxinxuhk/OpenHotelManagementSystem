@@ -58,6 +58,10 @@ public class OccupancyService {
     /**
      * 落一条预订占用（HELD）。
      *
+     * <p>这是**独立**占房路径（S1-05 的测试与未来人工锁房走这里）：自带资源锁与系统级幂等记录。
+     * 需要把占用纳入"一次创建订单"命令（S1-08）时，请用 {@link #writeHeldOccupancy}，
+     * 由命令层统一管理锁序与幂等。
+     *
      * @return 落库后的占用；冲突时抛 {@link ConflictException}（409，文案来自约束名映射）
      */
     @Transactional
@@ -69,15 +73,43 @@ public class OccupancyService {
                               StayRange stayRange,
                               OffsetDateTime expiresAt,
                               String reasonCode) {
-        requireReservation(tenantId, hotelId, reservationId);
-        lockRooms(tenantId, hotelId, List.of(roomId));
-
-        RoomOccupancy occupancy = RoomOccupancy.held(UUID.randomUUID(), tenantId, hotelId, roomId,
-                reservationId, lineId, stayRange, expiresAt, reasonCode, now());
-        RoomOccupancy saved = insertOrConflict(occupancy);
         UUID operationId = idempotencyService.beginInternal(tenantId, hotelId, "occupancy.hold",
                 RequestDigest.sha256Hex(Map.of("roomId", roomId, "lineId", lineId,
                         "from", stayRange.checkIn().toString(), "to", stayRange.checkOut().toString())));
+        lockRooms(tenantId, hotelId, List.of(roomId));
+        RoomOccupancy saved = writeHeldOccupancy(operationId, tenantId, hotelId, reservationId, lineId,
+                roomId, stayRange, expiresAt, reasonCode);
+        idempotencyService.succeed(tenantId, operationId, saved.id(),
+                Map.of("occupancyId", saved.id(), "status", saved.status().name()));
+        return saved;
+    }
+
+    /**
+     * 命令级写入：在调用方已经锁好房间资源（统一锁序）的前提下，落一条 HELD 占用并写流水/审计/事件。
+     *
+     * <p>与 {@link #hold} 不同，本方法：
+     * <ul>
+     *   <li><b>不</b>自己锁房间——锁序由命令层在写任何占用之前统一锁定全部房间；</li>
+     *   <li><b>不</b>管理幂等——{@code operationId} 由命令层（{@code IdempotencyService.execute}）提供，
+     *       占用流水与事件都记到这个命令操作标识下，而不是每条占用各建一条幂等记录；</li>
+     *   <li>仅做"锁聚合根 → 插占用 → 记事实"，冲突由 EXCLUDE 约束兜底。</li>
+     * </ul>
+     *
+     * <p>可见性设为包级：命令层在本包内调用，外部不应绕过锁序直接调用。
+     */
+    RoomOccupancy writeHeldOccupancy(UUID operationId,
+                                    UUID tenantId,
+                                    UUID hotelId,
+                                    UUID reservationId,
+                                    UUID lineId,
+                                    UUID roomId,
+                                    StayRange stayRange,
+                                    OffsetDateTime expiresAt,
+                                    String reasonCode) {
+        requireReservation(tenantId, hotelId, reservationId);
+        RoomOccupancy occupancy = RoomOccupancy.held(UUID.randomUUID(), tenantId, hotelId, roomId,
+                reservationId, lineId, stayRange, expiresAt, reasonCode, now());
+        RoomOccupancy saved = insertOrConflict(occupancy);
         journalService.recordOccupancyEffect(operationId, tenantId, hotelId, roomId, stayRange,
                 EffectKind.RESERVATION, true, reasonCode);
         journalService.recordAudit(tenantId, hotelId, AuditActions.OCCUPANCY_HELD, "room_occupancy",
@@ -88,8 +120,6 @@ public class OccupancyService {
                 saved.version(), 1, "RoomOccupancyHeld",
                 Map.of("roomId", roomId, "from", stayRange.checkIn().toString(),
                         "to", stayRange.checkOut().toString(), "kind", "RESERVATION"));
-        idempotencyService.succeed(tenantId, operationId, saved.id(),
-                Map.of("occupancyId", saved.id(), "status", saved.status().name()));
         return saved;
     }
 

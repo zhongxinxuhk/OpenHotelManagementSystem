@@ -95,6 +95,25 @@
         FOR UPDATE
     </select>
 
+    <select id="findAvailableRooms" resultMap="lockedRoomMap">
+        SELECT id, tenant_id, hotel_id, room_type_id, code, floor, status, housekeeping_status,
+               notes, version, created_at, updated_at
+        FROM physical_room r
+        WHERE r.tenant_id = #{tenantId}
+          AND r.hotel_id = #{hotelId}
+          AND r.room_type_id = #{roomTypeId}
+          AND r.status = 'ACTIVE'
+          AND NOT EXISTS (
+                SELECT 1 FROM room_occupancy o
+                WHERE o.tenant_id = r.tenant_id
+                  AND o.hotel_id = r.hotel_id
+                  AND o.room_id = r.id
+                  AND o.status IN ('HELD', 'CONFIRMED', 'CHECKED_IN', 'BLOCKED')
+                  AND o.stay_range &amp;&amp; #{range}::daterange
+          )
+        ORDER BY r.code
+    </select>
+
     <!-- ============ 订单行（L） ============ -->
 
     <insert id="insertLine" parameterType="cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine">

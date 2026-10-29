@@ -18,6 +18,7 @@ import cn.sec.hn.openbackupsaas.reservation.domain.OccupancyStatus;
 import cn.sec.hn.openbackupsaas.reservation.domain.Reservation;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine;
 import cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy;
+import cn.sec.hn.openbackupsaas.reservation.domain.StayRange;
 import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationMapper;
 import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
 import cn.sec.hn.openbackupsaas.room.domain.RoomStatus;
@@ -407,6 +408,12 @@ public class NoDatabaseStubConfig {
 
         @Override
         public List<RoomOccupancy> findOccupanciesOfRoom(UUID tenantId, UUID hotelId, UUID roomId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<PhysicalRoom> findAvailableRooms(UUID tenantId, UUID hotelId, UUID roomTypeId,
+                                                    StayRange range) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
