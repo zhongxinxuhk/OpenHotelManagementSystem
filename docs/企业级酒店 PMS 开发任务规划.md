@@ -11,6 +11,8 @@
 > 适用方式：单人主导、AI 辅助开发，先完成交易正确性，再逐步开放多端与渠道。
 >
 > 本文是实施规划，所有任务初始状态均为 `TODO`；最新执行进度见 §1.3。所列能力、目录、测试报告及服务指标均不代表已经实现。
+>
+> 执行层文档见 [docs/development/](./development/README.md)：[功能清单](./development/feature-catalog.md)（124 项 FT）、[进度台账](./development/progress.md)、[前端规范](./development/frontend-antd-pro.md)。**每轮开发必须按该入口 §3 回写进度。**
 
 ## 1. 规划结论与使用方式
 
@@ -52,6 +54,9 @@
 | 2026-10-19 | S0-02 订单、占用与入住状态机 | VERIFYING | [状态机设计](./domain/state-machines.md)、[28 个状态机验收场景](./domain/state-machine-scenarios.md)；14 条联合不变量、16 个命令、14 类竞态、主单聚合及历史占用规则 | 设计与场景已交付；部分履约、时点、资金和渠道分支待确定。未执行数据库/业务测试；S0-03 已完成最小构建验证，S0-04 模型候选已交付，待业务分支冻结 |
 | 2026-10-19 | S0-03 技术栈收敛与兼容性验证 | DONE | [ADR-011](./adr/ADR-011-technology-baseline.md)、[依赖矩阵](./architecture/dependency-version-matrix.md)、[最小构建报告及证据](./verification/S0-03/2026-10-19-compatibility-report.md)；原工程测试/构建及隔离候选构建通过 | 候选后端跳过测试，数据库运行集成未验证；真实源码与依赖未改动。S0-04 候选已交付，运行集成留 S1 |
 | 2026-10-19 | S0-04 交易不变量与数据模型 | VERIFYING | [ER 模型](./domain/data-model.md)、[字典](./domain/data-dictionary.md)、[事务协议](./domain/transaction-boundaries.md)、[30 个场景](./domain/data-model-scenarios.md)、五份 ADR；14 条不变量映射 | 业务决定仍 OPEN，未执行迁移/数据库测试；下一步 S0-05 |
+| 2026-10-29 | 开发文档体系 + 前端基线变更（S3-01a 前置准备） | BLOCKED（环境） | [开发文档入口](./development/README.md)、[124 项功能清单](./development/feature-catalog.md)、[进度台账](./development/progress.md)、[Ant Design Pro 前端规范](./development/frontend-antd-pro.md)、[ADR-015](./adr/ADR-015-frontend-ant-design-pro.md)、`frontend-admin-pro/` 工程骨架 | 前端改为 Ant Design Pro 6（ADR-011 前端行被取代）；Vue 骨架冻结未删。文档与决策已交付；**依赖安装受本机代理阻塞**（`ECONNREFUSED broker.sock`，6 次尝试），`tsc`/`biome:lint`/`build` 未执行，需宿主终端补跑（见 [S3-01a 记录](./verification/S3-01a/2026-10-30-dependency-install.md)）。O-11 模板 demo 与营销式欢迎页待清理。后端未改动 |
+| 2026-10-30 | S1-01 最小工程、环境与 CI | VERIFYING | 按 ADR-011 收敛 `pom.xml`；`local`/`test` 分档配置（秘密走环境变量）；默认拒绝安全链（401/403 ProblemDetail）；`X-Request-Id` 贯穿 MDC/响应头/错误体；RFC 9457 统一错误；12 个模块包占位；`db/migration` 单源说明；CI 两个 workflow；[后端开发说明](./development/backend-setup.md) | `./mvnw -B test` 8 个测试通过、运行态冒烟通过（health UP、业务路径 401、api-docs 在 test 档案关闭）。真实 PostgreSQL 集成测试与账号分权已在 S1-02 补上；**仅剩 CI 实跑未观测** |
+| 2026-10-30 | S1-02 Flyway 与组织基础表 | DONE | [V1 迁移](./../openbackupsaas/src/main/resources/db/migration/V1__org_baseline.sql)（tenant/hotel_group/hotel + 复合外键 + CHECK）、`scripts/dev-db.sh` 与 `db-bootstrap.sql`（迁移/应用账号分权）、组织 Mapper/Service、409 冲突映射、12 个真实 PostgreSQL 集成用例、CI postgres service | `PMS_IT_DB=true ./mvnw test` → **20 tests / 0 failure**；`pms_app` 不能建表、非超级用户；跨租户挂接与删除被外键拒绝；停用租户写入被拒。证据见 [S1-02 记录](./verification/S1-02/2026-10-30-org-baseline.md)。V1→V2 升级验证待出现 V2 |
 
 本记录区分文档、构建与运行验证进度，具体边界以证据报告为准；其余任务仍为 TODO，原人日区间保持为规划估算，未用本次文档生成时长冒充完整任务实际工时。
 
@@ -61,12 +66,12 @@
 
 | 领域 | 当前文件证据 | 与目标的差距 | 处理任务 |
 | --- | --- | --- | --- |
-| 后端基础 | `openbackupsaas/pom.xml` 声明 Java 21、Spring Boot 4.1.1、Spring Cloud 2025.1.3 | 与文档的候选维护线不同；支持周期和组件兼容性未核验；工程命名与酒店领域的关系待整理 | S0-03、S1-01 |
+| 后端基础 | `openbackupsaas/pom.xml` 已按 ADR-011 收敛：Java 21、Boot 4.1.1、webmvc/security/validation/actuator/jdbc/flyway/mybatis 4.1.0/springdoc 3.1.1；Kafka、Cloud、SOAP、WebSocket 已移除 | 依赖已对齐批准基线；认证、迁移与业务接口仍缺（见 S1-03、S1-02） | S1-01、S1-02、S1-03 |
 | 中间件 | POM 已声明 Kafka、Spring Cloud Function/Web、Web Services、WebSocket 等依赖 | 架构建议 RabbitMQ，并强调减少初期依赖；没有看到对应业务实现 | S0-03；按需求决定保留或移除，不预设现有依赖有问题 |
 | 数据库 | PostgreSQL 驱动已声明；最新 POM 未声明 Flyway | 未发现版本化迁移、数据库配置、领域数据访问实现；Flyway 待接入，MyBatis/jOOQ 尚未选定 | S0-03、S1-02—S1-05 |
 | 后端业务 | `openbackupsaas/src/main/` 下有主启动类及仅含应用名的 `application.properties` | 未发现组织、房间、预订、库存、支付、集成等业务模块 | 阶段 1—5 |
 | 后端测试 | `openbackupsaas/src/test/java/cn/sec/hn/openbackupsaas/OpenbackupsaasApplicationTests.java` 只有上下文测试 | 未发现真实 PostgreSQL、并发、幂等、故障与租户隔离测试 | S1-01、S1-13 及各阶段门禁 |
-| 前端 | `frontend-engineering-vue/package.json` 声明 Vue ^3.5.42、Vite ^8.2.2、TypeScript ~6.0.0；`App.vue` 为默认演示页 | 已与 Vue/Vite 方向对齐；尚未声明 Element Plus，未见业务页面；Node 与工具链兼容性待验证 | S0-03、S3-01 |
+| 前端 | `frontend-admin-pro/package.json` 声明 Ant Design Pro 6.0.3 / Umi Max 4.7 / React 19 / antd 6 / pro-components 3（2026-10-29 起）；`frontend-engineering-vue/` 为原 Vue 3.5 + Vite 骨架，已按 [ADR-015](./adr/ADR-015-frontend-ant-design-pro.md) 冻结停用 | 前端基线已按 ADR-015 更换并完成工程骨架铺开；尚未有 PMS 业务页面，模板 demo 页与营销式欢迎页待清理；构建验证待补 | S3-01a、S3-01、O-11 |
 | 工程治理 | 已有 Maven Wrapper、Git 忽略规则及架构文档 | 未发现 CI、部署脚本、OpenAPI 契约及其后端生成依赖、ADR、运行手册及生产验收证据 | S0-09、S1-01、阶段 6 |
 
 后续工程调整应先保留当前基线，再以独立变更逐步实施。S0-03 已新增技术决策及验证证据，并给架构候选表补充实施基线引用；真实 POM、前端依赖和业务代码未因此调整。
@@ -207,6 +212,7 @@ flowchart TD
 - 工作：落实已批准依赖和业务分包；配置开发/测试环境、异常响应、结构化日志、健康检查、测试容器及 CI；创建无生产数据的测试种子。
 - 交付：POM 变更、环境示例、CI 配置、测试基类、开发启动说明；沿用 `openbackupsaas/` 单 Maven 工程，工程命名与包名调整仅按 ADR 执行。
 - 验收：干净检出可构建并运行测试；缺失关键配置明确失败；真实 PostgreSQL 测试可在 CI 执行，普通业务账号不是超级用户，日志不包含凭证。
+- 执行记录（2026-10-30）：VERIFYING；依赖已按 [ADR-011](./adr/ADR-011-technology-baseline.md) 收敛（移除 Kafka/Cloud/SOAP/WebSocket，引入 validation/actuator/jdbc/flyway/mybatis 4.1.0/springdoc 3.1.1）；`local`/`test` 分档、秘密全走环境变量；默认拒绝安全链与 RFC 9457 统一错误；`X-Request-Id` 贯穿日志与错误响应；12 个模块包占位；CI 两个 workflow；说明见 [backend-setup](./development/backend-setup.md)。`./mvnw -B test` 8 个测试通过，运行态冒烟通过。**未完成**：真实 PostgreSQL 集成测试基类与 CI service 容器、迁移/应用账号分权、CI 实际执行 —— 因此不标 DONE。
 
 #### S1-02 Flyway 与组织基础表
 
@@ -214,6 +220,7 @@ flowchart TD
 - 工作：实现 tenant、hotel_group、hotel 和基础账号关系迁移；加入外键、租户内编码唯一性、时间戳和状态字段；配置迁移账号与应用账号分权。
 - 交付：首批迁移、组织数据访问及服务、租户/门店测试数据、迁移验证脚本。
 - 验收：空库初始化和前一版本升级均通过；非法集团/门店跨租户关联失败；不能删除仍有业务引用的组织记录；组织状态影响写入授权。
+- 执行记录（2026-10-30）：DONE；[V1__org_baseline.sql](../openbackupsaas/src/main/resources/db/migration/V1__org_baseline.sql) 建立 tenant/hotel_group/hotel，含租户内编码唯一、`(id, tenant_id)` 复合唯一、跨租户复合外键与状态/编码 CHECK；`scripts/db-bootstrap.sql` 定义 `pms_migrator`（DDL）与 `pms_app`（仅 DML）分权。12 个真实 PostgreSQL 集成用例通过（空库初始化、跨租户挂接/删除被拒、停用租户写入被拒、应用账号不能建表、跨租户查询为空）。**升级路径验证**要等出现 V2 迁移时补做；并发冲突时机留 S1-13。证据：[S1-02 记录](../docs/verification/S1-02/2026-10-30-org-baseline.md)。
 
 #### S1-03 最小认证、授权和租户隔离
 
@@ -356,10 +363,19 @@ flowchart TD
 
 **目标：** 打通酒店员工日常操作闭环，所有 UI 操作调用既有后端授权及交易服务。
 
+#### S3-01a 前端工程骨架前置准备（Ant Design Pro）
+
+- 优先级：P1；估算：2–3；依赖：S0-03（后端/工具链基线）；依据：[ADR-015](./adr/ADR-015-frontend-ant-design-pro.md)、§3.2、§10 阶段3。
+- 追加说明：本子任务是 2026-10-29 的受控变更，允许在 G2 之前只做工程准备，**不解除 S3-01 对 S2-08 的硬依赖**，也不对业务开放。人日单列，不重算 §6.1 原 200–342 人日总量。
+- 工作：按 ADR-015 落实 Ant Design Pro 6 工程骨架、依赖与脚本、目录约定；固定 `tsc` / `biome:lint` / `build` 三件套门禁；定义四工作区（集团/门店/前台/运维）路由骨架与文案约束。
+- 交付：`frontend-admin-pro/` 工程、[前端工程规范](./development/frontend-antd-pro.md)、依赖版本与构建记录。
+- 验收：干净环境可安装并构建；类型检查与静态检查为 0 error；页面不出现自述式营销文本；凭证不进入构建产物；Vue 骨架已冻结不参与构建。
+- 执行记录（2026-10-29）：BLOCKED（环境）；工程骨架已铺开（模板 6.0.3，移除仓库元文件，包名 `hotel-pms-admin`）。`npm ci` 因本机代理断开连续失败 6 次（`ECONNREFUSED broker.sock`），`tsc`/`biome:lint`/`build` 未执行，需在宿主终端补跑；证据与根因见 [S3-01a 记录](./verification/S3-01a/2026-10-30-dependency-install.md)。demo 页清理登记为 O-11。
+
 #### S3-01 后台前端基础与契约接入
 
-- 优先级：P1；估算：3–5；依赖：S2-08；依据：§3.2、§10 阶段3。
-- 工作：按 S0-03 决策落实框架、构建、路由、组件、登录状态、错误处理、API 客户端和测试；定义集团、商家与前台工作区。
+- 优先级：P1；估算：3–5；依赖：S2-08（工程骨架由 S3-01a 先行）；依据：[ADR-015](./adr/ADR-015-frontend-ant-design-pro.md)、§3.2、§10 阶段3。
+- 工作：按 ADR-015 在既有骨架上落实路由、工作区、登录状态、错误处理与 API 客户端；**深度使用** Pro 组件（`ProLayout`/`ProTable`/`ProForm`/`ProDescriptions`/`PageContainer`），接入 OpenAPI 类型生成；定义集团、门店与前台工作区，清理模板 demo 页与营销式文案。
 - 交付：后台应用骨架、共享组件、契约生成流程、环境变量示例、构建流水线。
 - 验收：干净环境可安装构建；登录过期和权限拒绝正确反馈；请求可关联后端日志；凭证不写入构建产物；菜单隐藏不能替代服务端授权。
 
@@ -627,7 +643,9 @@ openbackupsaas/src/main/java/cn/sec/hn/openbackupsaas/
 openbackupsaas/src/main/resources/
   db/migration/           # 建议唯一正式 Flyway 迁移源
 openbackupsaas/src/test/java/ # 单元、真实数据库集成、权限和并发测试
-frontend-engineering-vue/ # 当前 Vue 前端；工具链和组件基线由 ADR-011 决定
+frontend-admin-pro/  # 管理端（Ant Design Pro 6 / Umi Max 4 / React 19 / antd 6），ADR-015
+frontend-engineering-vue/ # 原 Vue 前端，已按 ADR-015 冻结停用，待确认后归档
+docs/development/        # 开发执行层文档：功能清单、进度台账、前端规范
 contracts/openapi/       # HTTP 契约
 contracts/events/        # 事件结构、版本和兼容规则
 database/test-fixtures/  # 合成测试数据；不重复维护迁移源
@@ -831,7 +849,8 @@ M3 封闭试用能力累计约 117–198 人日，但该节点不自动满足真
 | ADR-008 | 租户授权、可选 RLS、隐私和敏感数据保留 | S0-08、S1-03 | 首个受保护业务 API 开放前 |
 | ADR-009 | 单一迁移源、版本策略、兼容与回退 | S0-09 | G0 |
 | ADR-010 | 渠道准入与技术联调独立管理 | S0-06、S0-09 | G0 |
-| ADR-011 | Boot/前端/消息/数据访问等实际技术基线 | S0-03 | G0 |
+| ADR-011 | Boot/前端/消息/数据访问等实际技术基线 | S0-03 | G0（管理前端部分已被 ADR-015 取代） |
+| [ADR-015](./adr/ADR-015-frontend-ant-design-pro.md) | 管理端前端改为 Ant Design Pro 并深度使用 Pro 组件 | S0-03 变更、S3-01a | 已选定；构建验证待补 |
 | ADR-012 | 酒店时区、住宿区间、营业日与夜审 | S0-05 | G0 |
 | ADR-013 | 预订时内部实体分配或额外未分房配额模型 | S0-05 | G0；若新增配额范围需重新估算 |
 | ADR-014 | 支付、锁房、取消、退款与账务协调 | S0-07 | G0 原则明确，支付开发前冻结服务商细则 |

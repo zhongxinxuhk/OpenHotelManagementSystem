@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  组织模块 SQL（S1-02）。原则：
+  1. 一律参数化（#{}），不拼接外部输入；
+  2. 门店/集团查询强制带 tenant_id 条件，不在应用层过滤；
+  3. 列清单显式写出，不用 SELECT *，避免加字段后静默改变返回结构。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.tenant.mapper.OrganizationMapper">
+
+    <resultMap id="tenantMap" type="cn.sec.hn.openbackupsaas.tenant.domain.Tenant">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.tenant.domain.TenantStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="hotelGroupMap" type="cn.sec.hn.openbackupsaas.tenant.domain.HotelGroup">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.tenant.domain.OrgStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="hotelMap" type="cn.sec.hn.openbackupsaas.tenant.domain.Hotel">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="group_id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="timezone" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.tenant.domain.OrgStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="tenantColumns">id, code, name, status, version, created_at, updated_at</sql>
+    <sql id="hotelGroupColumns">id, tenant_id, code, name, status, version, created_at, updated_at</sql>
+    <sql id="hotelColumns">id, tenant_id, group_id, code, name, timezone, status, version, created_at, updated_at</sql>
+
+    <insert id="insertTenant" parameterType="cn.sec.hn.openbackupsaas.tenant.domain.Tenant">
+        INSERT INTO tenant (id, code, name, status, version, created_at, updated_at)
+        VALUES (#{id}, #{code}, #{name}, #{status}, #{version}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findTenantById" resultMap="tenantMap">
+        SELECT <include refid="tenantColumns"/> FROM tenant WHERE id = #{id}
+    </select>
+
+    <select id="findTenantByCode" resultMap="tenantMap">
+        SELECT <include refid="tenantColumns"/> FROM tenant WHERE code = #{code}
+    </select>
+
+    <select id="findAllTenants" resultMap="tenantMap">
+        SELECT <include refid="tenantColumns"/> FROM tenant ORDER BY created_at
+    </select>
+
+    <insert id="insertHotelGroup" parameterType="cn.sec.hn.openbackupsaas.tenant.domain.HotelGroup">
+        INSERT INTO hotel_group (id, tenant_id, code, name, status, version, created_at, updated_at)
+        VALUES (#{id}, #{tenantId}, #{code}, #{name}, #{status}, #{version}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findHotelGroup" resultMap="hotelGroupMap">
+        SELECT <include refid="hotelGroupColumns"/>
+        FROM hotel_group
+        WHERE tenant_id = #{tenantId} AND id = #{id}
+    </select>
+
+    <select id="findHotelGroups" resultMap="hotelGroupMap">
+        SELECT <include refid="hotelGroupColumns"/>
+        FROM hotel_group
+        WHERE tenant_id = #{tenantId}
+        ORDER BY code
+    </select>
+
+    <insert id="insertHotel" parameterType="cn.sec.hn.openbackupsaas.tenant.domain.Hotel">
+        INSERT INTO hotel (id, tenant_id, group_id, code, name, timezone, status, version, created_at, updated_at)
+        VALUES (#{id}, #{tenantId}, #{groupId}, #{code}, #{name}, #{timezone}, #{status}, #{version},
+                #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findHotel" resultMap="hotelMap">
+        SELECT <include refid="hotelColumns"/>
+        FROM hotel
+        WHERE tenant_id = #{tenantId} AND id = #{id}
+    </select>
+
+    <select id="findHotelByCode" resultMap="hotelMap">
+        SELECT <include refid="hotelColumns"/>
+        FROM hotel
+        WHERE tenant_id = #{tenantId} AND code = #{code}
+    </select>
+
+    <select id="findHotels" resultMap="hotelMap">
+        SELECT <include refid="hotelColumns"/>
+        FROM hotel
+        WHERE tenant_id = #{tenantId}
+        ORDER BY code
+    </select>
+
+</mapper>

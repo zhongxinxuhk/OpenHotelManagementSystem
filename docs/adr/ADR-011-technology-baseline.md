@@ -4,6 +4,8 @@
 >
 > 实际工程依赖尚未按此 ADR 改动。数据库运行、迁移、业务事务和生产部署验收不在本次构建结论内。
 >
+> **部分取代（2026-10-29）**：管理端前端选择已被 [ADR-015](./ADR-015-frontend-ant-design-pro.md) 取代（Vue 3 + Element Plus → Ant Design Pro 6）。后端技术栈（Java 21 / Spring Boot 4.1.1 / MyBatis / Flyway / PostgreSQL 17 / RabbitMQ 阶段 2 引入 / Redis 暂缓）仍然有效。
+>
 > 输入：[架构 §3.2](../enterprise_hotel_pms_architecture.md)、[开发规划](../企业级酒店%20PMS%20开发任务规划.md)、[状态机](../domain/state-machines.md)。证据：[版本矩阵](../architecture/dependency-version-matrix.md)、[验证报告](../verification/S0-03/2026-10-19-compatibility-report.md)。
 
 ## 1. 背景与决策目标
@@ -24,8 +26,8 @@
 | API | springdoc 3.1.1，OpenAPI 3.x | 生成文档不能代替 S0-09 的命令、错误、幂等与事件契约；文档入口权限在 S1 配置 |
 | 基础能力 | Security、Validation、Actuator、JDBC | 保留安全入口，新增参数校验与健康能力。默认安全配置不能视为租户隔离、登录或 RBAC 已完成 |
 | 后端测试 | Boot 管理的 JUnit Jupiter 6.0.3；后续引入真实 PostgreSQL 测试 | 架构初稿列 JUnit 5，本次跟随现有 BOM 的 JUnit 6，不强制降级。Testcontainers 的具体版本与容器启动留 S1-01 验证 |
-| 管理前端 | Vue 3.5.44 / TypeScript 6.0.3 / Vite 8.3.4 / Element Plus 2.14.7 | 前三者来自现有锁文件，组件库通过最小按钮探针；暂不增加自动导入、状态库或新构建插件 |
-| 前端运行环境 | Node 24 LTS；本机验证 24.15.0 / npm 11.12.1 | 遵循项目 engines；提交 lockfile，CI 使用 npm ci，升级走独立变更 |
+| 管理前端 | ~~Vue 3.5.44 / TypeScript 6.0.3 / Vite 8.3.4 / Element Plus 2.14.7~~ → **已被 [ADR-015](./ADR-015-frontend-ant-design-pro.md) 取代：Ant Design Pro 6.0.3（Umi Max 4.7 / React 19 / antd 6 / pro-components 3）** | 2026-10-29 项目负责人决定改用 Ant Design Pro 并深度使用 Pro 组件体系；原 Vue 骨架冻结于 `frontend-engineering-vue/`，不参与构建。本行保留以维持决策历史 |
+| 前端运行环境 | Node 24 LTS；本机验证 24.15.0 / npm 11.12.1（ADR-015 下要求 ≥22，本机实际 22.22.2） | 遵循项目 engines；提交 lockfile，CI 使用 npm ci，升级走独立变更 |
 | 消息 | 只选 RabbitMQ；阶段 2 接入 | 阶段 1 同事务写 Outbox；阶段 2 实现发布、确认、Inbox、重试和恢复。不能以引入 Broker 代替数据库幂等 |
 | Redis | 首期不引入 | 仅在缓存/限流等明确需求后引入；不承担库存权威、数据库约束或锁房正确性职责 |
 | 日志 | 先结构化应用日志，集中日志优先 Loki | 有实际采集需求后再锁定版本；不同时部署 Loki 与 OpenSearch；指标与链路工具在运维阶段验证 |
@@ -45,7 +47,7 @@ MyBatis 4.1.0 的发布记录对应 Boot 4.1 适配；jOOQ 也有可用于 Java 
 | 移除 | webservices、websocket 及对应 test starter | S1-01 | 未来确有 SOAP/实时推送协议时再用独立 ADR 引入 |
 | 新增 | validation、actuator、jdbc、flyway starter、flyway-database-postgresql | S1-01/02 | 数据源、健康检查与迁移配置；确认数据库模块存在 |
 | 新增 | MyBatis starter 4.1.0、springdoc 3.1.1、jdbc-test | S1-01 | Mapper 扫描、事务回滚、API schema 和访问权限集成测试 |
-| 新增 | Element Plus 2.14.7 | S3-01 | 正式页面的样式、交互、无障碍及浏览器检查；当前只验证按钮构建 |
+| 新增 | ~~Element Plus 2.14.7~~ → Ant Design Pro 6 模板与其依赖（Umi Max、antd 6、pro-components 3、Biome） | S3-01a | 已改为由 [ADR-015](./ADR-015-frontend-ant-design-pro.md) 决定；正式业务页面接入在 S3-01 |
 | 延后 | RabbitMQ、Redis、Testcontainers、观测/日志后端的具体部署配置 | 对应 S1/S2/S6 任务 | 每项在引入时重新核验版本、许可证、支持周期及真实运行 |
 
 可参考[已编译候选 POM](../verification/S0-03/candidate-backend-pom.xml)逐项修改；它是验证快照，不是可以直接替代数据源配置、安全配置和测试设计的完整工程模板。
