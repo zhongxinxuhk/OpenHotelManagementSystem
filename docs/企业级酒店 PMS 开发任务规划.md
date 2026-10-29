@@ -70,7 +70,7 @@
 | 中间件 | POM 已声明 Kafka、Spring Cloud Function/Web、Web Services、WebSocket 等依赖 | 架构建议 RabbitMQ，并强调减少初期依赖；没有看到对应业务实现 | S0-03；按需求决定保留或移除，不预设现有依赖有问题 |
 | 数据库 | PostgreSQL 驱动已声明；最新 POM 未声明 Flyway | 未发现版本化迁移、数据库配置、领域数据访问实现；Flyway 待接入，MyBatis/jOOQ 尚未选定 | S0-03、S1-02—S1-05 |
 | 后端业务 | `openbackupsaas/src/main/` 下有主启动类及仅含应用名的 `application.properties` | 未发现组织、房间、预订、库存、支付、集成等业务模块 | 阶段 1—5 |
-| 后端测试 | `openbackupsaas/src/test/java/cn/sec/hn/openbackupsaas/OpenbackupsaasApplicationTests.java` 只有上下文测试 | 未发现真实 PostgreSQL、并发、幂等、故障与租户隔离测试 | S1-01、S1-13 及各阶段门禁 |
+| 后端测试 | `ApplicationContextTests`（上下文装配）+ `OrganizationIntegrationTest`（12 个真实 PostgreSQL 用例）等 20 个测试 | 并发、幂等、故障注入与跨模块隔离测试仍缺 | S1-13、S2-08 |
 | 前端 | `frontend-admin-pro/package.json` 声明 Ant Design Pro 6.0.3 / Umi Max 4.7 / React 19 / antd 6 / pro-components 3（2026-10-29 起）；`frontend-engineering-vue/` 为原 Vue 3.5 + Vite 骨架，已按 [ADR-015](./adr/ADR-015-frontend-ant-design-pro.md) 冻结停用 | 前端基线已按 ADR-015 更换并完成工程骨架铺开；尚未有 PMS 业务页面，模板 demo 页与营销式欢迎页待清理；构建验证待补 | S3-01a、S3-01、O-11 |
 | 工程治理 | 已有 Maven Wrapper、Git 忽略规则及架构文档 | 未发现 CI、部署脚本、OpenAPI 契约及其后端生成依赖、ADR、运行手册及生产验收证据 | S0-09、S1-01、阶段 6 |
 

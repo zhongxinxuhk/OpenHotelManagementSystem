@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### macOS ###
+.DS_Store
+**/.DS_Store
+
+### Agent 本地状态（非源码） ###
+.workbuddy/

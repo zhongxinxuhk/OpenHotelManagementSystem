@@ -72,7 +72,7 @@ PMS_IT_DB=true ./mvnw -B test   # 连真实库，20/20 通过
 
 ```text
 cn.sec.hn.openbackupsaas
-├── OpenbackupsaasApplication.java     启动类（排除 UserDetailsServiceAutoConfiguration）
+├── openFrameworksApplication.java     启动类（排除 UserDetailsServiceAutoConfiguration）
 ├── shared/
 │   ├── config/SecurityConfig.java     默认拒绝的安全基线（无任何可用登录方式）
 │   ├── config/OpenApiConfig.java      OpenAPI 元信息（可开关）

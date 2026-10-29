@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest
 @ActiveProfiles("test")
 @Import(NoDatabaseStubConfig.class)
-class OpenbackupsaasApplicationTests {
+class ApplicationContextTests {
 
     @Autowired
     private ApplicationContext context;

@@ -10,7 +10,7 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-02`（S1-02 组织基线：Flyway V1 + 租户/集团/门店 + 账号分权） |
+| 当前轮次 | `R-20261030-03`（合并到主项目目录 + 启动类/测试类命名同步，chore） |
 | 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
 | 已通过门禁 | 无（G0 未开审） |
 | 后端工程状态 | 依赖按 ADR-011 收敛；组织域已落库（3 张表 + 复合外键 + CHECK）；**20 个测试全部通过（含 12 个真实 PostgreSQL 集成用例）**；认证、租户隔离、库存与订单仍未实现 |
@@ -159,6 +159,21 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261030-03 合并到主项目目录 + 命名同步（chore）
+
+- 状态：DONE
+- 范围：把工作树分支 `workbuddy/main-aed5b5c8` 合并进 `main`（主项目目录 `/Users/xuzhongxin/IdeaProjects/OpenHotelManagementSystem`）；启动类保留主目录的改名 `openFrameworksApplication`，并把 S1-01 的 `@SpringBootApplication(exclude = UserDetailsServiceAutoConfiguration.class)` 与说明注释移植过去；测试类 `OpenbackupsaasApplicationTests` → `ApplicationContextTests`。
+- 涉及功能项/任务：无（不改变任何功能项状态）
+- 变更文件：`.gitignore`（忽略 `.DS_Store` 与 `.workbuddy/`）、`docs/development/backend-setup.md`（启动类名）、规划 §2 后端测试行、`ApplicationContextTests.java`（rename）
+- 验证：
+  - 合并后 `PMS_IT_DB=true ./mvnw -B -ntp test` → `Tests run: 20, Failures: 0, Errors: 0` → **BUILD SUCCESS**
+  - 冲突仅 1 处（启动类 rename vs 注解改动），已人工合并，无 `<<<<<<<` 残留，旧文件已删除
+- 本轮发现：主目录原有的未提交改名会挡住合并——此后凡在 IDE 里改动，建议先提交或告知，避免工作树分支与主目录各自演进。
+- 回写确认：feature-catalog 无变化（一致）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S1-03` 最小认证/授权/租户隔离。
 
 ---
 
