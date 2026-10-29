@@ -5,6 +5,9 @@ import cn.sec.hn.openbackupsaas.reservation.domain.Reservation;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine;
 import cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy;
 import cn.sec.hn.openbackupsaas.reservation.domain.StayRange;
+import cn.sec.hn.openbackupsaas.journal.domain.AuditActions;
+import cn.sec.hn.openbackupsaas.journal.domain.EffectKind;
+import cn.sec.hn.openbackupsaas.journal.service.JournalService;
 import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationMapper;
 import cn.sec.hn.openbackupsaas.shared.error.NotFoundException;
 import cn.sec.hn.openbackupsaas.shared.error.ConflictException;
@@ -15,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -37,10 +41,12 @@ import java.util.UUID;
 public class OccupancyService {
 
     private final ReservationMapper reservationMapper;
+    private final JournalService journalService;
     private final Clock clock;
 
-    public OccupancyService(ReservationMapper reservationMapper, Clock clock) {
+    public OccupancyService(ReservationMapper reservationMapper, JournalService journalService, Clock clock) {
         this.reservationMapper = reservationMapper;
+        this.journalService = journalService;
         this.clock = clock;
     }
 
@@ -63,7 +69,18 @@ public class OccupancyService {
 
         RoomOccupancy occupancy = RoomOccupancy.held(UUID.randomUUID(), tenantId, hotelId, roomId,
                 reservationId, lineId, stayRange, expiresAt, reasonCode, now());
-        return insertOrConflict(occupancy);
+        RoomOccupancy saved = insertOrConflict(occupancy);
+        journalService.recordOccupancyEffect(tenantId, hotelId, roomId, stayRange, EffectKind.RESERVATION,
+                true, reasonCode);
+        journalService.recordAudit(tenantId, hotelId, AuditActions.OCCUPANCY_HELD, "room_occupancy",
+                saved.id(), null, saved.version(),
+                Map.of("roomId", roomId, "from", stayRange.checkIn().toString(),
+                        "to", stayRange.checkOut().toString(), "lineId", lineId));
+        journalService.recordEvent(tenantId, hotelId, JournalService.occupancyAggregate(), saved.id(),
+                saved.version(), 1, "RoomOccupancyHeld",
+                Map.of("roomId", roomId, "from", stayRange.checkIn().toString(),
+                        "to", stayRange.checkOut().toString(), "kind", "RESERVATION"));
+        return saved;
     }
 
     /**
@@ -78,7 +95,18 @@ public class OccupancyService {
 
         RoomOccupancy occupancy = RoomOccupancy.block(UUID.randomUUID(), tenantId, hotelId, roomId,
                 stayRange, reasonCode, now());
-        return insertOrConflict(occupancy);
+        RoomOccupancy saved = insertOrConflict(occupancy);
+        journalService.recordOccupancyEffect(tenantId, hotelId, roomId, stayRange, EffectKind.BLOCK,
+                true, reasonCode);
+        journalService.recordAudit(tenantId, hotelId, AuditActions.OCCUPANCY_BLOCKED, "room_occupancy",
+                saved.id(), null, saved.version(),
+                Map.of("roomId", roomId, "from", stayRange.checkIn().toString(),
+                        "to", stayRange.checkOut().toString()));
+        journalService.recordEvent(tenantId, hotelId, JournalService.occupancyAggregate(), saved.id(),
+                saved.version(), 1, "RoomBlocked",
+                Map.of("roomId", roomId, "from", stayRange.checkIn().toString(),
+                        "to", stayRange.checkOut().toString(), "kind", "BLOCK"));
+        return saved;
     }
 
     /** 释放/解除：只改状态，不删行。终态退出排斥谓词，房间随之可再售。 */
@@ -92,7 +120,27 @@ public class OccupancyService {
             return current;
         }
         reservationMapper.updateOccupancyStatus(tenantId, hotelId, occupancyId, target, now());
-        return requireOccupancy(tenantId, hotelId, occupancyId);
+        RoomOccupancy updated = requireOccupancy(tenantId, hotelId, occupancyId);
+
+        // 释放是"对冲一行"，不是删掉原来的占用行：历史事实不能因为取消而消失
+        boolean freesRoom = current.status().isEffective() && !target.isEffective();
+        if (freesRoom) {
+            EffectKind kind = current.kind() == cn.sec.hn.openbackupsaas.reservation.domain.OccupancyKind.BLOCK
+                    ? EffectKind.BLOCK
+                    : EffectKind.RESERVATION;
+            String action = target == OccupancyStatus.UNBLOCKED
+                    ? AuditActions.OCCUPANCY_UNBLOCKED
+                    : AuditActions.OCCUPANCY_RELEASED;
+            journalService.recordOccupancyEffect(tenantId, hotelId, current.roomId(), current.stayRange(),
+                    kind, false, current.reasonCode());
+            journalService.recordAudit(tenantId, hotelId, action, "room_occupancy", updated.id(),
+                    current.version(), updated.version(),
+                    Map.of("roomId", current.roomId(), "status", target.name()));
+            journalService.recordEvent(tenantId, hotelId, JournalService.occupancyAggregate(), updated.id(),
+                    updated.version(), 1, "RoomOccupancyReleased",
+                    Map.of("roomId", current.roomId(), "status", target.name(), "kind", current.kind().name()));
+        }
+        return updated;
     }
 
     /** 多房场景的资源锁入口：S1-08 的原子锁房会用它一次锁全部房间。 */

@@ -5,6 +5,12 @@ import cn.sec.hn.openbackupsaas.identity.domain.Role;
 import cn.sec.hn.openbackupsaas.identity.domain.SessionView;
 import cn.sec.hn.openbackupsaas.identity.domain.UserSession;
 import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
+import cn.sec.hn.openbackupsaas.journal.domain.ActorType;
+import cn.sec.hn.openbackupsaas.journal.domain.AuditLog;
+import cn.sec.hn.openbackupsaas.journal.domain.EffectKind;
+import cn.sec.hn.openbackupsaas.journal.domain.InventoryLedger;
+import cn.sec.hn.openbackupsaas.journal.domain.OutboxEvent;
+import cn.sec.hn.openbackupsaas.journal.mapper.JournalMapper;
 import cn.sec.hn.openbackupsaas.reservation.domain.OccupancyStatus;
 import cn.sec.hn.openbackupsaas.reservation.domain.Reservation;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine;
@@ -53,6 +59,11 @@ public class NoDatabaseStubConfig {
     }
 
     @Bean
+    JournalMapper journalMapper() {
+        return new JournalMapperStub();
+    }
+
+    @Bean
     RoomMapper roomMapper() {
         return new RoomMapperStub();
     }
@@ -60,6 +71,45 @@ public class NoDatabaseStubConfig {
     @Bean
     ReservationMapper reservationMapper() {
         return new ReservationMapperStub();
+    }
+
+    static final class JournalMapperStub implements JournalMapper {
+
+        @Override
+        public int insertLedger(InventoryLedger ledger) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<InventoryLedger> findLedgerOfRoom(UUID tenantId, UUID hotelId, UUID roomId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int sumDelta(UUID tenantId, UUID hotelId, UUID roomId, java.time.LocalDate stayDate,
+                            EffectKind effectKind) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertAudit(AuditLog audit) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<AuditLog> findAuditOfTarget(UUID tenantId, String targetType, UUID targetId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertEvent(OutboxEvent event) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<OutboxEvent> findEventsOfAggregate(UUID tenantId, String aggregateType, UUID aggregateId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
     }
 
     static final class OrganizationMapperStub implements OrganizationMapper {

@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-06）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-07）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-06`（S1-05 日期约束、占用排斥与维修互斥，DONE） |
-| 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02—S1-05 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
+| 当前轮次 | `R-20261030-07`（S1-06 库存流水、审计与 Outbox 原子写入，DONE） |
+| 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02—S1-06 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
 | 已通过门禁 | 无（G0 未开审） |
-| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用四域已落库（V1—V4 共 14 张表，复合外键 + CHECK + GiST 排斥）；**89 个测试全部通过（含 70 个真实 PostgreSQL 集成用例）**；订单命令、库存流水、幂等与支付仍未实现 |
+| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计五域已落库（V1—V5.2 共 17 张表，复合外键 + CHECK + GiST 排斥）；**97 个测试全部通过（含 78 个真实 PostgreSQL 集成用例）**；订单命令、幂等、发布器与支付仍未实现 |
 | 前端工程状态 | `frontend-admin-pro/` 工程文件已就位；`npm ci` 受本机代理阻塞，见 [S3-01a 记录](../verification/S3-01a/2026-10-30-dependency-install.md) |
-| 功能项完成度 | 约 12.5%（124 项，DONE 9 项，见 feature-catalog §1） |
-| 下一轮目标 | ①`S1-06` 库存流水/审计/Outbox 原子写入；②`S1-07` 持久化幂等与提交不确定恢复 |
+| 功能项完成度 | 约 13.8%（124 项，DONE 9 项，见 feature-catalog §1） |
+| 下一轮目标 | ①`S1-07` 持久化幂等与提交不确定恢复；②`S1-08` 原子锁房与订单创建 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -43,7 +43,7 @@
 | S1-03 | 最小认证、授权和租户隔离 | P0 | 3–5 | DONE |
 | S1-04 | 房型、实体房间与运营状态 | P0 | 2–4 | DONE |
 | S1-05 | 日期约束、占用排斥与维修互斥 | P0 | 4–6 | DONE |
-| S1-06 | 库存流水、审计和 Outbox 原子写入 | P0 | 3–5 | TODO |
+| S1-06 | 库存流水、审计和 Outbox 原子写入 | P0 | 3–5 | DONE |
 | S1-07 | 持久化请求幂等与提交不确定恢复 | P0 | 3–5 | TODO |
 | S1-08 | 原子锁房与订单创建 | P0 | 3–5 | TODO |
 | S1-09 | 确认、取消与 No-show | P0 | 3–5 | TODO |
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 5（S0-03、S1-02—S1-05） |
+| DONE | 6（S0-03、S1-02—S1-06） |
 | VERIFYING | 4（S0-01、S0-02、S0-04、S1-01） |
 | BLOCKED | 2（S3-01a 环境阻塞、S5-01 渠道授权） |
-| TODO | 55 |
+| TODO | 54 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -159,6 +159,42 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261030-07 S1-06 库存流水、审计与 Outbox 原子写入
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. Flyway V5 / V5.1 / V5.2：`inventory_ledger`（逐晚效果流水，占用 -1、释放 +1 对冲）、`audit_log`、`outbox_event`；流水唯一键最终收敛为 `(tenant_id, hotel_id, operation_id, room_id, stay_date, effect_kind)`。
+  2. 交易写入公共组件 `JournalService`：占用写入与流水、审计、Outbox 落在**同一个事务**，任一失败整体回滚。
+  3. 事件模型：聚合类型/版本、`event_ordinal`、`schema_version`、载荷 jsonb；三张表只追加（Mapper 只有 INSERT/SELECT）。
+  4. 审计目录 `AuditActions`：动作名必须登记，未登记直接拒绝。
+  5. 测试：`JournalIntegrationTest` 8 例（多晚多条流水、重复不入账、注入失败整体回滚、事件序号、主体来源）。
+- 本轮明确不做：Outbox 发布与 Worker（S2-01）、幂等记录与 `operation_id` 外键（S1-07）、库存投影重建（S1-12）、Inbox（S2-02）、登录/越权审计接入（随 S1-11/S3-02）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：E-01、B-05（部分）；S1-06
+- 变更文件：
+  - 新增迁移：`V5__journal_baseline.sql`、`V5_1__ledger_effect_unique.sql`、`V5_2__ledger_operation_id.sql`
+  - 新增模块：`journal/domain/{InventoryLedger,EffectKind,AuditLog,ActorType,OutboxEvent,AuditActions}.java`、`journal/mapper/JournalMapper.java`、`journal/service/JournalService.java`、`journal/package-info.java`
+  - 新增 SQL：`resources/mapper/journal/JournalMapper.xml`
+  - 新增测试：`journal/JournalIntegrationTest.java`
+  - 修改：`reservation/service/OccupancyService.java`（hold/block/启停同事务写流水+审计+事件）、`reservation/domain/StayRange.java`（新增 `dates()` 逐晚展开）、`test/support/NoDatabaseStubConfig.java`、`test/resources/db/integration-cleanup.sql`
+- 验证（本轮实际执行，详见 [S1-06 记录](../verification/S1-06/2026-10-30-journal-baseline.md)）：
+  - `./mvnw -o -q -DskipTests compile` → 退出码 0
+  - `PMS_IT_DB=true ./mvnw -B -ntp test` → `Tests run: 97, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（本轮新增 8 个）
+  - 无库：`./mvnw -B -ntp test` → 97 run / **78 skipped** / 0 failure → BUILD SUCCESS
+  - `PMS_IT_DB=true ./mvnw -o -B -ntp verify` → 97 tests / 0 failure → **BUILD SUCCESS**
+  - 数据库核对：`flyway_schema_history` V5 / 5.1 / 5.2 全 success；`uq_inventory_ledger_effect` 定义为 `UNIQUE (tenant_id, hotel_id, operation_id, room_id, stay_date, effect_kind)`
+  - 关键用例：4 晚 4 行流水（delta 均为 -1）、释放 8 行净效果 0、同操作重复写被拒、注入异常后四张表全 0、冲突失败不留流水与事件、主体来自上下文否则 SYSTEM
+  - 未覆盖：多房整单原子（S1-08）、`operation_id` 外键（S1-07）、发布与重试（S2-01/S2-04）、投影重建（S1-12）、登录与越权审计接入
+- 本轮发现（已处理 / 转下轮）：
+  1. **释放不能删行，所以唯一键必须带方向**：第一版 `(room, date, kind)` 会把"占用 → 释放 → 再占用"这个合法业务循环判成重复入账（等于房间取消后卖不出去）。最终用字典的 `(operation_id, room, date, kind)` 形式。
+  2. **`operation_id` 提前于 S1-07 出现是必要的**：没有它，唯一键在"防重复"与"允许取消后重售"之间二选一。S1-07 只需补外键。
+  3. **MyBatis 包装类型坑再次出现**：`InventoryLedger.delta`(`int`)、`OutboxEvent.aggregateVersion/eventOrdinal/schemaVersion/attemptCount`(`long`/`int`) 读取时 `NoSuchMethodException`，统一改包装类型。
+  4. jsonb 同样走文本绑定 + SQL 侧 `::jsonb`（驱动 runtime 作用域，无 `PGobject`）。
+  5. **原子性由调用方事务提供**：`JournalService` 只负责"在同一事务里追加事实"，调用方不开启事务没人拦得住半截状态。
+- 回写确认：feature-catalog ✓（E-01 → VERIFYING 75%、B-05 → VERIFYING 50%）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S1-07` 持久化幂等与提交不确定恢复
 
 ---
 

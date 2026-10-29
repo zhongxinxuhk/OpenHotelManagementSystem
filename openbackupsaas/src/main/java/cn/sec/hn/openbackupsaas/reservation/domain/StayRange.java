@@ -1,6 +1,8 @@
 package cn.sec.hn.openbackupsaas.reservation.domain;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -53,6 +55,15 @@ public record StayRange(LocalDate checkIn, LocalDate checkOut) {
     /** 相邻：前一单的离店日 == 后一单的入住日，可续住，不冲突。 */
     public boolean isAdjacentTo(StayRange other) {
         return checkOut.equals(other.checkIn()) || other.checkOut().equals(checkIn);
+    }
+
+    /** 逐晚展开：半开区间的每一天，用于按"房间 + 住宿日"写库存流水。 */
+    public List<LocalDate> dates() {
+        List<LocalDate> dates = new ArrayList<>();
+        for (LocalDate date = checkIn; date.isBefore(checkOut); date = date.plusDays(1)) {
+            dates.add(date);
+        }
+        return List.copyOf(dates);
     }
 
     public int nights() {
