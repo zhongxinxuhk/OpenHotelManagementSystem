@@ -134,6 +134,8 @@ API，计划维护是否计入，以及 OTA 等外部平台故障是否计入系
 ### 3.2 推荐技术栈
 
 > 实施基线增补（2026-10-19）：下表保留初始候选方案。S0-03 已按 [ADR-011](./adr/ADR-011-technology-baseline.md) 收敛到 Java 21 / Spring Boot 4.1.1、MyBatis 4.1.0、Boot BOM 管理的 JUnit 6、Vue / Element Plus；RabbitMQ 在阶段 2 引入，Redis 暂缓。精确版本及构建与运行验证边界见 [依赖矩阵](./architecture/dependency-version-matrix.md) 和 [验证报告](./verification/S0-03/2026-10-19-compatibility-report.md)。
+>
+> **管理端变更（2026-10-29）**：商家/管理端前端基线已由 Vue 3 + Element Plus 改为 **Ant Design Pro 6（Umi Max 4 / React 19 / antd 6 / pro-components 3）深度使用**，见 [ADR-015](./adr/ADR-015-frontend-ant-design-pro.md) 与[前端工程规范](./development/frontend-antd-pro.md)。下表「商家/管理端」行为初始候选，不再是实施基线。后端选型不受影响。
 
   --------------------------------------------------------------------------------------------------------
   层次                    推荐技术                              选择理由与约束

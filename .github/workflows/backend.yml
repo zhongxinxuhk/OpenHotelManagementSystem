@@ -1,0 +1,82 @@
+name: backend
+
+# 后端门禁：干净检出必须能构建、跑单元测试，并在真实 PostgreSQL 上跑组织/约束集成测试（S1-01、S1-02）。
+# 集成测试通过 PMS_IT_DB=true 启用；未设置时相关用例会被跳过（本地无库的开发者仍可跑单元测试）。
+on:
+  push:
+    paths:
+      - 'openbackupsaas/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'openbackupsaas/**'
+      - '.github/workflows/backend.yml'
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        # 与 ADR-011 选定的大版本一致；锁大版本不锁补丁，补丁升级走依赖评审。
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      PMS_DB_HOST: 127.0.0.1
+      PMS_DB_PORT: '5432'
+      PMS_DB_NAME: pms
+      PMS_DB_USER: pms_app
+      PMS_DB_PASSWORD: ci_app_only
+      PMS_DB_MIGRATOR_USER: pms_migrator
+      PMS_DB_MIGRATOR_PASSWORD: ci_migrator_only
+      PMS_IT_DB: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: openbackupsaas/pom.xml
+
+      - name: Bootstrap database roles and grants
+        env:
+          PGPASSWORD: postgres
+        # 容器内 host 连接为 scram 认证，因此给两个非超级用户角色设置一次性口令；
+        # 该口令只存在于本次 job 的临时容器中，不用于任何共享环境。
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres \
+               -v ON_ERROR_STOP=1 -v dbname=pms -f openbackupsaas/scripts/db-bootstrap.sql
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 \
+               -c "ALTER ROLE pms_app PASSWORD 'ci_app_only'" \
+               -c "ALTER ROLE pms_migrator PASSWORD 'ci_migrator_only'"
+
+      - name: Verify (compile + unit + postgres integration tests)
+        working-directory: openbackupsaas
+        run: ./mvnw -B -ntp verify
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: openbackupsaas/target/surefire-reports/**
+          retention-days: 7
