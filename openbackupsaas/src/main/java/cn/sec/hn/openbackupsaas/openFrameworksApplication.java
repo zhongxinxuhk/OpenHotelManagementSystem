@@ -4,10 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class OpenbackupsaasApplication {
+public class openFrameworksApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(OpenbackupsaasApplication.class, args);
+        SpringApplication.run(openFrameworksApplication.class, args);
     }
 
 }
