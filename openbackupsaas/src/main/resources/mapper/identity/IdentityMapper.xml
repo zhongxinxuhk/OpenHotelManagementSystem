@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  身份模块 SQL（S1-03）。原则与组织模块一致，并额外强调：
+  1. 每条语句都带 tenant_id 条件——包括按主键的更新与删除，不存在"全局按 id 改"的语句；
+  2. 会话可用性判定（未撤销 / 未过期 / 账号可用 / 租户可用）合并成一条 SQL，
+     不留给应用层分步判断，避免半有效状态；
+  3. 任何语句都不返回 password_hash 给非认证路径；令牌只以哈希参与查询。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper">
+
+    <resultMap id="appUserMap" type="cn.sec.hn.openbackupsaas.identity.domain.AppUser">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.identity.domain.UserStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="last_login_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="roleMap" type="cn.sec.hn.openbackupsaas.identity.domain.Role">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.tenant.domain.OrgStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="sessionViewMap" type="cn.sec.hn.openbackupsaas.identity.domain.SessionView">
+        <constructor>
+            <idArg column="session_id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="user_id" javaType="java.util.UUID"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="expires_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="appUserColumns">
+        id, tenant_id, username, display_name, password_hash, status, version,
+        last_login_at, created_at, updated_at
+    </sql>
+
+    <!-- ============ 账号 ============ -->
+
+    <insert id="insertUser" parameterType="cn.sec.hn.openbackupsaas.identity.domain.AppUser">
+        INSERT INTO app_user (id, tenant_id, username, display_name, password_hash, status, version,
+                              last_login_at, created_at, updated_at)
+        VALUES (#{id}, #{tenantId}, #{username}, #{displayName}, #{passwordHash}, #{status}, #{version},
+                #{lastLoginAt}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findUserByUsername" resultMap="appUserMap">
+        SELECT <include refid="appUserColumns"/>
+        FROM app_user
+        WHERE tenant_id = #{tenantId} AND username = #{username}
+    </select>
+
+    <select id="findUser" resultMap="appUserMap">
+        SELECT <include refid="appUserColumns"/>
+        FROM app_user
+        WHERE tenant_id = #{tenantId} AND id = #{id}
+    </select>
+
+    <update id="updateLastLogin">
+        UPDATE app_user
+        SET last_login_at = #{at}, updated_at = #{at}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND id = #{userId}
+    </update>
+
+    <update id="updatePasswordHash">
+        UPDATE app_user
+        SET password_hash = #{passwordHash}, updated_at = #{at}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND id = #{userId}
+    </update>
+
+    <!-- ============ 角色与权限 ============ -->
+
+    <insert id="insertRole" parameterType="cn.sec.hn.openbackupsaas.identity.domain.Role">
+        INSERT INTO role (id, tenant_id, code, name, status, version, created_at, updated_at)
+        VALUES (#{id}, #{tenantId}, #{code}, #{name}, #{status}, #{version}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findRoleByCode" resultMap="roleMap">
+        SELECT id, tenant_id, code, name, status, version, created_at, updated_at
+        FROM role
+        WHERE tenant_id = #{tenantId} AND code = #{code}
+    </select>
+
+    <insert id="grantPermission">
+        INSERT INTO role_permission (tenant_id, role_id, permission_code)
+        VALUES (#{tenantId}, #{roleId}, #{permissionCode})
+        ON CONFLICT (role_id, permission_code) DO NOTHING
+    </insert>
+
+    <insert id="assignRole">
+        INSERT INTO user_role (tenant_id, user_id, role_id)
+        VALUES (#{tenantId}, #{userId}, #{roleId})
+        ON CONFLICT (user_id, role_id) DO NOTHING
+    </insert>
+
+    <!-- 停用角色立即失去权限：条件写在 SQL 里，不依赖调用方记得过滤 -->
+    <select id="findPermissionCodes" resultType="java.lang.String">
+        SELECT DISTINCT rp.permission_code
+        FROM user_role ur
+        JOIN role r ON r.id = ur.role_id AND r.tenant_id = ur.tenant_id
+        JOIN role_permission rp ON rp.role_id = r.id AND rp.tenant_id = r.tenant_id
+        WHERE ur.tenant_id = #{tenantId}
+          AND ur.user_id = #{userId}
+          AND r.status = 'ACTIVE'
+        ORDER BY rp.permission_code
+    </select>
+
+    <!-- ============ 门店数据范围 ============ -->
+
+    <insert id="addHotelScope">
+        INSERT INTO user_hotel_scope (tenant_id, user_id, hotel_id)
+        VALUES (#{tenantId}, #{userId}, #{hotelId})
+        ON CONFLICT (user_id, hotel_id) DO NOTHING
+    </insert>
+
+    <select id="findHotelScopeIds" resultType="java.util.UUID">
+        SELECT hotel_id
+        FROM user_hotel_scope
+        WHERE tenant_id = #{tenantId} AND user_id = #{userId}
+        ORDER BY hotel_id
+    </select>
+
+    <!-- ============ 会话 ============ -->
+
+    <insert id="insertSession" parameterType="cn.sec.hn.openbackupsaas.identity.domain.UserSession">
+        INSERT INTO user_session (id, tenant_id, user_id, token_hash, issued_at, expires_at, revoked_at, revoke_reason, version)
+        VALUES (#{id}, #{tenantId}, #{userId}, #{tokenHash}, #{issuedAt}, #{expiresAt}, #{revokedAt}, #{revokeReason}, 0)
+    </insert>
+
+    <!--
+      可用性判定用数据库时钟 now()：会话是否过期属于数据库事实，不受应用节点时钟漂移影响。
+      三个 JOIN 条件都带 tenant_id，确保不会把 A 租户的会话拼到 B 租户的账号上。
+    -->
+    <select id="findUsableSession" resultMap="sessionViewMap">
+        SELECT s.id          AS session_id,
+               s.tenant_id   AS tenant_id,
+               s.user_id     AS user_id,
+               u.username    AS username,
+               u.display_name AS display_name,
+               s.expires_at  AS expires_at
+        FROM user_session s
+        JOIN app_user u ON u.id = s.user_id AND u.tenant_id = s.tenant_id
+        JOIN tenant t ON t.id = s.tenant_id
+        WHERE s.token_hash = #{tokenHash}
+          AND s.revoked_at IS NULL
+          AND s.expires_at > now()
+          AND u.status = 'ACTIVE'
+          AND t.status = 'ACTIVE'
+    </select>
+
+    <update id="revokeSession">
+        UPDATE user_session
+        SET revoked_at = #{at}, revoke_reason = #{reason}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND id = #{sessionId} AND revoked_at IS NULL
+    </update>
+
+    <update id="revokeUserSessions">
+        UPDATE user_session
+        SET revoked_at = #{at}, revoke_reason = #{reason}, version = version + 1
+        WHERE tenant_id = #{tenantId}
+          AND user_id = #{userId}
+          AND revoked_at IS NULL
+        <if test="exceptSessionId != null">
+            AND id &lt;&gt; #{exceptSessionId}
+        </if>
+    </update>
+
+</mapper>

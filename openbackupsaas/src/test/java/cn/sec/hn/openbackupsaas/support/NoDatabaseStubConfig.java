@@ -1,12 +1,19 @@
 package cn.sec.hn.openbackupsaas.support;
 
+import cn.sec.hn.openbackupsaas.identity.domain.AppUser;
+import cn.sec.hn.openbackupsaas.identity.domain.Role;
+import cn.sec.hn.openbackupsaas.identity.domain.SessionView;
+import cn.sec.hn.openbackupsaas.identity.domain.UserSession;
+import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
 import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.HotelGroup;
+import cn.sec.hn.openbackupsaas.tenant.domain.OrgStatus;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.mapper.OrganizationMapper;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +36,95 @@ public class NoDatabaseStubConfig {
     @Bean
     OrganizationMapper organizationMapper() {
         return new OrganizationMapperStub();
+    }
+
+    @Bean
+    IdentityMapper identityMapper() {
+        return new IdentityMapperStub();
+    }
+
+    static final class IdentityMapperStub implements IdentityMapper {
+
+        @Override
+        public int insertUser(AppUser user) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<AppUser> findUserByUsername(UUID tenantId, String username) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<AppUser> findUser(UUID tenantId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateLastLogin(UUID tenantId, UUID userId, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updatePasswordHash(UUID tenantId, UUID userId, String passwordHash, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertRole(Role role) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<Role> findRoleByCode(UUID tenantId, String code) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int grantPermission(UUID tenantId, UUID roleId, String permissionCode) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int assignRole(UUID tenantId, UUID userId, UUID roleId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<String> findPermissionCodes(UUID tenantId, UUID userId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int addHotelScope(UUID tenantId, UUID userId, UUID hotelId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<UUID> findHotelScopeIds(UUID tenantId, UUID userId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertSession(UserSession session) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<SessionView> findUsableSession(String tokenHash) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int revokeSession(UUID tenantId, UUID sessionId, OffsetDateTime at, String reason) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int revokeUserSessions(UUID tenantId, UUID userId, OffsetDateTime at, String reason,
+                                      UUID exceptSessionId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
     }
 
     static final class OrganizationMapperStub implements OrganizationMapper {

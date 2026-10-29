@@ -1,10 +1,13 @@
 package cn.sec.hn.openbackupsaas.shared.config;
 
+import cn.sec.hn.openbackupsaas.identity.service.AuthenticationService;
+import cn.sec.hn.openbackupsaas.identity.web.BearerSessionAuthenticationFilter;
 import cn.sec.hn.openbackupsaas.shared.web.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -13,34 +16,51 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.net.URI;
 
 /**
- * 安全基线（S1-01）：**默认拒绝**，不提供任何可用的登录方式。
+ * 安全链（S1-01 基线，S1-03 接入会话认证）。
  *
- * <p>这不是"认证已完成"。登录、会话、RBAC、门店数据范围与租户隔离在 S1-03 实现；
- * 在此之前，除健康检查与 API 文档外，所有请求都应被拒绝。
- * 菜单隐藏或前端路由守卫不能替代服务端授权（BL-07）。
- *
- * <p>CSRF 当前关闭的原因：尚无 Cookie 会话，接口计划为无状态 JSON API。
- * 一旦 S1-03 决定改用 Cookie 会话，**必须重新打开 CSRF 并补同步令牌**，不能沿用本配置。
+ * <p>当前形态：
+ * <ul>
+ *   <li>无状态：服务端会话表 + {@code Authorization: Bearer} 头，**不使用 Cookie**，
+ *       因此不存在"浏览器自动携带凭据"的跨站请求伪造面，CSRF 保持关闭。
+ *       一旦改回 Cookie 会话，**必须先打开 CSRF 并补同步令牌**，不能沿用本配置。</li>
+ *   <li>默认拒绝：只有健康检查、API 文档与登录接口匿名，其余全部要求已认证。</li>
+ *   <li>权限点在方法层用 {@code @PreAuthorize} 表达；菜单隐藏与前端路由守卫不构成授权（BL-07）。</li>
+ * </ul>
  */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    /** 口令派生：BCrypt 强度 10（默认）。代价与安全性的折中记录在 ADR-016。 */
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
     @Bean
     SecurityFilterChain apiFilterChain(HttpSecurity http,
                                        ObjectMapper objectMapper,
                                        AuthenticationEntryPoint authenticationEntryPoint,
-                                       AccessDeniedHandler accessDeniedHandler) throws Exception {
+                                       AccessDeniedHandler accessDeniedHandler,
+                                       AuthenticationService authenticationService) throws Exception {
+        // 手动构造而不是注册成 Bean：Filter Bean 会被 Boot 自动注册到 Servlet 容器，
+        // 与下面 addFilterBefore 叠加后同一请求会执行两次（见过滤器类注释）。
+        BearerSessionAuthenticationFilter sessionFilter =
+                new BearerSessionAuthenticationFilter(authenticationService);
+
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -52,10 +72,13 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         // OpenAPI 文档在生产环境默认关闭（PMS_OPENAPI_ENABLED=false），此处只登记路径
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // 登录是唯一匿名的业务接口：此时还没有身份，只能用租户编码定位账号
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(authenticationEntryPoint)
-                        .accessDeniedHandler(accessDeniedHandler));
+                        .accessDeniedHandler(accessDeniedHandler))
+                .addFilterBefore(sessionFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

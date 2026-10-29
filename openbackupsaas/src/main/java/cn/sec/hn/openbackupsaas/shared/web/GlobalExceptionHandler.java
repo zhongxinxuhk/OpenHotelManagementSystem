@@ -1,6 +1,8 @@
 package cn.sec.hn.openbackupsaas.shared.web;
 
 import cn.sec.hn.openbackupsaas.shared.error.ConflictException;
+import cn.sec.hn.openbackupsaas.shared.error.NotFoundException;
+import cn.sec.hn.openbackupsaas.shared.error.UnauthenticatedException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -63,6 +66,49 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ProblemDetail onConflict(ConflictException ex, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, String.valueOf(ex.getMessage()));
         problem.setTitle("操作与当前状态冲突");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("requestId", currentRequestId());
+        return problem;
+    }
+
+    /**
+     * 未认证 / 凭据无效：401。
+     *
+     * <p>文案由抛出方决定且必须是统一话术（登录失败不区分账号/密码/租户），
+     * 这里不追加细节，避免把失败原因变成可用信息。
+     */
+    @ExceptionHandler(UnauthenticatedException.class)
+    public ProblemDetail onUnauthenticated(UnauthenticatedException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, String.valueOf(ex.getMessage()));
+        problem.setTitle("未认证");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("requestId", currentRequestId());
+        return problem;
+    }
+
+    /**
+     * 已认证但无权访问：403。
+     *
+     * <p>必须显式声明：本类还有 {@code @ExceptionHandler(Exception.class)} 兜底，
+     * 少了这一条，{@code @PreAuthorize} 拒绝抛出的 {@code AccessDeniedException}
+     * 会被兜底逻辑当成"未预期异常"返回 500 —— 权限失败被误报成服务故障，
+     * 既误导运维，也会让前端的 401/403 处理分支永远走不到。
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail onAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
+                String.valueOf(ex.getMessage()));
+        problem.setTitle("无访问权限");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("requestId", currentRequestId());
+        return problem;
+    }
+
+    /** 对象不存在：404。跨租户 id 一律走这里，不用 403 暴露"对象确实存在"。 */
+    @ExceptionHandler(NotFoundException.class)
+    public ProblemDetail onNotFound(NotFoundException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, String.valueOf(ex.getMessage()));
+        problem.setTitle("对象不存在");
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("requestId", currentRequestId());
         return problem;
