@@ -31,6 +31,7 @@
 | `PMS_DB_PASSWORD` | 空 | 空密码会连接失败：不用假凭据掩盖环境缺失 |
 | `PMS_DB_POOL_SIZE` | `10` | Hikari 最大连接 |
 | `PMS_OPENAPI_ENABLED` | `true`（本地） | 生产必须为 `false`，文档入口不对外 |
+| `PMS_SESSION_TTL` | `PT8H` | 会话有效期（ISO-8601 时长）；不做滑动续期，见 ADR-016 |
 | `PMS_SERVER_PORT` | `8080` | HTTP 端口 |
 
 版本库里**不允许**出现明文密码、令牌或生产连接串；秘密由部署环境注入（S6-05 复核）。
@@ -85,10 +86,37 @@ cn.sec.hn.openbackupsaas
 ├── tenant/domain/                     Tenant / HotelGroup / Hotel / 状态枚举（不可变 record）
 ├── tenant/mapper/OrganizationMapper   XML 显式 SQL，查询强制带 tenantId
 ├── tenant/service/OrganizationService 组织建立与读取，状态前置校验
-├── identity/ room/ reservation/ inventory/ pricing/
+├── identity/domain/                   AppUser / Role / UserSession / SessionView / UserStatus
+├── identity/mapper/IdentityMapper     身份 SQL；**没有不带 tenantId 的查询方法**
+├── identity/service/AuthenticationService 登录、登出、改密、每请求会话解析
+├── identity/web/                      AuthController（4 个接口）、IdentityController、
+│                                      BearerSessionAuthenticationFilter（Bearer → 身份 + 租户上下文）
+├── room/domain/ mapper/ service/ web/  room_type / physical_room；同店归属、启停规则、只读清洁状态
+├── reservation/domain/ mapper/ service/  订单、订单行、统一占用事实；`StayRange`（半开区间）、统一锁序与冲突翻译
+├── shared/security/                   TenantContext / TenantContextHolder / Authz / PmsPrincipal / SessionTokens / HotelAccess
+├── room/ reservation/ inventory/ pricing/
 ├── frontdesk/ payment/ channel/ integration/ audit/ reporting/
-│       └── 各自 package-info.java 写明职责、边界与依据任务；除 tenant 外仍为占位
+│       └── 各自 package-info.java 写明职责、边界与依据任务；除 tenant / identity / room / reservation 外仍为占位
 ```
+
+## 4.1 已开放接口
+
+| 方法 | 路径 | 认证 | 说明 |
+| --- | --- | --- | --- |
+| POST | `/api/v1/auth/login` | 匿名 | 体里必须给 `tenantCode`（登录是唯一允许从请求体读租户的地方） |
+| POST | `/api/v1/auth/logout` | Bearer | 只撤销当前会话，返回 204 |
+| GET | `/api/v1/auth/me` | Bearer | 当前身份、门店范围与权限点 |
+| POST | `/api/v1/auth/password` | Bearer | 校验原口令；成功后回收**其他**会话 |
+| GET | `/api/v1/identity/users/{userId}/hotel-scopes` | Bearer + `identity:read` | 目标账号不在当前租户时返回 404（不是 403） |
+| POST/GET | `/api/v1/hotels/{hotelId}/room-types` | Bearer + `room:write` / `room:read` | 房型创建与列表；编码同店唯一（自动小写） |
+| GET | `/api/v1/hotels/{hotelId}/room-types/{id}` | Bearer + `room:read` | 房型详情 |
+| POST | `/api/v1/hotels/{hotelId}/room-types/{id}/status` | Bearer + `room:write` | 启停房型；仍有在用房间时 409 |
+| POST/GET | `/api/v1/hotels/{hotelId}/rooms` | Bearer + `room:write` / `room:read` | 房间创建与列表（可按 `roomTypeId` / `status` / `floor` 过滤） |
+| GET | `/api/v1/hotels/{hotelId}/rooms/{id}` | Bearer + `room:read` | 房间详情（含只读 `housekeepingStatus`） |
+| PATCH | `/api/v1/hotels/{hotelId}/rooms/{id}` | Bearer + `room:write` | 改房型归属/楼层/备注；**不收清洁状态** |
+| POST | `/api/v1/hotels/{hotelId}/rooms/{id}/status` | Bearer + `room:write` | 启停房间 |
+
+令牌放在 `Authorization: Bearer <token>`；明文只在登录响应出现一次，库内是 SHA-256。**不要**把令牌放进 URL 查询串。
 
 包边界规则：模块之间只通过服务接口与领域事件交互；`shared` 只放稳定的公共值对象与技术设施，不放领域模型（详见 S0-09 交付的 `docs/architecture/module-boundaries.md`）。
 
@@ -96,14 +124,19 @@ cn.sec.hn.openbackupsaas
 
 | 具备（已实现并验证） | 不具备（勿误读为已完成） |
 | --- | --- |
-| 依赖基线按 ADR-011 收敛：webmvc/security/validation/actuator/jdbc/mybatis/flyway/springdoc | **没有登录、会话、RBAC、门店数据范围**（S1-03） |
-| 默认拒绝的安全链：除健康检查与文档路径外一律 401/403 | 没有房源、订单、库存、支付等业务模型（阶段 1 其余任务） |
+| 依赖基线按 ADR-011 收敛：webmvc/security/validation/actuator/jdbc/mybatis/flyway/springdoc | 房源、订单、库存、支付等业务模型（阶段 1 其余任务） |
+| 默认拒绝的安全链：除健康检查、文档路径与登录接口外一律 401/403 | 前端登录页与会话保持（S3-01；S3-01a 依赖安装仍 BLOCKED） |
 | `X-Request-Id` 贯穿日志与错误响应，可对账排查 | 没有结构化日志后端/Loki（S2-06） |
-| 统一错误响应 ProblemDetail（400/409/500，不泄露堆栈/SQL） | 错误码体系与"失败/冲突/待核实"三分类未冻结（S1-11） |
+| 统一错误响应 ProblemDetail（400/401/403/404/409/500，不泄露堆栈/SQL） | 错误码体系与"失败/冲突/待核实"三分类未冻结（S1-11） |
 | 分环境配置 + 环境变量注入，无明文秘密 | 没有秘密管理服务与轮换（S6-05） |
-| **Flyway V1：tenant / hotel_group / hotel，含跨租户复合外键、编码唯一、状态 CHECK** | 账号/角色/门店范围表（S1-03）；营业日字段（等 S0-05） |
+| **Flyway V1：tenant / hotel_group / hotel，含跨租户复合外键、编码唯一、状态 CHECK** | 营业日字段（等 S0-05） |
+| **Flyway V2：app_user / role / permission / role_permission / user_role / user_hotel_scope / user_session** | 员工与角色 CRUD 接口（S3-02）；审计表（S1-06） |
+| **Flyway V3：room_type / physical_room**（同店编码唯一、房间→房型按 `(room_type_id, hotel_id)` 复合外键、清洁与运营状态分列） | 维修区间 `room_block`（S1-05）、房态投影（S1-12）、房务任务（S3-06） |
+| **房型与房间接口**：创建/列表/详情/属性修改/启停，经 `@PreAuthorize` + `HotelAccess`（租户→404→403）| 房型/房间页面（S3-01a 阻塞）；"有有效预订时停用"的处置（S1-08 后） |
+| **占用事实与排斥**：`room_occupancy` 统一预订/封房，GiST 排斥 + 半开区间 CHECK + 统一锁序（`OccupancyService`）| 订单命令与接口（S1-08/S1-09）、超时释放 Worker（S1-10）、库存流水与审计（S1-06）、房态投影（S1-12） |
+| **认证与授权**：不透明 Bearer 令牌 + 服务端会话（库内只存 SHA-256）、RBAC 权限点、门店数据范围断言、租户上下文（ADR-016） | 登录失败锁定/限流（S6-05）、闲置超时与滑动续期（未定案） |
 | **迁移账号与应用账号分权**（`pms_migrator` DDL / `pms_app` 仅 DML，均非超级用户） | 生产环境的账号与密钥管理制度（S6-05） |
-| **20 个测试：8 单元/上下文 + 12 真实 PostgreSQL 集成** | 并发与竞态测试（S1-13）、故障注入（S2-08） |
+| **89 个测试：19 单元/上下文 + 70 真实 PostgreSQL 集成** | 并发与竞态测试（S1-13）、故障注入（S2-08） |
 | CI：后端 `verify`（含 postgres 17 service）、前端 `tsc/lint/build` | CI 尚未实际执行过（未推送） |
 
 ## 6. 门禁命令与期望
@@ -124,7 +157,12 @@ PMS_IT_DB=true ./mvnw -B -ntp test   # 连真实库：20/20 通过
 3. **MyBatis 3.5.19 没有内置 `UUIDTypeHandler`**：jar 里已无该类，uuid 列会在解析期抛 `No typehandler found for property null`。本项目用 `shared/mybatis/UuidTypeHandler` + `MyBatisConfig` 全局注册解决；新建 Mapper 不需要再单独指定。
 4. **record + `<constructor>` 映射要求类型精确匹配**：数据库 `BIGINT` 对应 `java.lang.Long`，若 record 用 `long` 会 `NoSuchMethodException`；同理不要用 `javaType="_long"`（基本类型没有 TypeHandler）。
 5. **`test` 档案下没有 Mapper 实现**：服务类注入会失败，用 `support/NoDatabaseStubConfig` 补位；它的方法一被调用就抛异常，避免"用假实现测业务"。
-6. **默认 401 是正确的**：在 S1-03 完成前，任何业务路径都返回 401 + `application/problem+json`，不要为了"能调通"就把 `anyRequest` 改成 `permitAll`。
-7. **前端联调不做 CORS**：`frontend-admin-pro/config/proxy.ts` 已把 `/api` 代理到后端；跨域配置一旦打开就等于放宽浏览器侧边界，需单独评审。
-8. **CSRF 当前关闭**（无 Cookie 会话）。若 S1-03 改用 Cookie 会话，必须同步开启 CSRF 并补令牌。
-9. **本地集群是一次性的**：`/tmp/pms-pgdata` 重启机器后丢失，跑 `./scripts/dev-db.sh start` 重建；不要把本地数据当证据，证据以 `docs/verification/` 下的记录为准。
+6. **默认 401 是正确的**：除健康检查、文档路径与 `/api/v1/auth/login` 外，任何业务路径都返回 401 + `application/problem+json`，不要为了"能调通"就把 `anyRequest` 改成 `permitAll`。
+7. **`@PreAuthorize` 拒绝会变成 500，除非显式处理**：`GlobalExceptionHandler` 有 `@ExceptionHandler(Exception.class)` 兜底，会先吃掉 `AccessDeniedException`。S1-03 已补 403/401/404 三个处理器，**新增异常类型时要检查是否会掉进兜底 500**。
+8. **安全过滤器不要标 `@Component`**：Boot 会把容器里的每个 `Filter` Bean 自动注册到 Servlet 容器，与 `addFilterBefore` 叠加后同一请求跑两遍（症状是每请求两条会话查询日志）。本项目在 `SecurityConfig` 里手动 `new`。
+9. **前端联调不做 CORS**：`frontend-admin-pro/config/proxy.ts` 已把 `/api` 代理到后端；跨域配置一旦打开就等于放宽浏览器侧边界，需单独评审。
+10. **CSRF 当前关闭**（Bearer 头，无 Cookie 会话，见 ADR-016）。若改用 Cookie 会话，必须同步开启 CSRF 并补同步令牌。
+11. **造测试账号别手写 BCrypt 哈希**：网上流传的固定哈希未必对应你以为的明文。用 `new BCryptPasswordEncoder().encode("...")` 现算；`ck_app_user_password_hash` 会检查 `$2` 前缀与 60 位长度。
+12. **别用 `UUID.compareTo` 断言数据库排序**：它按 `mostSigBits` 有符号比较，PostgreSQL 的 `uuid` 按字节排序，两者在高位为 1 的 uuid 上结论相反（本轮测试就踩到）。跨层排序（锁序、分页游标）用十六进制文本比。
+13. **daterange 参数要走文本绑定 + SQL 侧 `::daterange` 转换**：驱动是 `runtime` 作用域，编译期拿不到 `PGobject`。另外 PG 会把 `daterange` 规范化为 `[)`，所以"闭区间"根本存不进去——相邻可续住是类型自带的保证。
+14. **本地集群是一次性的**：`/tmp/pms-pgdata` 重启机器后丢失，跑 `./scripts/dev-db.sh start` 重建；不要把本地数据当证据，证据以 `docs/verification/` 下的记录为准。

@@ -8,6 +8,11 @@ import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
 import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
 import cn.sec.hn.openbackupsaas.room.domain.RoomStatus;
 import cn.sec.hn.openbackupsaas.room.domain.RoomType;
+import cn.sec.hn.openbackupsaas.reservation.domain.OccupancyStatus;
+import cn.sec.hn.openbackupsaas.reservation.domain.Reservation;
+import cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine;
+import cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy;
+import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationMapper;
 import cn.sec.hn.openbackupsaas.room.mapper.RoomMapper;
 import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.HotelGroup;
@@ -50,6 +55,66 @@ public class NoDatabaseStubConfig {
     @Bean
     RoomMapper roomMapper() {
         return new RoomMapperStub();
+    }
+
+    @Bean
+    ReservationMapper reservationMapper() {
+        return new ReservationMapperStub();
+    }
+
+    static final class ReservationMapperStub implements ReservationMapper {
+
+        @Override
+        public int insertReservation(Reservation reservation) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<Reservation> findReservation(UUID tenantId, UUID hotelId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<Reservation> lockReservation(UUID tenantId, UUID hotelId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertLine(ReservationLine line) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<ReservationLine> findLine(UUID tenantId, UUID hotelId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertOccupancy(RoomOccupancy occupancy) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<RoomOccupancy> findOccupancy(UUID tenantId, UUID hotelId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<RoomOccupancy> findOccupanciesOfRoom(UUID tenantId, UUID hotelId, UUID roomId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateOccupancyStatus(UUID tenantId, UUID hotelId, UUID id, OccupancyStatus status,
+                                         OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom> lockRooms(UUID tenantId, UUID hotelId,
+                                                                                List<UUID> roomIds) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
     }
 
     static final class IdentityMapperStub implements IdentityMapper {

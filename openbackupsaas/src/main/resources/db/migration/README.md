@@ -30,6 +30,10 @@ R__<说明>.sql                    可重复迁移（视图/函数等幂等对�
 | 版本 | 文件 | 内容 | 状态 |
 | --- | --- | --- | --- |
 | V1 | `V1__org_baseline.sql` | `tenant` / `hotel_group` / `hotel`；租户内编码唯一、`(id, tenant_id)` 复合唯一、跨租户复合外键、状态与编码 CHECK | 已应用于本地集群，12 个集成用例覆盖（见 [S1-02 记录](../../../../../docs/verification/S1-02/2026-10-30-org-baseline.md)） |
+| V2 | `V2__identity_baseline.sql` | `app_user` / `role` / `permission` / `role_permission` / `user_role` / `user_hotel_scope` / `user_session`；口令与令牌只存派生值、跨租户授权与门店范围由复合外键拒绝、权限点字典 | 已应用于本地集群，21 个身份用例覆盖（见 [S1-03 记录](../../../../../docs/verification/S1-03/2026-10-30-authn-authz.md)） |
+| V4 | `V4__occupancy_baseline.sql` | `reservation` / `reservation_line` / `room_occupancy`（统一 A/B）；`btree_gist`、`ex_room_occupancy_effective` GiST 排斥、半开区间 CHECK、`kind` 与引用一致性、`physical_room(id, hotel_id)` 复合唯一 | 已应用于本地集群，13 个占用用例覆盖（见 [S1-05 记录](../../../../../docs/verification/S1-05/2026-10-30-occupancy-baseline.md)） |
+| V3 | `V3__room_baseline.sql` | `room_type` / `physical_room`；同店编码唯一、房间→房型用 `(room_type_id, hotel_id)` 复合外键（跨店归属在库层失败）、房型→门店复合外键、清洁状态与运营状态分列；新增权限点 `room:read` / `room:write` | 已应用于本地集群，24 个房间用例覆盖（见 [S1-04 记录](../../../../../docs/verification/S1-04/2026-10-30-room-baseline.md)） |
 
-下一批（DB-A 剩余：账号、角色、门店数据范围）由 S1-03 落地。
+DB-A 已全部落地（V1 + V2）；DB-B 已落地（V3 房型房间 + V4 订单与占用排斥）。`stay_session` / `stay_segment`（入住事实）属 DB-E，由 S3-04 落地。
 **营业日切分时间与时区规则待 S0-05（ADR-012）定案后才加字段**，不要提前猜字段名。
+V1→V2→V3 升级路径均在同一本地库上真实执行（V1 00:58 / V2 01:34 / V3 01:46 / V4 02:12 增量应用成功）；空库一次应用全部版本也已验证。跨版本兼容与回滚演练仍待 S6-06。
