@@ -5,14 +5,14 @@ import cn.sec.hn.openbackupsaas.identity.domain.Role;
 import cn.sec.hn.openbackupsaas.identity.domain.SessionView;
 import cn.sec.hn.openbackupsaas.identity.domain.UserSession;
 import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
-import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
-import cn.sec.hn.openbackupsaas.room.domain.RoomStatus;
-import cn.sec.hn.openbackupsaas.room.domain.RoomType;
 import cn.sec.hn.openbackupsaas.reservation.domain.OccupancyStatus;
 import cn.sec.hn.openbackupsaas.reservation.domain.Reservation;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine;
 import cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy;
 import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationMapper;
+import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
+import cn.sec.hn.openbackupsaas.room.domain.RoomStatus;
+import cn.sec.hn.openbackupsaas.room.domain.RoomType;
 import cn.sec.hn.openbackupsaas.room.mapper.RoomMapper;
 import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.HotelGroup;
@@ -62,57 +62,60 @@ public class NoDatabaseStubConfig {
         return new ReservationMapperStub();
     }
 
-    static final class ReservationMapperStub implements ReservationMapper {
+    static final class OrganizationMapperStub implements OrganizationMapper {
 
         @Override
-        public int insertReservation(Reservation reservation) {
+        public int insertTenant(Tenant tenant) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public Optional<Reservation> findReservation(UUID tenantId, UUID hotelId, UUID id) {
+        public Optional<Tenant> findTenantById(UUID id) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public Optional<Reservation> lockReservation(UUID tenantId, UUID hotelId, UUID id) {
+        public Optional<Tenant> findTenantByCode(String code) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public int insertLine(ReservationLine line) {
+        public List<Tenant> findAllTenants() {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public Optional<ReservationLine> findLine(UUID tenantId, UUID hotelId, UUID id) {
+        public int insertHotelGroup(HotelGroup group) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public int insertOccupancy(RoomOccupancy occupancy) {
+        public Optional<HotelGroup> findHotelGroup(UUID tenantId, UUID id) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public Optional<RoomOccupancy> findOccupancy(UUID tenantId, UUID hotelId, UUID id) {
+        public List<HotelGroup> findHotelGroups(UUID tenantId) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public List<RoomOccupancy> findOccupanciesOfRoom(UUID tenantId, UUID hotelId, UUID roomId) {
+        public int insertHotel(Hotel hotel) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public int updateOccupancyStatus(UUID tenantId, UUID hotelId, UUID id, OccupancyStatus status,
-                                         OffsetDateTime at) {
+        public Optional<Hotel> findHotel(UUID tenantId, UUID id) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public List<cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom> lockRooms(UUID tenantId, UUID hotelId,
-                                                                                List<UUID> roomIds) {
+        public Optional<Hotel> findHotelByCode(UUID tenantId, String code) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<Hotel> findHotels(UUID tenantId) {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }
@@ -201,60 +204,122 @@ public class NoDatabaseStubConfig {
         }
     }
 
-    static final class OrganizationMapperStub implements OrganizationMapper {
+    static final class RoomMapperStub implements RoomMapper {
 
         @Override
-        public int insertTenant(Tenant tenant) {
+        public int insertRoomType(RoomType roomType) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public Optional<Tenant> findTenantById(UUID id) {
+        public Optional<RoomType> findRoomType(UUID tenantId, UUID hotelId, UUID id) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public Optional<Tenant> findTenantByCode(String code) {
+        public Optional<RoomType> findRoomTypeByCode(UUID tenantId, UUID hotelId, String code) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public List<Tenant> findAllTenants() {
+        public List<RoomType> findRoomTypes(UUID tenantId, UUID hotelId) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public int insertHotelGroup(HotelGroup group) {
+        public int updateRoomTypeStatus(UUID tenantId, UUID hotelId, UUID id, OrgStatus status,
+                                        OffsetDateTime at) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public Optional<HotelGroup> findHotelGroup(UUID tenantId, UUID id) {
+        public int countRoomsByStatus(UUID tenantId, UUID hotelId, UUID roomTypeId, RoomStatus status) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public List<HotelGroup> findHotelGroups(UUID tenantId) {
+        public int insertRoom(PhysicalRoom room) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public int insertHotel(Hotel hotel) {
+        public Optional<PhysicalRoom> findRoom(UUID tenantId, UUID hotelId, UUID id) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public Optional<Hotel> findHotel(UUID tenantId, UUID id) {
+        public Optional<PhysicalRoom> findRoomByCode(UUID tenantId, UUID hotelId, String code) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public Optional<Hotel> findHotelByCode(UUID tenantId, String code) {
+        public List<PhysicalRoom> findRooms(UUID tenantId, UUID hotelId, UUID roomTypeId,
+                                            RoomStatus status, Integer floor) {
             throw new UnsupportedOperationException(MESSAGE);
         }
 
         @Override
-        public List<Hotel> findHotels(UUID tenantId) {
+        public int updateRoomAttributes(UUID tenantId, UUID hotelId, UUID id, UUID roomTypeId,
+                                        Integer floor, String notes, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateRoomStatus(UUID tenantId, UUID hotelId, UUID id, RoomStatus status, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    static final class ReservationMapperStub implements ReservationMapper {
+
+        @Override
+        public int insertReservation(Reservation reservation) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<Reservation> findReservation(UUID tenantId, UUID hotelId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<Reservation> lockReservation(UUID tenantId, UUID hotelId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertLine(ReservationLine line) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<ReservationLine> findLine(UUID tenantId, UUID hotelId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertOccupancy(RoomOccupancy occupancy) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<RoomOccupancy> findOccupancy(UUID tenantId, UUID hotelId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<RoomOccupancy> findOccupanciesOfRoom(UUID tenantId, UUID hotelId, UUID roomId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateOccupancyStatus(UUID tenantId, UUID hotelId, UUID id, OccupancyStatus status,
+                                         OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<PhysicalRoom> lockRooms(UUID tenantId, UUID hotelId, List<UUID> roomIds) {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }
