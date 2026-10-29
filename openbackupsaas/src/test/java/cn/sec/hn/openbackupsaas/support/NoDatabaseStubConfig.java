@@ -1,5 +1,8 @@
 package cn.sec.hn.openbackupsaas.support;
 
+import cn.sec.hn.openbackupsaas.command.domain.IdempotencyRecord;
+import cn.sec.hn.openbackupsaas.command.domain.IdempotencyStatus;
+import cn.sec.hn.openbackupsaas.command.mapper.IdempotencyMapper;
 import cn.sec.hn.openbackupsaas.identity.domain.AppUser;
 import cn.sec.hn.openbackupsaas.identity.domain.Role;
 import cn.sec.hn.openbackupsaas.identity.domain.SessionView;
@@ -59,6 +62,11 @@ public class NoDatabaseStubConfig {
     }
 
     @Bean
+    IdempotencyMapper idempotencyMapper() {
+        return new IdempotencyMapperStub();
+    }
+
+    @Bean
     JournalMapper journalMapper() {
         return new JournalMapperStub();
     }
@@ -108,6 +116,46 @@ public class NoDatabaseStubConfig {
 
         @Override
         public List<OutboxEvent> findEventsOfAggregate(UUID tenantId, String aggregateType, UUID aggregateId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    static final class IdempotencyMapperStub implements IdempotencyMapper {
+
+        @Override
+        public int insertInProgress(IdempotencyRecord record) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertFailed(IdempotencyRecord record) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<IdempotencyRecord> findByScope(UUID tenantId, UUID hotelId, String callerNamespace,
+                                                       String commandName, String idempotencyKey) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<IdempotencyRecord> findByOperation(UUID tenantId, UUID operationId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int markSucceeded(UUID tenantId, UUID operationId, UUID resultRef, String responseSnapshot,
+                                 OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int markFailed(UUID tenantId, UUID operationId, String resultCode, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<IdempotencyStatus> statusOf(UUID tenantId, UUID operationId) {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }

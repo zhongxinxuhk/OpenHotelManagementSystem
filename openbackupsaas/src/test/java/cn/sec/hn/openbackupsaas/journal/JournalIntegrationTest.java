@@ -73,6 +73,9 @@ class JournalIntegrationTest {
     private JournalService journalService;
 
     @Autowired
+    private cn.sec.hn.openbackupsaas.command.service.IdempotencyService idempotencyService;
+
+    @Autowired
     private JournalMapper journalMapper;
 
     @Autowired
@@ -144,7 +147,10 @@ class JournalIntegrationTest {
         Fixture fixture = fixture("j3");
         StayRange range = StayRange.of(IN, OUT);
 
-        UUID operationId = UUID.randomUUID();
+        // 流水行的 operation_id 必须指向真实的幂等记录（V6 外键），因此先开一次操作
+        UUID operationId = new TransactionTemplate(transactionManager).execute(status ->
+                idempotencyService.beginInternal(fixture.tenantId(), fixture.hotelId(), "occupancy.hold",
+                        cn.sec.hn.openbackupsaas.command.domain.RequestDigest.sha256Hex("duplicate-check")));
         journalService.recordOccupancyEffect(operationId, fixture.tenantId(), fixture.hotelId(),
                 fixture.roomId(), range, EffectKind.RESERVATION, true, "重复提交");
 

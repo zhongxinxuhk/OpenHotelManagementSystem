@@ -94,10 +94,11 @@ cn.sec.hn.openbackupsaas
 ├── room/domain/ mapper/ service/ web/  room_type / physical_room；同店归属、启停规则、只读清洁状态
 ├── reservation/domain/ mapper/ service/  订单、订单行、统一占用事实；`StayRange`（半开区间）、统一锁序与冲突翻译
 ├── journal/domain/ mapper/ service/   库存效果流水、关键审计、Outbox 事件；与业务写入同事务，三表只追加
+├── command/domain/ mapper/ service/   幂等记录、规范化请求摘要、命令入口；`GET /api/v1/operations/*` 结果查询
 ├── shared/security/                   TenantContext / TenantContextHolder / Authz / PmsPrincipal / SessionTokens / HotelAccess
 ├── room/ reservation/ inventory/ pricing/
 ├── frontdesk/ payment/ channel/ integration/ audit/ reporting/
-│       └── 各自 package-info.java 写明职责、边界与依据任务；除 tenant / identity / room / reservation / journal 外仍为占位
+│       └── 各自 package-info.java 写明职责、边界与依据任务；除 tenant / identity / room / reservation / journal / command 外仍为占位
 ```
 
 ## 4.1 已开放接口
@@ -116,6 +117,8 @@ cn.sec.hn.openbackupsaas
 | GET | `/api/v1/hotels/{hotelId}/rooms/{id}` | Bearer + `room:read` | 房间详情（含只读 `housekeepingStatus`） |
 | PATCH | `/api/v1/hotels/{hotelId}/rooms/{id}` | Bearer + `room:write` | 改房型归属/楼层/备注；**不收清洁状态** |
 | POST | `/api/v1/hotels/{hotelId}/rooms/{id}/status` | Bearer + `room:write` | 启停房间 |
+| GET | `/api/v1/operations/{operationId}` | Bearer + `operation:read` | 按操作标识查结果（提交成功但响应丢失的恢复路径） |
+| GET | `/api/v1/operations/lookup?hotelId&namespace&command&key` | Bearer + `operation:read` | 按幂等键查结果 |
 
 令牌放在 `Authorization: Bearer <token>`；明文只在登录响应出现一次，库内是 SHA-256。**不要**把令牌放进 URL 查询串。
 
@@ -137,7 +140,7 @@ cn.sec.hn.openbackupsaas
 | **占用事实与排斥**：`room_occupancy` 统一预订/封房，GiST 排斥 + 半开区间 CHECK + 统一锁序（`OccupancyService`）| 订单命令与接口（S1-08/S1-09）、超时释放 Worker（S1-10）、库存流水与审计（S1-06）、房态投影（S1-12） |
 | **认证与授权**：不透明 Bearer 令牌 + 服务端会话（库内只存 SHA-256）、RBAC 权限点、门店数据范围断言、租户上下文（ADR-016） | 登录失败锁定/限流（S6-05）、闲置超时与滑动续期（未定案） |
 | **迁移账号与应用账号分权**（`pms_migrator` DDL / `pms_app` 仅 DML，均非超级用户） | 生产环境的账号与密钥管理制度（S6-05） |
-| **97 个测试：19 单元/上下文 + 78 真实 PostgreSQL 集成** | 并发与竞态测试（S1-13）、故障注入（S2-08） |
+| **105 个测试：19 单元/上下文 + 86 真实 PostgreSQL 集成** | 并发与竞态测试（S1-13）、故障注入（S2-08） |
 | CI：后端 `verify`（含 postgres 17 service）、前端 `tsc/lint/build` | CI 尚未实际执行过（未推送） |
 
 ## 6. 门禁命令与期望
@@ -168,4 +171,6 @@ PMS_IT_DB=true ./mvnw -B -ntp test   # 连真实库：20/20 通过
 13. **daterange 参数要走文本绑定 + SQL 侧 `::daterange` 转换**：驱动是 `runtime` 作用域，编译期拿不到 `PGobject`。另外 PG 会把 `daterange` 规范化为 `[)`，所以"闭区间"根本存不进去——相邻可续住是类型自带的保证。
 14. **record 里别用 `int` / `long` 接数据库列**：MyBatis 构造映射要求与 JDBC 类型精确匹配（`Integer`/`Long`），否则读取时 `NoSuchMethodException`（S1-02 与 S1-06 各踩一次）。
 15. **jsonb 与 daterange 一样走文本绑定 + SQL 侧 `::jsonb`**（驱动 runtime 作用域）。
-16. **本地集群是一次性的**：`/tmp/pms-pgdata` 重启机器后丢失，跑 `./scripts/dev-db.sh start` 重建；不要把本地数据当证据，证据以 `docs/verification/` 下的记录为准。
+16. **不要靠捕获唯一键异常判断"已存在"**：PostgreSQL 报错后整个事务被标记中止，后面的语句全挂。用 `INSERT ... ON CONFLICT DO NOTHING` 看影响行数。
+17. **给已有表加外键前先确认存量数据**：本地集群残留的旧数据会让迁移失败，症状却是 Spring 上下文加载失败，极难定位。
+18. **本地集群是一次性的**：`/tmp/pms-pgdata` 重启机器后丢失，跑 `./scripts/dev-db.sh start` 重建；不要把本地数据当证据，证据以 `docs/verification/` 下的记录为准。

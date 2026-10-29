@@ -5,6 +5,8 @@ import cn.sec.hn.openbackupsaas.reservation.domain.Reservation;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine;
 import cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy;
 import cn.sec.hn.openbackupsaas.reservation.domain.StayRange;
+import cn.sec.hn.openbackupsaas.command.domain.RequestDigest;
+import cn.sec.hn.openbackupsaas.command.service.IdempotencyService;
 import cn.sec.hn.openbackupsaas.journal.domain.AuditActions;
 import cn.sec.hn.openbackupsaas.journal.domain.EffectKind;
 import cn.sec.hn.openbackupsaas.journal.service.JournalService;
@@ -42,11 +44,14 @@ public class OccupancyService {
 
     private final ReservationMapper reservationMapper;
     private final JournalService journalService;
+    private final IdempotencyService idempotencyService;
     private final Clock clock;
 
-    public OccupancyService(ReservationMapper reservationMapper, JournalService journalService, Clock clock) {
+    public OccupancyService(ReservationMapper reservationMapper, JournalService journalService,
+                            IdempotencyService idempotencyService, Clock clock) {
         this.reservationMapper = reservationMapper;
         this.journalService = journalService;
+        this.idempotencyService = idempotencyService;
         this.clock = clock;
     }
 
@@ -70,8 +75,11 @@ public class OccupancyService {
         RoomOccupancy occupancy = RoomOccupancy.held(UUID.randomUUID(), tenantId, hotelId, roomId,
                 reservationId, lineId, stayRange, expiresAt, reasonCode, now());
         RoomOccupancy saved = insertOrConflict(occupancy);
-        journalService.recordOccupancyEffect(tenantId, hotelId, roomId, stayRange, EffectKind.RESERVATION,
-                true, reasonCode);
+        UUID operationId = idempotencyService.beginInternal(tenantId, hotelId, "occupancy.hold",
+                RequestDigest.sha256Hex(Map.of("roomId", roomId, "lineId", lineId,
+                        "from", stayRange.checkIn().toString(), "to", stayRange.checkOut().toString())));
+        journalService.recordOccupancyEffect(operationId, tenantId, hotelId, roomId, stayRange,
+                EffectKind.RESERVATION, true, reasonCode);
         journalService.recordAudit(tenantId, hotelId, AuditActions.OCCUPANCY_HELD, "room_occupancy",
                 saved.id(), null, saved.version(),
                 Map.of("roomId", roomId, "from", stayRange.checkIn().toString(),
@@ -80,6 +88,8 @@ public class OccupancyService {
                 saved.version(), 1, "RoomOccupancyHeld",
                 Map.of("roomId", roomId, "from", stayRange.checkIn().toString(),
                         "to", stayRange.checkOut().toString(), "kind", "RESERVATION"));
+        idempotencyService.succeed(tenantId, operationId, saved.id(),
+                Map.of("occupancyId", saved.id(), "status", saved.status().name()));
         return saved;
     }
 
@@ -96,8 +106,11 @@ public class OccupancyService {
         RoomOccupancy occupancy = RoomOccupancy.block(UUID.randomUUID(), tenantId, hotelId, roomId,
                 stayRange, reasonCode, now());
         RoomOccupancy saved = insertOrConflict(occupancy);
-        journalService.recordOccupancyEffect(tenantId, hotelId, roomId, stayRange, EffectKind.BLOCK,
-                true, reasonCode);
+        UUID operationId = idempotencyService.beginInternal(tenantId, hotelId, "occupancy.block",
+                RequestDigest.sha256Hex(Map.of("roomId", roomId,
+                        "from", stayRange.checkIn().toString(), "to", stayRange.checkOut().toString())));
+        journalService.recordOccupancyEffect(operationId, tenantId, hotelId, roomId, stayRange,
+                EffectKind.BLOCK, true, reasonCode);
         journalService.recordAudit(tenantId, hotelId, AuditActions.OCCUPANCY_BLOCKED, "room_occupancy",
                 saved.id(), null, saved.version(),
                 Map.of("roomId", roomId, "from", stayRange.checkIn().toString(),
@@ -106,6 +119,8 @@ public class OccupancyService {
                 saved.version(), 1, "RoomBlocked",
                 Map.of("roomId", roomId, "from", stayRange.checkIn().toString(),
                         "to", stayRange.checkOut().toString(), "kind", "BLOCK"));
+        idempotencyService.succeed(tenantId, operationId, saved.id(),
+                Map.of("occupancyId", saved.id(), "status", saved.status().name()));
         return saved;
     }
 
@@ -131,14 +146,18 @@ public class OccupancyService {
             String action = target == OccupancyStatus.UNBLOCKED
                     ? AuditActions.OCCUPANCY_UNBLOCKED
                     : AuditActions.OCCUPANCY_RELEASED;
-            journalService.recordOccupancyEffect(tenantId, hotelId, current.roomId(), current.stayRange(),
-                    kind, false, current.reasonCode());
+            UUID releaseOperationId = idempotencyService.beginInternal(tenantId, hotelId, "occupancy.release",
+                    RequestDigest.sha256Hex(Map.of("roomId", current.roomId(), "status", target.name())));
+            journalService.recordOccupancyEffect(releaseOperationId, tenantId, hotelId, current.roomId(),
+                    current.stayRange(), kind, false, current.reasonCode());
             journalService.recordAudit(tenantId, hotelId, action, "room_occupancy", updated.id(),
                     current.version(), updated.version(),
                     Map.of("roomId", current.roomId(), "status", target.name()));
             journalService.recordEvent(tenantId, hotelId, JournalService.occupancyAggregate(), updated.id(),
                     updated.version(), 1, "RoomOccupancyReleased",
                     Map.of("roomId", current.roomId(), "status", target.name(), "kind", current.kind().name()));
+            idempotencyService.succeed(tenantId, releaseOperationId, updated.id(),
+                    Map.of("occupancyId", updated.id(), "status", target.name()));
         }
         return updated;
     }

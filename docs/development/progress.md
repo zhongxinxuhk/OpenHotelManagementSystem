@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-07）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-08）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-07`（S1-06 库存流水、审计与 Outbox 原子写入，DONE） |
-| 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02—S1-06 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
+| 当前轮次 | `R-20261030-08`（S1-07 持久化幂等与提交不确定恢复，DONE） |
+| 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02—S1-07 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
 | 已通过门禁 | 无（G0 未开审） |
-| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计五域已落库（V1—V5.2 共 17 张表，复合外键 + CHECK + GiST 排斥）；**97 个测试全部通过（含 78 个真实 PostgreSQL 集成用例）**；订单命令、幂等、发布器与支付仍未实现 |
+| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等六域已落库（V1—V6 共 18 张表，复合外键 + CHECK + GiST 排斥）；**105 个测试全部通过（含 86 个真实 PostgreSQL 集成用例）**；订单命令、发布器与支付仍未实现 |
 | 前端工程状态 | `frontend-admin-pro/` 工程文件已就位；`npm ci` 受本机代理阻塞，见 [S3-01a 记录](../verification/S3-01a/2026-10-30-dependency-install.md) |
-| 功能项完成度 | 约 13.8%（124 项，DONE 9 项，见 feature-catalog §1） |
-| 下一轮目标 | ①`S1-07` 持久化幂等与提交不确定恢复；②`S1-08` 原子锁房与订单创建 |
+| 功能项完成度 | 约 14.4%（124 项，DONE 9 项，见 feature-catalog §1） |
+| 下一轮目标 | ①`S1-08` 原子锁房与订单创建（幂等接入真实命令）；②`S1-09` 确认、取消与 No-show |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -44,7 +44,7 @@
 | S1-04 | 房型、实体房间与运营状态 | P0 | 2–4 | DONE |
 | S1-05 | 日期约束、占用排斥与维修互斥 | P0 | 4–6 | DONE |
 | S1-06 | 库存流水、审计和 Outbox 原子写入 | P0 | 3–5 | DONE |
-| S1-07 | 持久化请求幂等与提交不确定恢复 | P0 | 3–5 | TODO |
+| S1-07 | 持久化请求幂等与提交不确定恢复 | P0 | 3–5 | DONE |
 | S1-08 | 原子锁房与订单创建 | P0 | 3–5 | TODO |
 | S1-09 | 确认、取消与 No-show | P0 | 3–5 | TODO |
 | S1-10 | 超时领取与幂等释放 | P0 | 2–4 | TODO |
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 6（S0-03、S1-02—S1-06） |
+| DONE | 7（S0-03、S1-02—S1-07） |
 | VERIFYING | 4（S0-01、S0-02、S0-04、S1-01） |
 | BLOCKED | 2（S3-01a 环境阻塞、S5-01 渠道授权） |
-| TODO | 54 |
+| TODO | 53 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -159,6 +159,42 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261030-08 S1-07 持久化幂等与提交不确定恢复
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. Flyway V6：`idempotency_record`（幂等作用域五元组 + 规范化请求摘要 + 处理中/成功/失败状态 + 结果引用与快照），并把 `inventory_ledger.operation_id` 外键指向它。
+  2. 命令入口组件：同键同内容返回原结果；同键不同内容拒绝；并发同键只产生一次效果；提交成功但响应丢失可查回原结果。
+  3. 规范化请求摘要：字段排序 + SHA-256，摘要算法版本可升级（同一键换算法视为不同内容，不静默放行）。
+  4. 结果查询接口：`GET /api/v1/operations/{operationId}` 与 `/lookup`（租户内，`operation:read`）。
+  5. 测试：`IdempotencyIntegrationTest` 8 例。
+- 本轮明确不做：把锁房命令改造为幂等命令（S1-08 接入真实命令）、提交不确定窗口的故障注入（S2-08）、幂等记录清理任务（保留期由 S6-03 归档定案）、Inbox 幂等（S2-02）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：D-09；S1-07
+- 变更文件：
+  - 新增迁移：`V6__idempotency_baseline.sql`
+  - 新增模块：`command/domain/{IdempotencyRecord,IdempotencyStatus,RequestDigest}.java`、`command/mapper/IdempotencyMapper.java`、`command/service/IdempotencyService.java`、`command/web/{OperationController,OperationView}.java`、`command/package-info.java`
+  - 新增 SQL：`resources/mapper/command/IdempotencyMapper.xml`
+  - 新增测试：`command/IdempotencyIntegrationTest.java`
+  - 修改：`reservation/service/OccupancyService.java`（占用写入先开操作、成功后记结果）、`journal/JournalIntegrationTest.java`（流水需真实 operation_id）、`test/support/NoDatabaseStubConfig.java`、`test/resources/db/integration-cleanup.sql`
+- 验证（本轮实际执行，详见 [S1-07 记录](../verification/S1-07/2026-10-30-idempotency-baseline.md)）：
+  - `./mvnw -o -q -DskipTests compile` → 退出码 0
+  - `PMS_IT_DB=true ./mvnw -B -ntp test` → `Tests run: 105, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（本轮新增 8 个）
+  - 无库：`./mvnw -B -ntp test` → 105 run / **86 skipped** / 0 failure → BUILD SUCCESS
+  - `PMS_IT_DB=true ./mvnw -o -B -ntp verify` → 105 tests / 0 failure → **BUILD SUCCESS**（15.5s）
+  - 数据库核对：`flyway_schema_history` V6 success；`uq_idempotency_scope` 与 `fk_inventory_ledger_operation` 生效
+  - 关键用例：同键同内容重放同一 resultRef（业务只一次）、同键不同内容 409、并发恰好一个执行、按 operationId 查回 SUCCEEDED 与结果引用、跨租户 404、虚构 operation_id 直插被外键拒绝
+  - 未覆盖：真实命令接入（S1-08/S1-09）、提交瞬间崩溃的故障注入（S2-08）、保留期清理（S6-03）、Inbox（S2-02）
+- 本轮发现（已处理 / 转下轮）：
+  1. **不要靠捕获唯一键异常判断重复**：PG 报错后整个事务被标记中止，后续查询全挂。改用 `INSERT ... ON CONFLICT DO NOTHING` 看影响行数。
+  2. **加外键前必须确认存量数据**：本地一次性集群里残留的前几轮流水行让 V6 迁移失败，表现为上下文加载失败，很难一眼定位。本地集群要先清理再跑。
+  3. **包装类型坑第三次出现**：`IdempotencyRecord.hashVersion` 用了 `int`。record 建好后应第一时间确认数值列都是包装类型。
+  4. 摘要必须规范化；`hash_version` 让"换算法"自动变成"同键不同内容"被拒，而不是静默放行。
+  5. **FAILED 的边界**：只有确定无副作用的拒绝才记 FAILED；执行中失败要允许重试，记了反而挡住合法重试。
+- 回写确认：feature-catalog ✓（D-09 → VERIFYING 75%）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S1-08` 原子锁房与订单创建（把幂等接入真实命令）
 
 ---
 
