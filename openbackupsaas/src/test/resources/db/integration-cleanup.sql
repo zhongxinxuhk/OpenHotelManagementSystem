@@ -1,7 +1,9 @@
 -- 集成测试前置清理：按依赖顺序删除，不用 TRUNCATE（应用账号没有 TRUNCATE 权限，
 -- 这正是"应用账号只有 DML"的分权体现）。
--- 顺序：会话 → 门店范围 → 角色绑定 → 账号/角色 → 组织。
+-- 顺序：房间 → 房型 → 会话 → 门店范围 → 角色绑定 → 账号/角色 → 组织。
 -- permission 是全局字典（由迁移写入），不属于测试数据，故意不删。
+DELETE FROM physical_room;
+DELETE FROM room_type;
 DELETE FROM user_session;
 DELETE FROM user_hotel_scope;
 DELETE FROM user_role;

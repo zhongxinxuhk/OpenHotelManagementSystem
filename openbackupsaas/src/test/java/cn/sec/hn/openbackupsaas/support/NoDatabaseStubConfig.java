@@ -5,6 +5,10 @@ import cn.sec.hn.openbackupsaas.identity.domain.Role;
 import cn.sec.hn.openbackupsaas.identity.domain.SessionView;
 import cn.sec.hn.openbackupsaas.identity.domain.UserSession;
 import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
+import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
+import cn.sec.hn.openbackupsaas.room.domain.RoomStatus;
+import cn.sec.hn.openbackupsaas.room.domain.RoomType;
+import cn.sec.hn.openbackupsaas.room.mapper.RoomMapper;
 import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.HotelGroup;
 import cn.sec.hn.openbackupsaas.tenant.domain.OrgStatus;
@@ -41,6 +45,11 @@ public class NoDatabaseStubConfig {
     @Bean
     IdentityMapper identityMapper() {
         return new IdentityMapperStub();
+    }
+
+    @Bean
+    RoomMapper roomMapper() {
+        return new RoomMapperStub();
     }
 
     static final class IdentityMapperStub implements IdentityMapper {
