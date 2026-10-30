@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  外部任务（S2-03）。
+
+  三条纪律：
+  1. 领取必须能领到"租约已过期的 RUNNING"——否则执行器崩溃过的任务永远停在那里。
+  2. 所有结算带 lease_token 条件：租约换人后不得覆盖状态。
+  3. 每次结算前，先插尝试记录再改状态：顺序反了会出现"状态说试了 3 次、台账只有 2 条"。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.integration.mapper.ExternalTaskMapper">
+
+    <resultMap id="taskMap" type="cn.sec.hn.openbackupsaas.integration.domain.ExternalTask">
+        <constructor>
+            <idArg column="task_id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="task_type" javaType="java.lang.String"/>
+            <arg column="channel" javaType="java.lang.String"/>
+            <arg column="idempotency_key" javaType="java.lang.String"/>
+            <arg column="payload" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.integration.domain.TaskStatus"/>
+            <arg column="attempts" javaType="java.lang.Integer"/>
+            <arg column="max_attempts" javaType="java.lang.Integer"/>
+            <arg column="next_attempt_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="lease_token" javaType="java.util.UUID"/>
+            <arg column="result_ref" javaType="java.lang.String"/>
+            <arg column="last_error" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <!-- INSERT ... RETURNING：入队方需要任务 id 才能做后续查询与对账 -->
+    <select id="insertTask" resultType="java.util.UUID">
+        INSERT INTO external_task (tenant_id, hotel_id, task_type, channel, idempotency_key,
+                                   payload, status, max_attempts, next_attempt_at)
+        VALUES (#{tenantId}, #{hotelId}, #{taskType}, #{channel}, #{idempotencyKey},
+                #{payload}::jsonb, 'PENDING', #{maxAttempts}, now())
+        RETURNING task_id
+    </select>
+
+    <select id="claimBatch" resultMap="taskMap">
+        WITH claimed AS MATERIALIZED (
+            SELECT e.task_id
+            FROM external_task e
+            WHERE (e.status = 'PENDING' AND e.next_attempt_at &lt;= now())
+               OR (e.status = 'RUNNING' AND e.lease_until &lt;= now())
+            ORDER BY e.next_attempt_at, e.task_id
+            LIMIT #{batchSize}
+            FOR UPDATE SKIP LOCKED
+        )
+        UPDATE external_task t
+        SET status = 'RUNNING',
+            lease_token = #{leaseToken},
+            lease_until = now() + make_interval(secs => #{leaseSeconds}),
+            updated_at = now()
+        FROM claimed
+        WHERE t.task_id = claimed.task_id
+        RETURNING t.task_id, t.tenant_id, t.hotel_id, t.task_type, t.channel, t.idempotency_key,
+                  t.payload::text AS payload, t.status, t.attempts, t.max_attempts,
+                  t.next_attempt_at, t.lease_token, t.result_ref, t.last_error
+    </select>
+
+    <insert id="insertAttempt">
+        INSERT INTO external_task_attempt (task_id, attempt_no, started_at, finished_at,
+                                           outcome, error_class, detail, result_ref)
+        VALUES (#{taskId}, #{attemptNo}, #{startedAt}, #{finishedAt},
+                #{outcome}, #{errorClass}, #{detail}, #{resultRef})
+    </insert>
+
+    <update id="markAttempts">
+        UPDATE external_task
+        SET attempts = GREATEST(attempts, #{attemptNo}),
+            last_error_class = #{errorClass},
+            last_error = #{detail},
+            updated_at = now()
+        WHERE task_id = #{taskId}
+    </update>
+
+    <update id="settleSucceeded">
+        UPDATE external_task
+        SET status = 'SUCCEEDED',
+            result_ref = #{resultRef},
+            last_error_class = NULL,
+            lease_token = NULL,
+            lease_until = NULL,
+            completed_at = now(),
+            updated_at = now()
+        WHERE task_id = #{taskId}
+          AND lease_token = #{leaseToken}
+          AND status = 'RUNNING'
+    </update>
+
+    <update id="settleRetry">
+        UPDATE external_task
+        SET status = 'PENDING',
+            last_error_class = #{errorClass},
+            last_error = #{detail},
+            next_attempt_at = #{nextAttemptAt},
+            lease_token = NULL,
+            lease_until = NULL,
+            updated_at = now()
+        WHERE task_id = #{taskId}
+          AND lease_token = #{leaseToken}
+          AND status = 'RUNNING'
+    </update>
+
+    <update id="settleFailed">
+        UPDATE external_task
+        SET status = 'FAILED',
+            last_error_class = #{errorClass},
+            last_error = #{detail},
+            lease_token = NULL,
+            lease_until = NULL,
+            completed_at = now(),
+            updated_at = now()
+        WHERE task_id = #{taskId}
+          AND lease_token = #{leaseToken}
+          AND status = 'RUNNING'
+    </update>
+
+    <update id="settleManual">
+        UPDATE external_task
+        SET status = 'MANUAL_REVIEW',
+            last_error_class = #{errorClass},
+            last_error = #{detail},
+            lease_token = NULL,
+            lease_until = NULL,
+            completed_at = now(),
+            updated_at = now()
+        WHERE task_id = #{taskId}
+          AND lease_token = #{leaseToken}
+          AND status = 'RUNNING'
+    </update>
+
+    <update id="settleDead">
+        UPDATE external_task
+        SET status = 'DEAD',
+            last_error_class = #{errorClass},
+            last_error = #{detail},
+            lease_token = NULL,
+            lease_until = NULL,
+            completed_at = now(),
+            updated_at = now()
+        WHERE task_id = #{taskId}
+          AND lease_token = #{leaseToken}
+          AND status = 'RUNNING'
+    </update>
+
+    <update id="release">
+        UPDATE external_task
+        SET status = 'PENDING',
+            next_attempt_at = #{nextAttemptAt},
+            last_error = #{reason},
+            lease_token = NULL,
+            lease_until = NULL,
+            updated_at = now()
+        WHERE task_id = #{taskId}
+          AND lease_token = #{leaseToken}
+          AND status = 'RUNNING'
+    </update>
+
+    <select id="findById" resultMap="taskMap">
+        SELECT task_id, tenant_id, hotel_id, task_type, channel, idempotency_key,
+               payload::text AS payload, status, attempts, max_attempts, next_attempt_at, lease_token,
+               result_ref, last_error
+        FROM external_task
+        WHERE task_id = #{taskId}
+    </select>
+
+    <update id="settleManualResolution">
+        UPDATE external_task
+        SET status = #{status},
+            result_ref = #{resultRef},
+            last_error = #{detail},
+            completed_at = now(),
+            updated_at = now()
+        WHERE task_id = #{taskId}
+          AND status = 'MANUAL_REVIEW'
+    </update>
+
+    <select id="findAttempts" resultType="java.util.Map">
+        SELECT attempt_no, started_at, finished_at, outcome, error_class, detail, result_ref
+        FROM external_task_attempt
+        WHERE task_id = #{taskId}
+        ORDER BY attempt_no
+    </select>
+
+    <select id="findByStatus" resultMap="taskMap">
+        SELECT task_id, tenant_id, hotel_id, task_type, channel, idempotency_key,
+               payload::text AS payload, status, attempts, max_attempts, next_attempt_at, lease_token,
+               result_ref, last_error
+        FROM external_task
+        WHERE status = #{status}
+        ORDER BY next_attempt_at, task_id
+        LIMIT #{limit}
+    </select>
+
+</mapper>

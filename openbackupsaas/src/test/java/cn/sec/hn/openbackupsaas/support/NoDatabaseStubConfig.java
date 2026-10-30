@@ -90,6 +90,11 @@ public class NoDatabaseStubConfig {
     }
 
     @Bean
+    cn.sec.hn.openbackupsaas.integration.mapper.ExternalTaskMapper externalTaskMapper() {
+        return new ExternalTaskMapperStub();
+    }
+
+    @Bean
     cn.sec.hn.openbackupsaas.inbox.mapper.InboxMapper inboxMapper() {
         return new InboxMapperStub();
     }
@@ -640,6 +645,97 @@ public class NoDatabaseStubConfig {
 
         @Override
         public long countParked(String consumerName) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    static final class ExternalTaskMapperStub
+            implements cn.sec.hn.openbackupsaas.integration.mapper.ExternalTaskMapper {
+
+        @Override
+        public UUID insertTask(UUID tenantId, UUID hotelId, String taskType, String channel,
+                               String idempotencyKey, String payload, int maxAttempts) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.integration.domain.ExternalTask> claimBatch(
+                UUID leaseToken, long leaseSeconds, int batchSize) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertAttempt(UUID taskId, int attemptNo, java.time.OffsetDateTime startedAt,
+                                 java.time.OffsetDateTime finishedAt, String outcome,
+                                 cn.sec.hn.openbackupsaas.integration.domain.ErrorClass errorClass,
+                                 String detail, String resultRef) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int markAttempts(UUID taskId, int attemptNo,
+                                cn.sec.hn.openbackupsaas.integration.domain.ErrorClass errorClass,
+                                String detail) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int settleSucceeded(UUID taskId, UUID leaseToken, String resultRef) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int settleRetry(UUID taskId, UUID leaseToken,
+                               cn.sec.hn.openbackupsaas.integration.domain.ErrorClass errorClass,
+                               String detail, java.time.OffsetDateTime nextAttemptAt) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int settleFailed(UUID taskId, UUID leaseToken,
+                                cn.sec.hn.openbackupsaas.integration.domain.ErrorClass errorClass,
+                                String detail) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int settleManual(UUID taskId, UUID leaseToken,
+                                cn.sec.hn.openbackupsaas.integration.domain.ErrorClass errorClass,
+                                String detail) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int settleDead(UUID taskId, UUID leaseToken,
+                              cn.sec.hn.openbackupsaas.integration.domain.ErrorClass errorClass,
+                              String detail) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int release(UUID taskId, UUID leaseToken,
+                           java.time.OffsetDateTime nextAttemptAt, String reason) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public cn.sec.hn.openbackupsaas.integration.domain.ExternalTask findById(UUID taskId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int settleManualResolution(UUID taskId, String status, String resultRef, String detail) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<java.util.Map<String, Object>> findAttempts(UUID taskId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.integration.domain.ExternalTask> findByStatus(
+                String status, int limit) {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }
