@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-16）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-17）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-16`（S2-01 Outbox 发布器与 Worker 隔离，DONE） |
-| 当前阶段 | **阶段 2 开始**（阶段 1 全部 DONE；S2-01 DONE，S2-02 起为 TODO）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
-| 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 含真实 PostgreSQL + RabbitMQ、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ（阶段 2）；组织/身份/房间/占用/流水审计/幂等/订单/房态投影八域 + Outbox 投递已落库（V1—V8 共 20 张表，复合外键 + CHECK + GiST 排斥）；**199 个测试全部通过（其中 158 需真实 PostgreSQL、3 需真实 RabbitMQ）**；交易内核闭环，Outbox 发布器可按角色独立启停；Inbox 消费（S2-02）与支付仍未实现 |
+| 当前轮次 | `R-20261030-17`（S2-02 Inbox 消费与版本保护，DONE） |
+| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01、S2-02 DONE，S2-03 起为 TODO）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
+| 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 含真实 PostgreSQL + RabbitMQ 与端到端消费、frontend） |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；九域 + Outbox + Inbox 已落库（V1—V9 共 22 张表，复合外键 + CHECK + GiST 排斥）；**211 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；交易内核闭环，Outbox 发布与 Inbox 去重/版本保护/重放均可独立启停；死信、任务化重试与支付仍未实现 |
 | 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位已有 `/availability` 可接；CI 三步全绿 |
-| 功能项完成度 | 约 30%（124 项，DONE 30 项，见 feature-catalog §1） |
-| 下一轮目标 | `S2-02` Inbox 消费与版本保护（去重与业务变更同事务、聚合版本乱序处理、异步线程显式传递授权上下文） |
+| 功能项完成度 | 约 31%（124 项，DONE 31 项，见 feature-catalog §1） |
+| 下一轮目标 | `S2-03` 持久化任务与外部调用状态（任务表 + 调度 + 退避，未知结果先查询） |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -57,7 +57,7 @@
 | 任务 | 名称 | 优先级 | 估算 | 状态 |
 | --- | --- | --- | --- | --- |
 | S2-01 | Outbox 发布与 Worker 隔离 | P0 | 3–5 | DONE | 租约式领取（物化 CTE）、发布确认、按 token 条件标记、指数退避；13 集成 + 3 真实 Broker 冒烟 |
-| S2-02 | Inbox 消费与版本保护 | P0 | 3–5 | TODO |
+| S2-02 | Inbox 消费与版本保护 | P0 | 3–5 | DONE | 去重键+位点、四态结论、缺口挂起与重放、首个消费者（投影重算）；11 集成 + 1 端到端 |
 | S2-03 | 持久化任务与外部调用状态 | P0 | 3–5 | TODO |
 | S2-04 | 死信、人工重放与审计修复 | P0 | 2–4 | TODO |
 | S2-05 | 内部对账与派生修复 | P0 | 3–5 | TODO |
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 16（S0-03、S1-01—S1-13、S2-01、S3-01a） |
+| DONE | 17（S0-03、S1-01—S1-13、S2-01、S2-02、S3-01a） |
 | VERIFYING | 3（S0-01、S0-02、S0-04） |
 | BLOCKED | 1（S5-01 渠道授权） |
-| TODO | 46 |
+| TODO | 45 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -161,6 +161,34 @@
 ```
 
 ---
+
+### R-20261030-17 S2-02 Inbox 消费与版本保护
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **V9 迁移**：`inbox_event`（主键 `(consumer_name, event_id)` 即去重键；`outcome` 四态且由 CHECK 约束"只有挂起可以没有结算时间"）+ `inbox_consumer_position`（按（消费者, 聚合）记版本与序号）。
+  2. **消费者模板**：`InboxConsumer` + `InboxProcessor`（认领→版本判定→应用→推进位点，同一事务；认领写在应用之前）；四态判定 `IGNORED / SKIPPED_STALE / PARKED_GAP / PROCESSED`；**首次见到聚合时接管当前版本**（否则新消费者在存量数据上永久卡在缺口）。
+  3. **重放**：`InboxIntegrityService.redriveParked`（缺口补齐后按聚合内顺序追上，逐条独立事务）。
+  4. **首个真实消费者**：`RoomProjectionConsumer` —— 订单事件驱动 `room_inventory_day` 整段重算（幂等；超 62 天自动分块）。
+  5. **消息入口**：`InboxListener`（解析失败=不可重试→留痕丢弃；业务失败→抛出重投；进消息前清线程上下文）+ `InboxMessagingConfig`（队列/交换机/绑定）。
+- 本轮明确不做：死信队列与人工重放（S2-04）、重试次数上限与延迟重试（S2-04）、消费者指标（S2-06）、投影增量维护（S2-05）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：M-02；S2-02
+- 变更文件：
+  - 新增：`inbox/{domain/{InboxMessage,InboxOutcome,InboxPosition},mapper/InboxMapper,service/{InboxConsumer,InboxProcessor,InboxIntegrityService,RoomProjectionConsumer},messaging/{InboxMessageCodec,InboxListener,InboxMessagingConfig}}`、`db/migration/V9__inbox_consumer.sql`、`mapper/inbox/InboxMapper.xml`、测试二（`InboxIntegrationTest`、`InboxListenerRabbitTest`）
+  - 修改：`application.properties`（Inbox 开关/队列/路由键/prefetch）、`application-{test,integration}.properties`（关闭消费）、`NoDatabaseStubConfig`（补 Mapper 桩）、`docs/verification/S2-02/…`
+- 验证（详见 [S2-02 记录](../verification/S2-02/2026-10-30-inbox-consumer.md)）：
+  - `PMS_IT_DB=true PMS_IT_RABBIT=true ./mvnw -B -ntp clean verify` → `Tests run: 211, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（199 → 211）
+  - 无库无 Broker：211 run / 186 skipped / 0 failure
+  - 真实 CI：[run 41034639792](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41034639792) success，`tests=211 skipped=0`，端到端消费用例在 CI 中真实执行
+  - 已验：重复投递只应用一次（含并发两线程）、失败事务不留台账与位点且可重试、旧事件跳过不覆盖新状态、同版本第二条不误判重复、缺口挂起并在补齐后重放、未订阅类型记为 IGNORED、租户取自消息体而非线程上下文、真实 Broker 发布→消费→投影重算全链路
+- 本轮发现（不夹带实现，转入后续轮次）：
+  1. **"首次见到聚合"必须有明确规则**：严格按"版本 > 位点+1 即缺口"会让新消费者在存量数据上永久卡死（历史事件不在总线上）。已定为"无位点时接管当前版本"并写进注释。
+  2. **topic 交换机的 `*` 必须独占一个词**：`Reservation*` 会被当成字面词，绑定声明成功但消息全部不可路由（`replyCode=312`）。当前路由键是单单词事件类型，只能逐个列出。
+  3. **拓扑声明与容器启动有竞态**：测试里用 `amqpAdmin.initialize()` 消除；生产侧的对应事实（发布早于绑定 → mandatory 判不可路由并退避重试，不丢）已记录。
+  4. **测试辅助方法很容易毁掉被测语义**：消息工厂给每条消息生成新的聚合 id，导致"每条都是首次见到"、缺口与旧事件用例全部失真。聚合/租户必须在一个用例内固定。
+  5. V9 用了 `ON CONFLICT DO NOTHING` 作为去重入口——**反向验证确认**去掉它立即报唯一键冲突，说明用例真的覆盖了去重路径。
+- 回写确认：feature-catalog ✓（M-02 → DONE；§1 重算）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S2-03` 持久化任务与外部调用状态（任务表、调度、退避、未知结果先查询）
 
 ### R-20261030-16 S2-01 Outbox 发布与 Worker 隔离
 
