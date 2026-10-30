@@ -129,6 +129,32 @@
         WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND id = #{id}
     </select>
 
+    <select id="findLinesByReservation" resultMap="lineMap">
+        SELECT <include refid="lineColumns"/>
+        FROM reservation_line
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND reservation_id = #{reservationId}
+        ORDER BY line_no
+    </select>
+
+    <select id="findOccupanciesByReservation" resultMap="occupancyMap">
+        SELECT <include refid="occupancyColumns"/>
+        FROM room_occupancy
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND reservation_id = #{reservationId}
+        ORDER BY line_id, stay_range
+    </select>
+
+    <update id="updateLineStatus">
+        UPDATE reservation_line
+        SET status = #{status}, updated_at = #{at}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND id = #{id}
+    </update>
+
+    <update id="updateReservationStatus">
+        UPDATE reservation
+        SET status = #{status}, updated_at = #{at}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND id = #{id}
+    </update>
+
     <!-- ============ 占用（统一 A/B） ============ -->
 
     <insert id="insertOccupancy" parameterType="cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy">

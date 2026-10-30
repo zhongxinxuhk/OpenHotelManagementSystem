@@ -53,4 +53,43 @@ public class ReservationController {
                         .toList());
         return reservationCommandService.createReservation(tenantId, command);
     }
+
+    @PostMapping("/{reservationId}/confirm")
+    @PreAuthorize("hasAuthority('reservation:write')")
+    public ReservationView confirm(@PathVariable UUID hotelId,
+                                  @PathVariable UUID reservationId,
+                                  @RequestHeader(value = "X-Caller-Namespace", defaultValue = "frontend")
+                                          String callerNamespace,
+                                  @Valid @RequestBody LifecycleRequest request) {
+        UUID tenantId = hotelAccess.requireAccess(hotelId);
+        return reservationCommandService.confirmReservation(tenantId, reservationId,
+                new ReservationCommandService.LifecycleCommand(hotelId, callerNamespace,
+                        request.idempotencyKey(), request.expectedVersion()));
+    }
+
+    @PostMapping("/{reservationId}/cancel")
+    @PreAuthorize("hasAuthority('reservation:write')")
+    public ReservationView cancel(@PathVariable UUID hotelId,
+                                 @PathVariable UUID reservationId,
+                                 @RequestHeader(value = "X-Caller-Namespace", defaultValue = "frontend")
+                                         String callerNamespace,
+                                 @Valid @RequestBody LifecycleRequest request) {
+        UUID tenantId = hotelAccess.requireAccess(hotelId);
+        return reservationCommandService.cancelReservation(tenantId, reservationId,
+                new ReservationCommandService.LifecycleCommand(hotelId, callerNamespace,
+                        request.idempotencyKey(), request.expectedVersion()));
+    }
+
+    @PostMapping("/{reservationId}/no-show")
+    @PreAuthorize("hasAuthority('reservation:write')")
+    public ReservationView markNoShow(@PathVariable UUID hotelId,
+                                     @PathVariable UUID reservationId,
+                                     @RequestHeader(value = "X-Caller-Namespace", defaultValue = "frontend")
+                                             String callerNamespace,
+                                     @Valid @RequestBody LifecycleRequest request) {
+        UUID tenantId = hotelAccess.requireAccess(hotelId);
+        return reservationCommandService.markNoShow(tenantId, reservationId,
+                new ReservationCommandService.LifecycleCommand(hotelId, callerNamespace,
+                        request.idempotencyKey(), request.expectedVersion()));
+    }
 }

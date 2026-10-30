@@ -15,7 +15,7 @@ public record ReservationLine(
         UUID tenantId,
         UUID hotelId,
         UUID reservationId,
-        int lineNo,
+        Integer lineNo,
         UUID requestedRoomTypeId,
         StayRange plannedRange,
         LineStatus status,

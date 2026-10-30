@@ -37,7 +37,7 @@
 | `DEFERRED` | 1 | 0.8% | D-11 订单备注（P2） |
 | **合计** | **124** | 100% | 各项占比独立四舍五入，合计可能略超 100% |
 
-整体加权完成度：**约 15.3%**（组织、身份、房间、占用、幂等与建单基线 9 项 DONE；交易内核其余部分仍为 READY）。
+整体加权完成度：**约 17.7%**（组织、身份、房间、占用、幂等与订单生命周期共 12 项 DONE；交易内核其余部分仍为 READY）。
 
 ---
 
@@ -85,12 +85,12 @@
 | D-01 | 服务端可售查询（半开区间） | `/availability`；`room_inventory_day` | P0 | S1-12 | READY | 0% | `[in, out)`；相邻日期可续订 |
 | D-02 | 多房多晚原子锁房 | `POST /reservations`；事务服务 | P0 | S1-08 | READY | 0% | 全成或全败（BL-03） |
 | D-03 | 内部自动选房 | 分配算法（整段区间可用） | P0 | S1-08 | READY | 0% | 无连续房时拒绝整段承诺（T09） |
-| D-04 | 订单确认 | `POST /reservations/{id}/confirm` | P0 | S1-09 | READY | 0% | 版本条件更新 |
-| D-05 | 订单取消 | `POST /reservations/{id}/cancel` | P0 | S1-09 | READY | 0% | 已入住取消按批准规则，不直接释放 |
+| D-04 | 订单确认 | `POST /reservations/{id}/confirm` | P0 | S1-09 | DONE | 100% | 版本条件更新 + 整单统一迁移；占用 HELD→CONFIRMED 不释放 |
+| D-05 | 订单取消 | `POST /reservations/{id}/cancel` | P0 | S1-09 | DONE | 100% | 已入住一律拒绝普通取消（批准规则待定，先不做快捷迁移）；占用→RELEASED |
 | D-06 | 超时释放任务 | 释放 Worker + 扫描索引 | P0 | S1-10 | READY | 0% | 多 Worker 只释放一次 |
-| D-07 | No-show 处理 | 命令 + 占用释放规则 | P0 | S1-09 | READY | 0% | 是否计费受 DEC-08 约束 |
+| D-07 | No-show 处理 | 命令 + 占用释放规则 | P0 | S1-09 | DONE | 100% | 状态迁移（CONFIRMED→NO_SHOW + 释放）已落地；是否计费仍受 DEC-08 约束 |
 | D-08 | 订单列表/详情/状态查询 | `GET /reservations*`；订单工作台页 | P0 | S1-11、S3-03 | READY | 0% | 分页稳定、字段脱敏 |
-| D-09 | 持久化幂等（键+摘要） | `idempotency_record`；命令入口 | P0 | S1-07、S1-08 | VERIFYING | 75% | 作用域五元组 + 规范化摘要 + 结果查询接口已验；真实命令接入归 S1-08 |
+| D-09 | 持久化幂等（键+摘要） | `idempotency_record`；命令入口 | P0 | S1-07—S1-09 | DONE | 100% | 建单与三个状态机命令均已走幂等入口；提交不确定可查回原结果 |
 | D-10 | 原交易结果查询 | `GET /operations/{key}` | P0 | S1-07、S1-11 | READY | 0% | 提交成功但响应丢失的恢复路径 |
 | D-11 | 订单备注与特殊要求 | 备注字段 + 页面输入 | P2 | S3-03 | DEFERRED | 0% | 不影响库存与账务 |
 | D-12 | 订单来源标记 | `source` 枚举（前台/直客/OTA/小程序） | P1 | S1-08 | READY | 0% | 渠道订单由 L 域写入 |

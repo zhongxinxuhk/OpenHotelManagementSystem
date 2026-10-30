@@ -192,6 +192,48 @@ public class OccupancyService {
         return updated;
     }
 
+    /**
+     * 命令级状态翻转：在调用方已锁好资源（统一锁序）的前提下，把占用改到 {@code target}，
+     * 并把释放流水 / 审计 / 事件记到给定的 {@code operationId} 之下——而不是像
+     * {@link #changeStatus} 那样自建一条系统级幂等记录。
+     *
+     * <p>仅当"从有效状态翻到非有效状态"（如 HELD/CONFIRMED → RELEASED）才记释放流水；
+     * HELD → CONFIRMED 这类"保留占用"的迁移不重复扣减、不产生释放效果。
+     *
+     * <p>可见性设为包级：状态机命令在本包内调用，外部不应绕过锁序与命令直接翻状态。
+     */
+    RoomOccupancy transitionStatus(UUID operationId, UUID tenantId, UUID hotelId, UUID occupancyId,
+                                   OccupancyStatus target) {
+        RoomOccupancy current = requireOccupancy(tenantId, hotelId, occupancyId);
+        if (current.status() == target) {
+            return current;
+        }
+        if (!target.belongsTo(current.kind())) {
+            throw new IllegalArgumentException("状态 " + target + " 不属于占用种类 " + current.kind());
+        }
+        reservationMapper.updateOccupancyStatus(tenantId, hotelId, occupancyId, target, now());
+        RoomOccupancy updated = requireOccupancy(tenantId, hotelId, occupancyId);
+
+        boolean freesRoom = current.status().isEffective() && !target.isEffective();
+        if (freesRoom) {
+            EffectKind kind = current.kind() == cn.sec.hn.openbackupsaas.reservation.domain.OccupancyKind.BLOCK
+                    ? EffectKind.BLOCK
+                    : EffectKind.RESERVATION;
+            String action = target == OccupancyStatus.UNBLOCKED
+                    ? AuditActions.OCCUPANCY_UNBLOCKED
+                    : AuditActions.OCCUPANCY_RELEASED;
+            journalService.recordOccupancyEffect(operationId, tenantId, hotelId, current.roomId(),
+                    current.stayRange(), kind, false, current.reasonCode());
+            journalService.recordAudit(tenantId, hotelId, action, "room_occupancy", updated.id(),
+                    current.version(), updated.version(),
+                    Map.of("roomId", current.roomId(), "status", target.name()));
+            journalService.recordEvent(tenantId, hotelId, JournalService.occupancyAggregate(), updated.id(),
+                    updated.version(), 1, "RoomOccupancyReleased",
+                    Map.of("roomId", current.roomId(), "status", target.name(), "kind", current.kind().name()));
+        }
+        return updated;
+    }
+
     /** 多房场景的资源锁入口：S1-08 的原子锁房会用它一次锁全部房间。 */
     public void lockRooms(UUID tenantId, UUID hotelId, List<UUID> roomIds) {
         if (roomIds == null || roomIds.isEmpty()) {

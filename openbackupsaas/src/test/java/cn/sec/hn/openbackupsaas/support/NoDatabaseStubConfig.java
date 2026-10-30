@@ -424,6 +424,30 @@ public class NoDatabaseStubConfig {
         }
 
         @Override
+        public List<ReservationLine> findLinesByReservation(UUID tenantId, UUID hotelId, UUID reservationId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<RoomOccupancy> findOccupanciesByReservation(UUID tenantId, UUID hotelId, UUID reservationId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateLineStatus(UUID tenantId, UUID hotelId, UUID id,
+                                   cn.sec.hn.openbackupsaas.reservation.domain.LineStatus status,
+                                   OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateReservationStatus(UUID tenantId, UUID hotelId, UUID id,
+                                          cn.sec.hn.openbackupsaas.reservation.domain.ReservationStatus status,
+                                          OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
         public List<PhysicalRoom> lockRooms(UUID tenantId, UUID hotelId, List<UUID> roomIds) {
             throw new UnsupportedOperationException(MESSAGE);
         }

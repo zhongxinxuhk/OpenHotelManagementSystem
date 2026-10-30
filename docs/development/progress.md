@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-09`（S1-08 原子锁房与订单创建，DONE） |
-| 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02—S1-08 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
+| 当前轮次 | `R-20261030-10`（S1-09 确认、取消与 No-show，DONE） |
+| 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02—S1-09 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
 | 已通过门禁 | 无（G0 未开审） |
-| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单七域已落库（V1—V6.1 共 19 张表，复合外键 + CHECK + GiST 排斥）；**110 个测试全部通过（含 91 个真实 PostgreSQL 集成用例）**；确认/取消、发布器与支付仍未实现 |
-| 前端工程状态 | `frontend-admin-pro/` 工程文件已就位；`npm ci` 受本机代理阻塞，见 [S3-01a 记录](../verification/S3-01a/2026-10-30-dependency-install.md) |
-| 功能项完成度 | 约 15.3%（124 项，DONE 9 项，见 feature-catalog §1） |
-| 下一轮目标 | ①`S1-09` 确认、取消与 No-show；②`S1-10` 超时领取与幂等释放 |
+| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单七域已落库（V1—V6.4 共 19 张表，复合外键 + CHECK + GiST 排斥）；**121 个测试全部通过（其中 98 个需要真实 PostgreSQL）**；订单状态机（确认/取消/No-show）已闭环；发布器与支付仍未实现 |
+| 前端工程状态 | `node_modules` 已安装；`npm run tsc` ✓ / `biome:lint` ✓（2 处模板告警）；**`npm run build` ✗**——模板 `Welcome.tsx` 悬挂引用已删的 `@root/docs/cheatsheet.*.md`，见 R-20261030-10「本轮发现」 |
+| 功能项完成度 | 约 17.7%（124 项，DONE 12 项，见 feature-catalog §1） |
+| 下一轮目标 | ①`S3-01a` 收尾：替换 `Welcome` 为「今日工作台」，恢复 `npm run build`；②`S1-10` 超时领取与幂等释放 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -45,8 +45,8 @@
 | S1-05 | 日期约束、占用排斥与维修互斥 | P0 | 4–6 | DONE |
 | S1-06 | 库存流水、审计和 Outbox 原子写入 | P0 | 3–5 | DONE |
 | S1-07 | 持久化请求幂等与提交不确定恢复 | P0 | 3–5 | DONE |
-| S1-08 | 原子锁房与订单创建 | P0 | 3–5 | TODO |
-| S1-09 | 确认、取消与 No-show | P0 | 3–5 | TODO |
+| S1-08 | 原子锁房与订单创建 | P0 | 3–5 | DONE |
+| S1-09 | 确认、取消与 No-show | P0 | 3–5 | DONE | 整单统一迁移（DEC-04 部分履约 OPEN）；No-show 是否计费仍待 DEC-08 |
 | S1-10 | 超时领取与幂等释放 | P0 | 2–4 | TODO |
 | S1-11 | 交易 API、查询与权限闭环 | P0 | 2–4 | TODO |
 | S1-12 | 派生房态、可售计算与重建 | P0 | 3–5 | TODO |
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 8（S0-03、S1-02—S1-08） |
+| DONE | 9（S0-03、S1-02—S1-09） |
 | VERIFYING | 4（S0-01、S0-02、S0-04、S1-01） |
-| BLOCKED | 2（S3-01a 环境阻塞、S5-01 渠道授权） |
-| TODO | 52 |
+| BLOCKED | 2（S3-01a 挂起引用阻塞 build、S5-01 渠道授权） |
+| TODO | 51 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -159,6 +159,41 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261030-10 S1-09 确认、取消与 No-show（状态机命令）
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. 状态机守卫 `ReservationTransitions`（纯函数、无库）：确认要求全行 PENDING；取消允许 PENDING/CONFIRMED；No-show 要求全行 CONFIRMED；已入住拒绝普通取消。
+  2. `ReservationCommandService` 三个生命周期命令（confirm / cancel / no-show）：锁聚合根 → 乐观版本条件更新 → 守卫 → 统一锁序锁房间 → 推进行/聚合状态 → 翻转占用 → 审计 + 事件，全部在同一命令 operation_id 下。
+  3. 重复命令幂等 NO_CHANGE（到达目标终态不二次释放）；非法迁移一律 409。
+  4. 迁移 V6_2/V6_3/V6_4：`reservation.status` CHECK 扩展 NO_SHOW；放宽幂等命令名与审计动作名校验以下划线支持多词动词。
+  5. HTTP：`POST /api/v1/hotels/{hotelId}/reservations/{id}/{confirm|cancel|no-show}`（`reservation:write`，`X-Caller-Namespace` 进入幂等作用域）。
+  6. 测试：状态机守卫单测 + 真实 PostgreSQL 集成测试。
+- 本轮明确不做：超时释放（S1-10）、订单列表/详情（S1-11）、可售投影（S1-12）、入住/离店/换房（S3-04/05）、No-show 是否计费（DEC-08 未定案，状态迁移本身不受其约束）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：D-04、D-05、D-07；S1-09
+- 变更文件：
+  - 新增迁移：`V6_2__reservation_noshow_status.sql`、`V6_3__idempotency_command_underscore.sql`、`V6_4__audit_log_action_underscore.sql`
+  - 新增模块：`reservation/domain/ReservationTransitions.java`、`reservation/web/LifecycleRequest.java`
+  - 修改：`reservation/service/ReservationCommandService.java`（`LifecycleCommand` + confirm/cancel/no-show + `LifecycleKind` 枚举 + `buildView`）、`reservation/web/ReservationController.java`（三个生命周期端点）、`reservation/mapper/ReservationMapper.java` + XML（查行/查占用/推进行与聚合状态）、`reservation/service/OccupancyService.java`（`requireReservation`/`lockRooms`/`transitionStatus` 复用）、`reservation/domain/ReservationStatus.java`（启用 `NO_SHOW`）、`journal/domain/AuditActions.java`（3 个新动作）、`test/support/NoDatabaseStubConfig.java`
+  - 新增测试：`reservation/ReservationStateIntegrationTest.java`（7 例）、`reservation/domain/ReservationTransitionsTest.java`（4 例）
+- 验证（本轮实际执行，详见 [S1-09 记录](../verification/S1-09/2026-10-30-reservation-lifecycle.md)）：
+  - `./mvnw -o -q -DskipTests compile` → 退出码 0
+  - `PMS_IT_DB=true ./mvnw -B -ntp test` → 第一次 **121 run / 11 errors → BUILD FAILURE**，根因是上一会话被中断时遗留的已提交测试数据（详见「本轮发现」1），手动执行 `db/integration-cleanup.sql` 清理后重跑 → `Tests run: 121, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**
+  - `PMS_IT_DB=true ./mvnw -o -B -ntp verify` → 首次 **1 error**（并发用例时序不确定，见「本轮发现」2），修正后 → `Tests run: 121, Failures: 0, Errors: 0` → **BUILD SUCCESS**
+  - 无库：`./mvnw -B -ntp test` → 121 run / **98 skipped** / 0 failure → BUILD SUCCESS（跳过而非伪通过）
+  - 数据库核对：`flyway_schema_history` V1—V6.4 全部 success（新增 6.2/6.3/6.4 三行）
+  - 前端（依赖已安装）：`npm run tsc` → **通过（0 错误）**；`npm run biome:lint` → **通过（254 文件，2 处模板告警，exit 0）**；`npm run build` → **失败**：`src/pages/Welcome.tsx:5` `Module not found: Can't resolve '@root/docs/cheatsheet.zh-CN.md'`
+  - 未覆盖：超时释放（S1-10）、订单列表/详情（S1-11）、可售投影（S1-12）、三个生命周期端点的 HTTP 403/404 专用 MockMvc 测试（接线经上下文加载隐含验证）、No-show 计费规则（DEC-08）
+- 本轮发现（不夹带实现，转入下轮）：
+  1. **测试库残留会连锁放大**：`db/integration-cleanup.sql` 按依赖顺序 DELETE，任一条失败即整脚本中止，后续类全部拿到脏库并报出与真实缺陷无关的外键错误（本轮 11 个 error 全由此而来，业务代码无一处问题）。转 S1-13：把清理改为幂等且失败可定位（分语句或 `ON DELETE` 级清理），并在测试基类里断言"清理后为空"。
+  2. **并发用例不能固定时序**：`confirm` 与 `cancel` 谁先拿到聚合根行锁取决于调度；cancel 抢先时 confirm 必然被终态守卫拒绝。原写法对两个 future 都 `get()` 直接断言成功，是假并发测试。已改为"至多一个被拒 + 固定最终状态"。
+  3. **前端生产构建从骨架落地那天起就是红的**：R-20261029-01 清理模板时删掉了 `frontend-admin-pro/docs/`，而 `src/pages/Welcome.tsx` 仍 `import zhCN from '@root/docs/cheatsheet.zh-CN.md'`；当时列为未覆盖项的「demo 页清理后的悬挂引用检查」至此被坐实。修法不是补回模板文档——该页（“欢迎使用 Ant Design Pro V6 🎉”）本身就违反「禁止自述式营销文本」，应整体替换为「今日工作台」，归 S3-01a。本轮不越界改前端代码。
+  4. **No-show 暴露了命名校验的口径**：幂等命令名与审计动作名的 CHECK 原先只允许纯小写字母段，多词动词（`reservation.no_show`）无处安放。V6_3/V6_4 统一放宽为 `[a-z][a-z_]*` 的点分结构，仍禁数字、大写、前导下划线与点以外的分隔符，与既有 V6/V5 的口径一致。
+- 回写确认：feature-catalog ✓（D-04/D-05/D-07 → DONE、D-09 → DONE）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：①`S3-01a` 收尾：用「今日工作台」替换 `Welcome`，恢复 `npm run build`；②`S1-10` 超时领取与幂等释放
 
 ---
 

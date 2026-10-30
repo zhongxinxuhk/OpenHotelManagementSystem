@@ -3,8 +3,9 @@ package cn.sec.hn.openbackupsaas.reservation.domain;
 /**
  * 订单聚合状态（S0-02 候选，与迁移 V4 的 CHECK 一致）。
  *
- * <p>取值随 S0-02 定案调整：新增值需要同步迁移与本枚举。**NO_SHOW 待 D-07/DEC-08**，
- * 在那之前不把"是否计费"的规则写进状态语义。
+ * <p>{@code NO_SHOW} 于 S1-09 正式启用：V4 注释已预留"定案后追加（只改 CHECK）"，
+ * 对应 V6_2 迁移扩展 {@code ck_reservation_status}。是否计费的规则仍待 DEC-08，
+ * 但状态迁移本身（已确认 → No-show → 释放占用）属 S1-09 交付范围。
  */
 public enum ReservationStatus {
     PENDING,
@@ -12,5 +13,6 @@ public enum ReservationStatus {
     CHECKED_IN,
     CHECKED_OUT,
     CANCELLED,
-    EXPIRED
+    EXPIRED,
+    NO_SHOW
 }

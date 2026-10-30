@@ -57,6 +57,29 @@ public interface ReservationMapper {
                                        @Param("hotelId") UUID hotelId,
                                        @Param("id") UUID id);
 
+    List<ReservationLine> findLinesByReservation(@Param("tenantId") UUID tenantId,
+                                                @Param("hotelId") UUID hotelId,
+                                                @Param("reservationId") UUID reservationId);
+
+    /** 订单所有占用（按行、区间排序）。状态机命令据此翻转"仍在 from 集合"的有效占用。 */
+    List<RoomOccupancy> findOccupanciesByReservation(@Param("tenantId") UUID tenantId,
+                                                    @Param("hotelId") UUID hotelId,
+                                                    @Param("reservationId") UUID reservationId);
+
+    /** 推进订单行状态并递增版本（乐观版本由命令层在内存核，这里只 +1）。 */
+    int updateLineStatus(@Param("tenantId") UUID tenantId,
+                         @Param("hotelId") UUID hotelId,
+                         @Param("id") UUID id,
+                         @Param("status") cn.sec.hn.openbackupsaas.reservation.domain.LineStatus status,
+                         @Param("at") OffsetDateTime at);
+
+    /** 推进订单聚合状态并递增版本。 */
+    int updateReservationStatus(@Param("tenantId") UUID tenantId,
+                               @Param("hotelId") UUID hotelId,
+                               @Param("id") UUID id,
+                               @Param("status") cn.sec.hn.openbackupsaas.reservation.domain.ReservationStatus status,
+                               @Param("at") OffsetDateTime at);
+
     int insertOccupancy(RoomOccupancy occupancy);
 
     Optional<RoomOccupancy> findOccupancy(@Param("tenantId") UUID tenantId,

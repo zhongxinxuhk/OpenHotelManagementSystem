@@ -16,10 +16,13 @@ public final class AuditActions {
     public static final String OCCUPANCY_RELEASED = "occupancy.release";
     public static final String OCCUPANCY_UNBLOCKED = "occupancy.unblock";
     public static final String RESERVATION_CREATED = "reservation.create";
+    public static final String RESERVATION_CONFIRMED = "reservation.confirm";
+    public static final String RESERVATION_CANCELLED = "reservation.cancel";
+    public static final String RESERVATION_NO_SHOW = "reservation.no_show";
 
     private static final Set<String> KNOWN =
             Set.of(OCCUPANCY_HELD, OCCUPANCY_BLOCKED, OCCUPANCY_RELEASED, OCCUPANCY_UNBLOCKED,
-                    RESERVATION_CREATED);
+                    RESERVATION_CREATED, RESERVATION_CONFIRMED, RESERVATION_CANCELLED, RESERVATION_NO_SHOW);
 
     private AuditActions() {
     }
