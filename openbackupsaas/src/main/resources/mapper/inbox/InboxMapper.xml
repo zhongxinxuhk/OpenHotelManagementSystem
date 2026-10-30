@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  Inbox 台账与位点（S2-02）。
+
+  两条纪律：
+  1. 认领靠唯一键（主键 consumer_name + event_id）+ ON CONFLICT DO NOTHING，
+     不靠"先 SELECT 再 INSERT"——后者在并发下会双双放行。
+  2. 位点用 GREATEST 推进，不允许覆盖：位点倒退会把已处理的事件重新判成新事件。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.inbox.mapper.InboxMapper">
+
+    <resultMap id="positionMap" type="cn.sec.hn.openbackupsaas.inbox.domain.InboxPosition">
+        <constructor>
+            <arg column="consumer_name" javaType="java.lang.String"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="aggregate_type" javaType="java.lang.String"/>
+            <arg column="aggregate_id" javaType="java.util.UUID"/>
+            <arg column="last_version" javaType="java.lang.Long"/>
+            <arg column="last_ordinal" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="parkedMessageMap" type="cn.sec.hn.openbackupsaas.inbox.domain.InboxMessage">
+        <constructor>
+            <arg column="event_id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="aggregate_type" javaType="java.lang.String"/>
+            <arg column="aggregate_id" javaType="java.util.UUID"/>
+            <arg column="aggregate_version" javaType="_long"/>
+            <arg column="event_ordinal" javaType="_int"/>
+            <arg column="event_type" javaType="java.lang.String"/>
+            <arg column="schema_version" javaType="_int"/>
+            <arg column="payload" javaType="java.lang.String"/>
+            <arg column="occurred_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+      认领 + 落结论，一条语句。
+      settled_at 由结论决定：挂起没有结案时间（要能被重放），其余三种必须有。
+      这里的 CASE 与 ck_inbox_event_settled 是同一规则的两处表达，缺一处就会被约束挡住。
+    -->
+    <insert id="recordIfAbsent">
+        INSERT INTO inbox_event (consumer_name, event_id, tenant_id, hotel_id, aggregate_type, aggregate_id,
+                                 aggregate_version, event_ordinal, event_type, schema_version, occurred_at,
+                                 payload, outcome, detail, received_at, settled_at)
+        VALUES (#{consumerName}, #{m.eventId}, #{m.tenantId}, #{m.hotelId}, #{m.aggregateType}, #{m.aggregateId},
+                #{m.aggregateVersion}, #{m.eventOrdinal}, #{m.eventType}, #{m.schemaVersion}, #{m.occurredAt},
+                #{m.payload}::jsonb,
+                #{outcome}, #{detail}, now(),
+                CASE WHEN #{outcome} = 'PARKED_GAP' THEN NULL ELSE now() END)
+        ON CONFLICT (consumer_name, event_id) DO NOTHING
+    </insert>
+
+    <select id="findPosition" resultMap="positionMap">
+        SELECT consumer_name, tenant_id, aggregate_type, aggregate_id, last_version, last_ordinal
+        FROM inbox_consumer_position
+        WHERE consumer_name = #{consumerName}
+          AND tenant_id = #{tenantId}
+          AND aggregate_type = #{aggregateType}
+          AND aggregate_id = #{aggregateId}
+    </select>
+
+    <insert id="advancePosition">
+        INSERT INTO inbox_consumer_position (consumer_name, tenant_id, aggregate_type, aggregate_id,
+                                             last_version, last_ordinal, updated_at)
+        VALUES (#{consumerName}, #{tenantId}, #{aggregateType}, #{aggregateId}, #{version}, #{ordinal}, now())
+        ON CONFLICT (consumer_name, tenant_id, aggregate_type, aggregate_id)
+        DO UPDATE SET
+            last_ordinal = CASE
+                               WHEN excluded.last_version > inbox_consumer_position.last_version
+                                   THEN excluded.last_ordinal
+                               WHEN excluded.last_version = inbox_consumer_position.last_version
+                                   THEN GREATEST(excluded.last_ordinal, inbox_consumer_position.last_ordinal)
+                               ELSE inbox_consumer_position.last_ordinal
+                           END,
+            last_version = GREATEST(excluded.last_version, inbox_consumer_position.last_version),
+            updated_at = now()
+    </insert>
+
+    <!--
+      按聚合内顺序返回挂起事件：缺口补齐后必须从最早的缺口开始追，
+      否则"先追最新的"会让中间那条永远补不上。
+    -->
+    <select id="findParked" resultMap="parkedMessageMap">
+        SELECT event_id, tenant_id, hotel_id, aggregate_type, aggregate_id,
+               aggregate_version, event_ordinal, event_type, schema_version,
+               payload::text AS payload, occurred_at
+        FROM inbox_event
+        WHERE consumer_name = #{consumerName}
+          AND outcome = 'PARKED_GAP'
+        ORDER BY aggregate_id, aggregate_version, event_ordinal
+        LIMIT #{limit}
+    </select>
+
+    <update id="settleParked">
+        UPDATE inbox_event
+        SET outcome = #{outcome},
+            detail = #{detail},
+            settled_at = now()
+        WHERE consumer_name = #{consumerName}
+          AND event_id = #{eventId}
+          AND outcome = 'PARKED_GAP'
+    </update>
+
+    <select id="findOutcome" resultType="java.lang.String">
+        SELECT outcome
+        FROM inbox_event
+        WHERE consumer_name = #{consumerName}
+          AND event_id = #{eventId}
+    </select>
+
+    <select id="findStaySpan"
+            resultType="cn.sec.hn.openbackupsaas.inbox.mapper.InboxMapper$StaySpan">
+        SELECT min(lower(l.planned_range)) AS "from", max(upper(l.planned_range)) AS "to"
+        FROM reservation_line l
+        WHERE l.tenant_id = #{tenantId}
+          AND l.hotel_id = #{hotelId}
+          AND l.reservation_id = #{reservationId}
+    </select>
+
+    <select id="countParked" resultType="long">
+        SELECT count(*)
+        FROM inbox_event
+        WHERE consumer_name = #{consumerName}
+          AND outcome = 'PARKED_GAP'
+    </select>
+
+</mapper>

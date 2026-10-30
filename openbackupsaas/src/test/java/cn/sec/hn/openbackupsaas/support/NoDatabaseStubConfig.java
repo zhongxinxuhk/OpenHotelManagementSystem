@@ -90,6 +90,11 @@ public class NoDatabaseStubConfig {
     }
 
     @Bean
+    cn.sec.hn.openbackupsaas.inbox.mapper.InboxMapper inboxMapper() {
+        return new InboxMapperStub();
+    }
+
+    @Bean
     cn.sec.hn.openbackupsaas.journal.mapper.OutboxPublisherMapper outboxPublisherMapper() {
         return new OutboxPublisherMapperStub();
     }
@@ -584,6 +589,57 @@ public class NoDatabaseStubConfig {
 
         @Override
         public Long oldestPendingSeconds() {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    static final class InboxMapperStub implements cn.sec.hn.openbackupsaas.inbox.mapper.InboxMapper {
+
+        @Override
+        public int recordIfAbsent(String consumerName,
+                                  cn.sec.hn.openbackupsaas.inbox.domain.InboxMessage message,
+                                  cn.sec.hn.openbackupsaas.inbox.domain.InboxOutcome outcome,
+                                  String detail) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public String findOutcome(String consumerName, UUID eventId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public cn.sec.hn.openbackupsaas.inbox.mapper.InboxMapper.StaySpan findStaySpan(
+                UUID tenantId, UUID hotelId, UUID reservationId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public cn.sec.hn.openbackupsaas.inbox.domain.InboxPosition findPosition(
+                String consumerName, UUID tenantId, String aggregateType, UUID aggregateId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int advancePosition(String consumerName, UUID tenantId, String aggregateType,
+                                   UUID aggregateId, long version, int ordinal) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.inbox.domain.InboxMessage> findParked(
+                String consumerName, int limit) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int settleParked(String consumerName, UUID eventId,
+                                cn.sec.hn.openbackupsaas.inbox.domain.InboxOutcome outcome, String detail) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countParked(String consumerName) {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }
