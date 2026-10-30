@@ -114,7 +114,9 @@ export default defineConfig({
    * @name layout 插件
    * @doc https://umijs.org/docs/max/layout-menu
    */
-  title: 'Ant Design Pro',
+  // 浏览器标题（<title>）由这里决定，与 ProLayout 品牌区的 defaultSettings.title 是两处；
+  // 只改一处会出现"侧边栏叫酒店 PMS、标签页叫 Ant Design Pro"的错位。
+  title: '酒店 PMS',
   layout: {
     locale: true,
     ...defaultSettings,
