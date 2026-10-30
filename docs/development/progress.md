@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-19）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-20）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-19`（S2-04 死信、人工重放与处置留痕，DONE） |
-| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-04 DONE，S2-05 起为 TODO）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
+| 当前轮次 | `R-20261030-20`（S2-05 内部对账与派生修复，DONE） |
+| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-05 DONE，S2-06 起为 TODO）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 含真实 PostgreSQL + RabbitMQ 与端到端消费、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置已落库（V1—V11 共 26 张表）；**231 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 29 path / 33 schema；可靠性内核剩余对账、指标、备份与故障注入；**尚无真实渠道处理器**（L/K 域缺授权） |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单已落库（V1—V12 共 29 张表，复合外键 + CHECK + GiST 排斥）；**257 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 35 path / 38 schema；交易内核闭环，对账差异已成"有身份、可追责"的工单；指标告警、备份恢复与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权） |
 | 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位已有 `/availability` 可接；CI 三步全绿 |
-| 功能项完成度 | 约 33%（124 项，DONE 33 项，见 feature-catalog §1） |
-| 下一轮目标 | `S2-05` 内部对账与派生修复（对账任务 + 白名单修复，不用派生值覆盖事实） |
+| 功能项完成度 | 约 34%（124 项，DONE 34 项，见 feature-catalog §1） |
+| 下一轮目标 | `S2-06` 监控、链路与告警（Prometheus/OTel 接入、指标体系、告警送达与值守路由） |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -60,7 +60,7 @@
 | S2-02 | Inbox 消费与版本保护 | P0 | 3–5 | DONE | 去重键+位点、四态结论、缺口挂起与重放、首个消费者（投影重算）；11 集成 + 1 端到端 |
 | S2-03 | 持久化任务与外部调用状态 | P0 | 3–5 | DONE | 任务表+尝试台账、租约领取（含崩溃重领）、四类结果四种处置、未知先查询、限流熔断、退避抖动；11 集成用例 |
 | S2-04 | 死信、人工重放与审计修复 | P0 | 2–4 | DONE | 死信落库+处置留痕+受控 API；重放保留幂等键、高风险双人复核；9 个 HTTP 用例 |
-| S2-05 | 内部对账与派生修复 | P0 | 3–5 | TODO |
+| S2-05 | 内部对账与派生修复 | P0 | 3–5 | DONE | 差异工单（部分唯一索引去重）+ 三级分级 + 修复白名单（仅派生）+ 水位；15 集成 + 11 HTTP 用例 |
 | S2-06 | 监控、链路和告警 | P0 | 3–5 | TODO |
 | S2-07 | 最小部署、备份与恢复闭环 | P0 | 3–5 | TODO |
 | S2-08 | 故障注入与可靠性验收 | P0 | 4–6 | TODO |
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 19（S0-03、S1-01—S1-13、S2-01—S2-04、S3-01a） |
+| DONE | 20（S0-03、S1-01—S1-13、S2-01—S2-05、S3-01a） |
 | VERIFYING | 3（S0-01、S0-02、S0-04） |
 | BLOCKED | 1（S5-01 渠道授权） |
-| TODO | 43 |
+| TODO | 42 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -161,6 +161,34 @@
 ```
 
 ---
+
+### R-20261030-20 S2-05 内部对账与派生修复
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **V12 迁移**：`reconcile_run`（批次与统计；同店同时刻仅允许一个 RUNNING）+ `reconcile_finding`（差异工单；部分唯一索引保证同（门店, 类型, 目标）只有一张 OPEN 工单；CHECK 保证只有非 OPEN 才有结算时间、IGNORED 必须带原因、REPAIRED 只可能是 DERIVED）+ `reconcile_watermark`（按门店水位，只进不退）+ `reconcile:read` / `reconcile:operate` 权限点。
+  2. **差异分级与修复白名单**（`FindingKind`）：DERIVED（投影三类，可自动修复）/ FACT（流水不符、订单与占用状态矛盾、有效订单无有效占用——绝不自动修）/ BACKLOG（Outbox 超龄、Inbox 挂起——修数据没用）；静态块断言非派生类不得声明修复动作，加错在类加载时失败。
+  3. **对账服务**：一轮 = 记批次 → 扫描（复用 S1-12 的期望投影 SQL 与新抽出的 `ProjectionDiff`）→ upsert 工单（occurrences 累加，不新建）→ 超出扫描范围的差异不退场 → 派生修复（重建后重新比对，只标确实消失的）→ 推进水位；批次间不共用事务，崩溃遗留 RUNNING 由 `failStaleRuns` 回收。
+  4. **调度与接口**：`ReconcileScheduler`（Worker 角色、从水位往后扫）+ `ReconcileController` 6 端点（summary / findings / runs / run / repair / ignore）。
+  5. **口径统一**：`InventoryService.reconcile` 重构为复用 `ProjectionDiff`——即时核对与工单对账共用同一套比对规则。
+- 本轮明确不做：Inbox 挂起事件的 HTTP 重放入口（随前端/阶段 3）、差异工单的告警送达（S2-06）、按行细化状态核对（DEC-04 定案后）、对账指标（S2-06）、维修类流水对账（维持 S1-12 边界）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：M-05；S2-05
+- 变更文件：
+  - 新增：`reconcile/{domain/{FindingKind,FindingSeverity,RepairAction,RawFinding,FindingView,ReconcileRunReport,ReconcileRunView},mapper/ReconcileMapper,service/{ReconcileService,ReconcileScheduler},web/ReconcileController}`、`inventory/domain/ProjectionDiff`、`db/migration/V12__reconcile_tickets.sql`、`mapper/reconcile/ReconcileMapper.xml`、`reconcile/{ReconcileIntegrationTest,ReconcileApiTest}`
+  - 修改：`InventoryService`（重构复用 ProjectionDiff）、`application.properties`（对账配置）、`application-{test,integration}.properties`（关闭调度）、`NoDatabaseStubConfig`（补 Mapper 桩）、`docs/api/openapi-v1.json`（35 path / 38 schema）
+- 验证（详见 [S2-05 记录](../verification/S2-05/2026-10-30-reconcile-tickets.md)）：
+  - `PMS_IT_DB=true PMS_IT_RABBIT=true ./mvnw -B -ntp clean verify` → `Tests run: 257, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（231 → 257）
+  - 无库无 Broker：257 run / 232 skipped / 0 failure
+  - 真实 CI：[run 41063043028](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41063043028) success（`tests=257 skipped=0`）
+  - 已验：缺失投影/幽灵流水/缺占用/超龄积压均被发现且分级正确；重复跑不新建工单（occurrences=2）；派生自动修复且只标确实消失的；事实类保持 OPEN 且占用/订单/流水零改动（四表计数前后一致）；问题消失自动退场；扫描范围外不退场；水位只进不退；事实类接口修复 409；忽略必带原因；跨店 404
+  - 反向验证：去掉退场范围限定 → 范围外老问题被"自动关闭"（expected 1 was 0）；去掉 ON CONFLICT → 第二轮唯一键冲突
+- 本轮发现（不夹带实现，转入后续轮次）：
+  1. **OGNL 解析不到非组件方法**：`RawFinding.severity()` 不是 record 组件，`#{f.severity}` 报 no getter；改为调用方派生后显式传参。
+  2. **python 补丁的静默失败**：`str.replace` 锚点不匹配时不报错——本轮两处补丁"打印成功"但实际没生效，编译才暴露。**补丁后必须 grep 验证目标符号存在。**
+  3. 测试夹具插流水撞外键与 CHECK（operation_id 外键、SUCCEEDED 需 completed_at+result_ref）——顺着真实约束走，插入的数据更接近真实系统的产生方式。
+  4. HTTP 测试的前置条件不能依赖被测接口本身（只读权限的用例会被自己的造数请求挡在 403）。
+- 回写确认：feature-catalog ✓（M-05 → DONE；§1 重算）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S2-06` 监控、链路与告警（指标体系、告警送达与值守路由；"告警能送达责任人"是它的验收点）
 
 ### R-20261030-19 S2-04 死信、人工重放与处置留痕
 
