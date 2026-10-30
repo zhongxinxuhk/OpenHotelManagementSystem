@@ -350,6 +350,9 @@ class OutboxPublisherIntegrationTest extends PostgresIntegrationTest {
         for (int i = 0; i < 20; i++) {
             insertEvent(UUID.randomUUID(), UUID.randomUUID(), 1, 1, "ReservationCreated", OffsetDateTime.now());
         }
+        // 显式指定租约令牌：这样断言可以落到数据库事实上，而不是只看 JVM 里返回的列表
+        UUID tokenA = UUID.randomUUID();
+        UUID tokenB = UUID.randomUUID();
 
         CyclicBarrier barrier = new CyclicBarrier(2);
         List<List<PendingOutboxEvent>> rounds = new ArrayList<>();
@@ -357,11 +360,11 @@ class OutboxPublisherIntegrationTest extends PostgresIntegrationTest {
         try {
             Future<List<PendingOutboxEvent>> a = pool.submit(() -> {
                 barrier.await(10, TimeUnit.SECONDS);
-                return mapper.claimBatch(UUID.randomUUID(), 30, 10);
+                return mapper.claimBatch(tokenA, 30, 10);
             });
             Future<List<PendingOutboxEvent>> b = pool.submit(() -> {
                 barrier.await(10, TimeUnit.SECONDS);
-                return mapper.claimBatch(UUID.randomUUID(), 30, 10);
+                return mapper.claimBatch(tokenB, 30, 10);
             });
             rounds.add(a.get(30, TimeUnit.SECONDS));
             rounds.add(b.get(30, TimeUnit.SECONDS));
@@ -369,34 +372,44 @@ class OutboxPublisherIntegrationTest extends PostgresIntegrationTest {
             pool.shutdownNow();
         }
 
-        // 关键不变量：同一条事件不得被两个 Worker 同时领到。
-        //
-        // 反向验证过这一条真的抓得住问题：把领取 SQL 里的租约条件
-        // （lease_until IS NULL OR lease_until <= now()）删掉，本用例立刻报 10 条重复；
-        // 而删掉 SKIP LOCKED 时用例仍然通过——说明去重靠的是租约条件，
-        // SKIP LOCKED 只避免后到的 Worker 白白等待。别把两者的职责说反。
-        //
-        // 注意<b>不能</b>断言"各自领满 batch-size"：并发下 SKIP LOCKED 会跳过已被对方锁住的行，
-        // 而 LIMIT 的窗口在跳过之前就已确定，因此一方可能拿到少于批大小的行
-        // （本轮实测出现过 10 + 7）。批大小是上限，不是保证——这正是"下一轮再领剩下的"
-        // 能成立的原因，也是轮询必须持续跑的理由。
+        // 关键不变量（都已反向验证过）：
+        // · 不重复：把领取 SQL 的租约条件删掉，这里立刻报 10 条重复；
+        //   而删掉 SKIP LOCKED 时仍然通过——所以去重靠租约条件，SKIP LOCKED 只负责"不互相等待"。
+        // · 不超批大小：单次领取是上限，不是保证。实测出现过 10 + 7（被跳过的行占掉了限额窗口），
+        //   也出现过一方 0 条（限额窗口整个落在对方锁住的行上）。这些都正常，下一轮会领到剩下的。
         Set<UUID> union = new HashSet<>();
         int duplicates = 0;
-        // 也不能断言"两个 Worker 都领到东西"：如果一方的 LIMIT 窗口整个落在对方锁住的行上，
-        // 它会一条都领不到直接返回（实测出现过）。这不是缺陷——下一轮它会领到别的行。
-        // 唯一能守的不变量是：不重复、不超批大小、多轮之后能覆盖全部。
         for (List<PendingOutboxEvent> batch : rounds) {
-            assertTrue(batch.size() <= 10, "领取数不得超过批大小，实际 " + batch.size());
             for (PendingOutboxEvent event : batch) {
                 if (!union.add(event.eventId())) {
                     duplicates++;
                 }
             }
+            // 只是快速反馈；权威断言在下面按数据库核对
+            assertTrue(batch.size() <= 10, "单次领取不得超过批大小，实际 " + batch.size()
+                    + "；本轮各批大小=" + rounds.stream().map(List::size).toList()
+                    + "，A 持有 " + count("lease_token = ?", tokenA)
+                    + " 行、B 持有 " + count("lease_token = ?", tokenB)
+                    + " 行，全库已租 " + count("lease_token IS NOT NULL")
+                    + " 行、attempt_count>1 的 " + count("attempt_count > 1") + " 行");
         }
         assertEquals(0, duplicates,
                 "同一条事件不得被两个 Worker 同时领到（靠租约条件判定，SKIP LOCKED 只负责不互相等待）");
 
-        // 后续轮次把剩下的领完：累计覆盖全部 20 条且不重复
+        // 不按"每人各领 10 条"断言：并发下任何一方都可能领到少于批大小（甚至 0），
+        // 那是限额窗口与行锁交错的结果，不是缺陷。真正要证明的是"没有一行被领两次"。
+        int leasedByA = count("lease_token = ?", tokenA);
+        int leasedByB = count("lease_token = ?", tokenB);
+        assertTrue(leasedByA <= 10, "A 单次领取不得超过批大小，实际 " + leasedByA);
+        assertTrue(leasedByB <= 10, "B 单次领取不得超过批大小，实际 " + leasedByB);
+        assertEquals(leasedByA + leasedByB, count("lease_token IS NOT NULL"),
+                "所有被领取的行都必须归属本轮两个令牌之一（出现第三个值说明有别的写入路径）");
+        // attempt_count 是"被领取次数"，本轮每条最多加一次。若某行 =2，说明被两个 Worker 同时领到。
+        assertEquals(union.size(), count("attempt_count = 1"),
+                "本轮被领到的行必须恰好各记一次领取；实际 union=" + union.size()
+                        + " attempt_count=1 的行=" + count("attempt_count = 1"));
+
+        // 后续轮次把剩下的领完（若上一轮因竞争没领满）：累计覆盖全部 20 条且不重复
         for (int round = 0; round < 10 && union.size() < 20; round++) {
             for (PendingOutboxEvent event : mapper.claimBatch(UUID.randomUUID(), 30, 10)) {
                 assertTrue(union.add(event.eventId()), "重复轮次也不得重复领取");
@@ -404,6 +417,7 @@ class OutboxPublisherIntegrationTest extends PostgresIntegrationTest {
         }
         assertEquals(20, union.size(), "多轮领取最终应覆盖全部事件，不丢");
         assertEquals(20, count("lease_token IS NOT NULL"), "领取后每行都应有租约");
+        assertEquals(0, count("attempt_count > 1"), "全程不得有任何一行被领取两次（同一事件并发重发的根因）");
     }
 
     // ------------------------------------------------------------------

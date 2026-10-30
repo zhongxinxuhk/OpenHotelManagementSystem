@@ -43,13 +43,14 @@
       · attempt_count 在这里就 +1：它统计"领取次数"。发布前崩溃同样计数，这是租约式
         至少一次投递的正常代价——用"成功次数"会让崩溃后的行看起来像没试过，掩盖反复失败。
       · RETURNING 的顺序没有保证，聚合内保序由调用方排序负责。
+      ·
+      · 为什么是 WITH ... AS MATERIALIZED 而不是 UPDATE ... FROM (子查询)：
+      · 后者在并发领取时被实测出"一次领走全部 20 条（LIMIT 10 失效）"——
+      · 计划里 Limit 明明在 LockRows 之上，行为却不符合，改用物化 CTE 后稳定。
+      · MATERIALIZED 是必须的：不加它，规划器仍可能把 CTE 拉平、限额随之失效。
     -->
     <select id="claimBatch" resultMap="pendingEventMap">
-        UPDATE outbox_event o
-        SET lease_token = #{leaseToken},
-            lease_until = now() + make_interval(secs => #{leaseSeconds}),
-            attempt_count = o.attempt_count + 1
-        FROM (
+        WITH claimed AS MATERIALIZED (
             SELECT e.event_id
             FROM outbox_event e
             WHERE e.published_at IS NULL
@@ -58,7 +59,12 @@
             ORDER BY e.occurred_at, e.event_id
             LIMIT #{batchSize}
             FOR UPDATE SKIP LOCKED
-        ) claimed
+        )
+        UPDATE outbox_event o
+        SET lease_token = #{leaseToken},
+            lease_until = now() + make_interval(secs => #{leaseSeconds}),
+            attempt_count = o.attempt_count + 1
+        FROM claimed
         WHERE o.event_id = claimed.event_id
         RETURNING o.event_id, o.tenant_id, o.hotel_id, o.aggregate_type, o.aggregate_id,
                   o.aggregate_version, o.event_ordinal, o.event_type, o.schema_version,
