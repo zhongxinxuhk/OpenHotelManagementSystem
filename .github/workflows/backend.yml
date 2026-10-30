@@ -1,7 +1,8 @@
 name: backend
 
-# 后端门禁（S1-01）：干净检出必须能编译、跑单元测试，并在**真实 PostgreSQL** 上跑
-# 组织 / 约束 / 占用排斥 / 幂等 / 订单生命周期 / 到期承接的集成测试。
+# 后端门禁（S1-01，S2-01 起含消息）：干净检出必须能编译、跑单元测试，并在
+# **真实 PostgreSQL** 上跑组织 / 约束 / 占用排斥 / 幂等 / 订单生命周期 / 到期承接，
+# 在**真实 RabbitMQ** 上跑 Outbox 发布的确认与持久化。
 #
 # 三条不能省的约定：
 #   1. 集成测试由 PMS_IT_DB=true 打开；这里显式设成 true，并且**断言没有任何用例被跳过**
@@ -9,6 +10,9 @@ name: backend
 #   2. 数据库账号分权与 local 一致：应用账号 pms_app 只有 DML，迁移账号 pms_migrator 才能 DDL。
 #      每次从空库跑完整迁移链，等于顺带验证了 V1→最新 的迁移历史可用。
 #   3. 失败时把 surefire 报告留下来，成功时把可执行 jar 留下来（供手工核验）。
+#   4. RabbitMQ service 是必需的，不是可选的：Outbox 的"确认后才算发布""持久化投递"
+#      "不可路由即失败"只能在真实 Broker 上验证，桩无法证明。因此也打开 PMS_IT_RABBIT，
+#      与"零跳过"断言相互咬合——Broker 起不来就红，而不是静默跳过。
 on:
   push:
     paths:
@@ -36,6 +40,7 @@ concurrency:
 
 env:
   PMS_IT_DB: 'true'
+  PMS_IT_RABBIT: 'true'
 
 jobs:
   verify:
@@ -57,6 +62,17 @@ jobs:
           --health-timeout 5s
           --health-retries 20
 
+      rabbitmq:
+        # 与本地验证一致的大版本；不锁补丁，升级走依赖评审（ADR-011 §3「延后」项在此落地）
+        image: rabbitmq:3.13-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 20
+
     env:
       PMS_DB_HOST: 127.0.0.1
       PMS_DB_PORT: '5432'
@@ -65,6 +81,8 @@ jobs:
       PMS_DB_PASSWORD: ci_app_only
       PMS_DB_MIGRATOR_USER: pms_migrator
       PMS_DB_MIGRATOR_PASSWORD: ci_migrator_only
+      PMS_RABBIT_HOST: 127.0.0.1
+      PMS_RABBIT_PORT: '5672'
 
     steps:
       - uses: actions/checkout@v4
@@ -89,7 +107,7 @@ jobs:
                -c "ALTER ROLE pms_app PASSWORD 'ci_app_only'" \
                -c "ALTER ROLE pms_migrator PASSWORD 'ci_migrator_only'"
 
-      - name: Verify (compile + unit + postgres integration tests)
+      - name: Verify (compile + unit + postgres + rabbit integration tests)
         working-directory: openbackupsaas
         # clean 不是为了"干净好看"：下面的断言统计 target/surefire-reports 下所有报告，
         # 残留的旧报告会让计数与本次运行对不上（本地复跑时实测出现 134 ≠ 132）。
@@ -121,7 +139,7 @@ jobs:
           print(f'tests={total} skipped={skipped} failures={failures} errors={errors}')
           if skipped:
               sys.exit(f'CI 中不允许跳过用例：{skipped} 个被跳过。'
-                       'PMS_IT_DB 或 PostgreSQL service 可能未就绪。')
+                       'PMS_IT_DB / PMS_IT_RABBIT 未生效，或 PostgreSQL / RabbitMQ service 未就绪。')
           if total == 0:
               sys.exit('测试总数为 0，视为门禁失效')
           PY
