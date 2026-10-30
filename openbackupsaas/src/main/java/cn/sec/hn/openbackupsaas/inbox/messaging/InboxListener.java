@@ -1,8 +1,6 @@
 package cn.sec.hn.openbackupsaas.inbox.messaging;
 
-import cn.sec.hn.openbackupsaas.inbox.domain.InboxMessage;
-import cn.sec.hn.openbackupsaas.inbox.service.InboxConsumer;
-import cn.sec.hn.openbackupsaas.inbox.service.InboxProcessor;
+import cn.sec.hn.openbackupsaas.inbox.service.InboxMessageDispatcher;
 import cn.sec.hn.openbackupsaas.shared.security.TenantContextHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,7 +9,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 /**
  * Inbox 消息入口（S2-02）。
@@ -39,44 +36,27 @@ public class InboxListener {
 
     private static final Logger log = LoggerFactory.getLogger(InboxListener.class);
 
-    private final List<InboxConsumer> consumers;
-    private final InboxProcessor processor;
+    private final InboxMessageDispatcher dispatcher;
 
-    public InboxListener(List<InboxConsumer> consumers, InboxProcessor processor) {
-        this.consumers = consumers;
-        this.processor = processor;
+    public InboxListener(InboxMessageDispatcher dispatcher) {
+        this.dispatcher = dispatcher;
     }
 
     @RabbitListener(queues = "${pms.inbox.queue:pms.inbox}")
     public void onMessage(org.springframework.amqp.core.Message raw) {
         String body = new String(raw.getBody(), StandardCharsets.UTF_8);
-        InboxMessage message;
-        try {
-            message = InboxMessageCodec.parse(body);
-        } catch (RuntimeException ex) {
-            // 不可重试：重投不会让它变得可解析。留痕后丢弃（死信与人工重放属 S2-04）。
-            log.error("无法解析的事件消息已丢弃（不可重试）：{}；原因：{}", body, ex.getMessage());
-            return;
-        }
 
+        // 消费者不读也不伪造线程级身份：租户来自消息体。
+        // 进入消息前先清掉线程上可能残留的上下文——监听线程会被复用，不清就会串租户。
         TenantContextHolder.clear();
         try {
-            boolean handled = false;
-            for (InboxConsumer consumer : consumers) {
-                if (!consumer.supports(message.eventType())) {
-                    continue;
-                }
-                handled = true;
-                InboxProcessor.InboxResult result = processor.process(consumer, message);
-                log.debug("事件 {} 由 {} 处理：结论 {} 重复={}",
-                        message.eventId(), consumer.name(), result.outcome(), result.duplicate());
-            }
-            if (!handled) {
-                // 没有任何消费者订阅该类型：这不是错误，但必须可见，否则"事件发了没人接"会长期无感。
-                log.info("事件 {}({}) 没有订阅者，已跳过", message.eventId(), message.eventType());
-            }
+            dispatcher.dispatch(body, true);
+        } catch (RuntimeException ex) {
+            // 业务失败必须抛出去让容器重投：Inbox 台账已随事务回滚，不会留下"处理过"的假标记。
+            // 解析失败在 dispatcher 内部已落死信并返回，不会走到这里。
+            log.error("事件处理失败，消息将重新投递", ex);
+            throw ex;
         } finally {
-            // 谁绑定谁清理；这里虽然没绑定，但复用的监听线程上也绝不允许留下上下文。
             TenantContextHolder.clear();
         }
     }

@@ -90,6 +90,11 @@ public class NoDatabaseStubConfig {
     }
 
     @Bean
+    cn.sec.hn.openbackupsaas.ops.mapper.OpsMapper opsMapper() {
+        return new OpsMapperStub();
+    }
+
+    @Bean
     cn.sec.hn.openbackupsaas.integration.mapper.ExternalTaskMapper externalTaskMapper() {
         return new ExternalTaskMapperStub();
     }
@@ -736,6 +741,64 @@ public class NoDatabaseStubConfig {
         @Override
         public java.util.List<cn.sec.hn.openbackupsaas.integration.domain.ExternalTask> findByStatus(
                 String status, int limit) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    static final class OpsMapperStub implements cn.sec.hn.openbackupsaas.ops.mapper.OpsMapper {
+
+        @Override
+        public UUID insertDeadLetter(UUID tenantId, String source, String messageBody, String error) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public cn.sec.hn.openbackupsaas.ops.domain.DeadLetter findDeadLetter(UUID deadLetterId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.ops.domain.DeadLetter> findPendingDeadLetters(int limit) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int settleDeadLetter(UUID deadLetterId, String status, String detail) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int replayExternalTask(UUID taskId, int extraAttempts, String reason) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertIntervention(cn.sec.hn.openbackupsaas.ops.domain.OpsIntervention intervention) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.ops.domain.OpsIntervention> findRecentInterventions(int limit) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countExternalTasksByStatus(java.util.List<String> statuses) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countPendingDeadLetters() {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countParkedInboxEvents() {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.Map<String, Object> findExternalTaskMeta(UUID taskId) {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }
