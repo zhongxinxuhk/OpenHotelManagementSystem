@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-13）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-14）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-13`（S1-11 交易 API、查询与 OpenAPI v1 冻结，DONE） |
-| 当前阶段 | 阶段 1 进行中（S1-01—S1-11 全部 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
+| 当前轮次 | `R-20261030-14`（S1-12 派生房态、可售计算与重建，DONE） |
+| 当前阶段 | 阶段 1 进行中（S1-01—S1-12 全部 DONE，仅剩 S1-13 并发验收）；阶段 0 的 S0-05—S0-09 仍待完成 |
 | 已通过门禁 | 无（G0 未开审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend + frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单七域已落库（V1—V6.4 共 19 张表，复合外键 + CHECK + GiST 排斥）；**154 个测试全部通过（其中 129 个需要真实 PostgreSQL），CI 上同样 154 / 0 失败 / 0 跳过**；订单命令、超时释放、订单查询与 OpenAPI v1 契约均已闭环；可售投影与发布器仍未实现 |
-| 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓（dist 5.8M、标题「酒店 PMS」、无模板 CNAME）；首页已换成「今日工作台」（指标位等 S1-11 之后的页面接入）；CI 三步全绿 |
-| 功能项完成度 | 约 23%（124 项，DONE 21 项，见 feature-catalog §1） |
-| 下一轮目标 | `S1-12` 派生房态、可售计算与重建（D-01 / E 域），随后 `S1-13` 交易内核并发验收 |
+| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单/房态投影八域已落库（V1—V7 共 20 张表，复合外键 + CHECK + GiST 排斥）；**173 个测试全部通过（其中 148 个需要真实 PostgreSQL），CI 上同样 173 / 0 失败 / 0 跳过**；订单命令、超时释放、查询、可售与投影重建对账均已闭环；发布器与支付仍未实现 |
+| 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位现已有 `/availability` 可接；CI 三步全绿 |
+| 功能项完成度 | 约 26%（124 项，DONE 26 项，见 feature-catalog §1） |
+| 下一轮目标 | `S1-13` 交易内核集成与并发验收（T01—T14 + 越权回归集 B-08），收口 G1 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -49,7 +49,7 @@
 | S1-09 | 确认、取消与 No-show | P0 | 3–5 | DONE | 整单统一迁移（DEC-04 部分履约 OPEN）；No-show 是否计费仍待 DEC-08 |
 | S1-10 | 超时领取与幂等释放 | P0 | 2–4 | DONE | `FOR UPDATE SKIP LOCKED` 领取 + 数据库时钟二次校验 + 条件更新兜底；一次批处理一个事务，回滚即恢复；无新迁移（复用 V4 到期索引） |
 | S1-11 | 交易 API、查询与权限闭环 | P0 | 2–4 | DONE | 列表/详情接口 + 过滤下推 + 稳定分页 + 脱敏；OpenAPI v1 已冻结并加契约测试；错误响应统一带 outcome 三分类 |
-| S1-12 | 派生房态、可售计算与重建 | P0 | 3–5 | TODO |
+| S1-12 | 派生房态、可售计算与重建 | P0 | 3–5 | DONE | `room_inventory_day`（V7）+ `/availability` 余量与整段可售 + rebuild/reconcile；可售从权威算、投影只作读模型 |
 | S1-13 | 交易内核集成与并发验收 | P0 | 4–6 | TODO |
 
 ### 阶段 2 可靠性内核（门禁 G2）
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 13（S0-03、S1-01—S1-11、S3-01a） |
+| DONE | 14（S0-03、S1-01—S1-12、S3-01a） |
 | VERIFYING | 3（S0-01、S0-02、S0-04） |
 | BLOCKED | 1（S5-01 渠道授权） |
-| TODO | 49 |
+| TODO | 48 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -159,6 +159,43 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261030-14 S1-12 派生房态、可售计算与重建对账
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. V7 迁移：`room_inventory_day`（房间 × 住宿日投影；`reservation_unavailable`/`block_unavailable` 互斥 CHECK、`source_room_version`、`rebuilt_at`、按日索引）+ `inventory:read`/`inventory:write` 权限点。
+  2. `GET /api/v1/hotels/{hotelId}/availability`：每日余量（total/sold/blocked/available）+ 整段可售房间数，一次返回。
+  3. `POST /inventory/rebuild`（`inventory:write`）：先删后写同事务，`INSERT ... SELECT ... ON CONFLICT` 一条写到底。
+  4. `GET /inventory/reconcile`（`inventory:read`）：三方对账（权威重算 / 投影 / 流水），差异四类 MISSING/STALE/ORPHAN/LEDGER，上限 200 并标注截断。
+  5. `InventoryWindow` 窗口上限 62 天（构造器校验，超限 400）。
+  6. 契约基线更新（**有意的契约变更**）：21 path / 28 schema，新增 3 接口 6 schema。
+- 本轮明确不做：逐房房态标记接口 E-05（属 S3-03 页面契约）、维修类流水对账（S2-05）、投影增量维护（查询不依赖它）、长窗口导出（S3-09）、投影水位对外查询。
+- 涉及功能项（FT-*）/ 任务（S*-*）：D-01、E-01、E-02、E-03、E-04；S1-12
+- 变更文件：
+  - 新增迁移：`V7__inventory_projection.sql`
+  - 新增模块：`inventory/domain/{InventoryWindow,InventoryDay,BookableRoomType,ExpectedProjectionRow,StoredProjectionRow,ReconcileReport}.java`、`inventory/mapper/InventoryMapper.java`、`inventory/service/InventoryService.java`、`inventory/web/{InventoryController,AvailabilityView}.java`
+  - 新增 SQL：`resources/mapper/inventory/InventoryMapper.xml`
+  - 修改：`test/resources/db/integration-cleanup.sql`（补投影表清理，见「本轮发现」1）、`test/support/NoDatabaseStubConfig.java`（新 Mapper 桩）、`docs/api/openapi-v1.json`（契约变更）
+  - 新增测试：`inventory/InventoryIntegrationTest.java`（13）、`inventory/InventoryApiTest.java`（6）
+  - 新增文档：`docs/verification/S1-12/2026-10-30-inventory-projection.md`
+- 验证（本轮实际执行，详见 [S1-12 记录](../verification/S1-12/2026-10-30-inventory-projection.md)）：
+  - `PMS_IT_DB=true ./mvnw -B -ntp clean verify` → `Tests run: 173, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（154 → 173）
+  - 无库：173 run / **148 skipped** / 0 failure → BUILD SUCCESS
+  - `flyway_schema_history` 最新版本 `7`（V7 真实应用）
+  - **真实 CI**：[run 41021523251](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41021523251) @ `b499d88` → **success**，9 步全绿，`Tests run: 173 / 0 failure / 0 skipped`、断言 `tests=173 skipped=0`
+  - 已验：整段可售按区间交集判定（每晚都有余房但无连续可用房时 bookable=0）；维修与预订不重复扣减；退房日相邻仍可售；窗口 62/63 天边界；重建后对账洁净且行数 = 房间 × 晚；重复重建幂等；**清空投影后重建逐行一致**；STALE/ORPHAN/MISSING/LEDGER 四类差异分别可识别；跨店房间不计入本店余量；`read` 权限不能 rebuild
+  - 未覆盖：E-05 逐房标记（S3-03）、BLOCK 流水对账（S2-05）、投影增量维护、投影水位查询
+- 本轮发现（不夹带实现，转入后续轮次）：
+  1. **清理脚本漏新表第三次复现**：`room_inventory_day` 有指向 `physical_room` 的外键，脚本没加删除语句，7 个用例直接 `ScriptStatementFailed` 没跑起来。已补最小修复；**幂等且失败可定位的重写仍归 S1-13**，这是第 3 次因为同一原因浪费排查时间。
+  2. **MyBatis 构造器映射对原始类型敏感**：`boolean` 字段要用 `javaType="_boolean"`，写 `boolean` 会按包装类 `Boolean` 找构造器 → `NoSuchMethodException`；而包装类字段必须写 `java.lang.Boolean`。同一份 XML 里两种写法并存是**因为对应 record 字段类型不同**，不是手误。与「BIGINT → java.lang.Long」同源。
+  3. **测试自己撞排斥约束**：封房对象选了自动选房会占用的那间，`Conflict: 房间在所选日期已被占用或封锁`——约束在正确工作，测试该改对象而不是改断言。
+  4. **计算方法不会进 JSON**：`ReconcileReport.clean()` 是方法不是 record 组件，Jackson 不序列化。没有为便利字段引入注解依赖，改为让客户端按四个计数判断（更便于定位问题类型），并写进 Javadoc。
+  5. **契约变更流程走通了一次**：新增 3 接口先让契约测试红（精确列出 9 处差异）→ 按 README §3.2 导出新基线 → 转绿 → 在本条目记录变更。流程可用，后续接口变更照此执行。
+- 回写确认：feature-catalog ✓（D-01、E-01—E-04 → DONE；§1 重算为 DONE 26 / VERIFYING 9 / READY 12 / TODO 68 / BLOCKED 8，约 26%）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S1-13` 交易内核集成与并发验收（T01—T14 场景 + 越权回归集 B-08 + 清理脚本重写），收口 G1
 
 ---
 
