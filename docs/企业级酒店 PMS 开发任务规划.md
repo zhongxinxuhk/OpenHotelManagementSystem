@@ -83,6 +83,8 @@
 
 | 2026-10-30 | S2-07（部分）中间件 Compose 编排与 CI/CD v2 | DONE | `deploy/compose/`：`docker-compose.yml`（postgres:17 + rabbitmq:3.13-management-alpine，healthcheck/named volume/端口对齐应用零配置约定）、`initdb/01-bootstrap.sh`（psql 变量调用共享分权 SQL）、`initdb/02-set-passwords.sh`、`.env.example`、README；`db-bootstrap.sql` 显式 `GRANT CREATE ON SCHEMA public TO pms_migrator`（修正"建库人巧合"）+ initdb 里库 owner 对齐迁移账号（trusted 扩展依赖）；CI/CD v2：backend 门禁改用同一份 compose（service containers 移除），`deploy/compose/**` 纳入触发 paths，设计文档 [cicd-pipeline](./development/cicd-pipeline.md)。证据见 [S2-07 记录](./verification/S2-07/2026-10-30-compose-and-cicd.md) | 本地实测：`up -d --wait` 两服务 healthy；分权 false/false；双账号密码连接 OK；`pms_mq` 管理 API 200；**真实应用连 compose 库跑完 18 迁移 / 29 表 / btree_gist**；`down -v` 全量重演三次；dev-db.sh 回归幂等。CI 实跑（compose 化后首次）见 S2-07 记录。未做：镜像构建、app 编排、备份定时与恢复演练、生产 HA。证据见 [S2-07 记录](./verification/S2-07/2026-10-30-compose-and-cicd.md) |
 
+| 2026-10-30 | S2-07（续）统一 env 单源与后端裸机部署 | DONE | 部署形态定调：**中间件 compose + 后端裸机**。`deploy/app.sh`（start/stop/status/logs，source 统一 .env 导出给 java，SIGTERM 30s 优雅停机）；`.env.example` 扩展为中间件+后端统一模板（口令单源：中间件建账号、后端连接同一个值；`PMS_DB_PORT` 宿主端口语义两侧通用）；README 新增部署分工章节；cicd-pipeline 路线图更新（镜像构建不再是预发前置）。证据见 [S2-07 记录 §8](./verification/S2-07/2026-10-30-compose-and-cicd.md) | 本地实测：compose 起中间件 healthy；裸机 api 对空卷跑完迁移（flyway latest=12、30 表）；api+worker 并行 RUNNING（worker 无 Tomcat）；stop all 优雅停机；CI [run 41079783284](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41079783284) success（257/0）。踩坑：bash `$var` 后接全角字符把首字节计入变量名（set -u 报 unbound）→ 非 ASCII 前加花括号；macOS bash 3.2 空数组 + set -u 报 unbound → 弃用数组。证据见 [S2-07 记录](./verification/S2-07/2026-10-30-compose-and-cicd.md) |
+
 本记录区分文档、构建与运行验证进度，具体边界以证据报告为准；其余任务仍为 TODO，原人日区间保持为规划估算，未用本次文档生成时长冒充完整任务实际工时。
 
 ## 2. 当前项目基线与差距分析

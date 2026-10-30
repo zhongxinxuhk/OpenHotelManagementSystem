@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-21）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-22）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-21`（中间件 Compose 编排、部署文档与 CI/CD v2，DONE） |
-| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-05 DONE，S2-06 起为 TODO，S2-07 部分完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
-| 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 已改为与本地/预发同一份 compose 起中间件、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单已落库（V1—V12 共 29 张表，复合外键 + CHECK + GiST 排斥）；**257 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 35 path / 38 schema；**中间件编排已交付并在 CI 实跑**（deploy/compose，本地=CI=预发同构）；备份闭环、指标告警与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权） |
+| 当前轮次 | `R-20261030-22`（统一 env 单源 + 后端裸机部署脚本，DONE） |
+| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-05 DONE，S2-06 起为 TODO，S2-07 大半完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
+| 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 用同一份 compose 起中间件、frontend） |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单已落库（V1—V12 共 29 张表）；**257 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 35 path / 38 schema；**部署形态定调：中间件 compose + 后端裸机（deploy/app.sh），统一 .env 单源口令**；备份闭环、指标告警与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权） |
 | 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位已有 `/availability` 可接；CI 三步全绿 |
-| 功能项完成度 | 约 34%（124 项，DONE 34 项，见 feature-catalog §1） |
-| 下一轮目标 | `S2-06` 监控、链路与告警（Prometheus/OTel 接入、指标体系、告警送达与值守路由）；S2-07 剩余：镜像构建、迁移作业、备份恢复闭环 |
+| 功能项完成度 | 约 35%（124 项，DONE 34 项，见 feature-catalog §1） |
+| 下一轮目标 | `S2-06` 监控、链路与告警；S2-07 剩余：备份定时与恢复演练、预发宿主机与 deploy job |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -62,7 +62,7 @@
 | S2-04 | 死信、人工重放与审计修复 | P0 | 2–4 | DONE | 死信落库+处置留痕+受控 API；重放保留幂等键、高风险双人复核；9 个 HTTP 用例 |
 | S2-05 | 内部对账与派生修复 | P0 | 3–5 | DONE | 差异工单（部分唯一索引去重）+ 三级分级 + 修复白名单（仅派生）+ 水位；15 集成 + 11 HTTP 用例 |
 | S2-06 | 监控、链路和告警 | P0 | 3–5 | TODO |
-| S2-07 | 最小部署、备份与恢复闭环 | P0 | 3–5 | VERIFYING | compose 编排已交付并进 CI（R-20261030-21）；剩余：镜像构建、迁移作业、备份恢复演练 |
+| S2-07 | 最小部署、备份与恢复闭环 | P0 | 3–5 | VERIFYING | compose（中间件）+ 裸机脚本（后端 api/worker）+ 统一 .env 单源已交付并验证（R-20261030-21/22）；剩余：备份定时、恢复演练、预发宿主机与 deploy job |
 | S2-08 | 故障注入与可靠性验收 | P0 | 4–6 | TODO |
 
 ### 阶段 3 商家、集团与前台端（门禁 G3）
@@ -126,7 +126,7 @@
 | 状态 | 任务数 |
 | --- | --- |
 | DONE | 20（S0-03、S1-01—S1-13、S2-01—S2-05、S3-01a） |
-| VERIFYING | 4（S0-01、S0-02、S0-04、S2-07 部分） |
+| VERIFYING | 4（S0-01、S0-02、S0-04、S2-07） |
 | BLOCKED | 1（S5-01 渠道授权） |
 | TODO | 41 |
 | 合计 | 66 |
@@ -161,6 +161,29 @@
 ```
 
 ---
+
+### R-20261030-22 统一 env 单源与后端裸机部署
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **部署形态定调（用户决策）**：中间件 Docker Compose、后端组件**裸机**运行，两边读**同一个** env 文件（`deploy/compose/.env`）。
+  2. **`deploy/app.sh`**：裸机启停脚本（start/stop/status/logs，api/worker/all）；source `.env` 后 `set -a` 导出给 java；PID/日志在 `deploy/app-run/`（gitignore）；SIGTERM 30 秒优雅停机（配合 `server.shutdown=graceful`）后 SIGKILL 兜底。
+  3. **`.env.example` 扩展**：中间件 + 后端统一模板（口令单源、JVM、OpenAPI、端口）。
+  4. **回滚**：上一轮曾短暂把 api/worker 塞进 compose（未推送方向），本轮按新决策移除。
+  5. **文档**：README 新增「中间件与后端的部署分工」章节；cicd-pipeline 路线图更新（镜像构建不再是预发部署的前置）。
+- 本轮明确不做：后端容器化（与生产 HA 一起评估，阶段 6 或预发需要时）、备份定时与恢复演练、预发宿主机与 deploy job。
+- 涉及功能项（FT-*）/ 任务（S*-*）：M-07；S2-07
+- 变更文件：新增 `deploy/app.sh`；修改 `deploy/compose/{docker-compose.yml,.env.example,README.md}`、`docs/development/cicd-pipeline.md`、`.gitignore`（忽略 `deploy/app-run/`）
+- 验证（详见 [S2-07 记录](../verification/S2-07/2026-10-30-compose-and-cicd.md) §8）：
+  - compose 起中间件 healthy；裸机 `start api` 对空卷跑完迁移（flyway latest=12、30 张表）
+  - api + worker 并行 RUNNING（worker 无 Tomcat、后台任务轮询确认）；`stop all` 优雅停机全部 STOPPED
+  - CI [run 41079783284](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41079783284) @ `84e469e` success（`tests=257 skipped=0`）
+- 本轮发现：
+  1. **bash 变量后紧跟全角字符**：`$role（` 的全角括号首字节被计入变量名（实际为 `role\xE3`），`set -u` 下报 unbound，报错只有一个乱码字符——规则：变量后接非 ASCII 一律加花括号。
+  2. **macOS bash 3.2 + set -u + 空数组**：`${extra[@]}` 报 unbound——部署脚本用简单变量代替数组。
+  3. 沙箱 nohup 子进程活不过工具调用周期且无异常日志（被清理）；curl 出网被代理拦截返回 AUTH_REQUIRED；进程端口被注入随机值——**沙箱内验证常驻进程/HTTP 一律走日志与 DB 侧证据，完整生命周期放单条命令内**。
+- 回写确认：feature-catalog ✓（M-07 40% → 70%）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S2-06` 监控告警；S2-07 剩余（备份定时与恢复演练、预发宿主机）
 
 ### R-20261030-21 中间件 Compose 编排、部署文档与 CI/CD v2
 

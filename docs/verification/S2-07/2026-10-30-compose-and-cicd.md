@@ -70,3 +70,39 @@
 | 生产 HA（主从、集群、RPO/RTO） | 阶段 6（S6-06） |
 
 单机 Compose 不是生产 HA、不是 RPO=0 方案——README §1 有显式声明，台账不以"部署完成"记账。
+
+
+## 8. R-20261030-22 增补：统一 env 单源 + 后端裸机部署
+
+用户决策调整部署分工：**中间件 Docker Compose，后端组件裸机**，两边读同一个 `.env`。
+上一轮曾短暂把 api/worker 塞进 compose（未推送方向），本轮回滚为最终形态。
+
+### 8.1 交付物
+
+| 文件 | 说明 |
+| --- | --- |
+| `deploy/app.sh` | 后端裸机启停：`start/stop/status/logs`（api/worker/all）；source `.env` 导出给 java；SIGTERM 30s 优雅停机后 SIGKILL 兜底；缺 jar/缺口令启动即失败并给行动指引 |
+| `deploy/compose/.env.example` | 扩展为中间件+后端统一模板（JVM/OpenAPI/端口），口令单源 |
+| `deploy/compose/README.md` | 新增「中间件与后端的部署分工」章节；裸机部署操作 |
+
+### 8.2 验证（override 端口写入 .env，compose 与脚本同源）
+
+- compose 起中间件 healthy；裸机 `app.sh start api` 对**空卷**跑完迁移（flyway latest=12、30 张表）
+- api + worker 并行 RUNNING；worker 无 Tomcat、Outbox/Inbox/外部任务/对账后台轮询确认
+- `stop all` 优雅停机（SIGTERM），状态回 STOPPED，PID 文件清理
+- CI [run 41079783284](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41079783284) @ `84e469e` → **success**，`tests=257 skipped=0`
+
+### 8.3 脚本层两个踩坑
+
+1. **bash 里 `$role（` 后紧跟全角字符**：全角括号的首字节被计入变量名（实际变量名变成
+   `role\xE3`），`set -u` 下报 unbound——报错消息里只能看到一个乱码字符，非常隐蔽。
+   规则：**变量后接非 ASCII 一律加花括号**。
+2. **macOS 自带 bash 3.2 在 `set -u` 下展开空数组报 unbound**（`${extra[@]}`，即使定义过
+   `extra=()`）。规则：部署脚本避免空数组 + set -u 组合，或用 `${arr[@]+"${arr[@]}"}`。
+
+### 8.4 沙箱限制记录
+
+nohup 起的裸机子进程活不过工具调用周期（api 曾在正常轮询中消失、日志无任何异常——
+被沙箱清理）。完整生命周期（启动→迁移→并行运行→优雅停止）在**单条命令内**验证通过；
+真实宿主机不受影响。另：沙箱代理会拦截 curl 出网（返回 AUTH_REQUIRED JSON），
+应用健康验证一律用日志与 DB 侧证据，不依赖 HTTP 端口（沙箱还会给进程注入随机 server.port）。
