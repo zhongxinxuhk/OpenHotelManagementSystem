@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-18）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-19）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-18`（S2-03 持久化外部任务与未知结果处置，DONE） |
-| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-03 DONE，S2-04 起为 TODO）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
+| 当前轮次 | `R-20261030-19`（S2-04 死信、人工重放与处置留痕，DONE） |
+| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-04 DONE，S2-05 起为 TODO）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 含真实 PostgreSQL + RabbitMQ 与端到端消费、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十域 + Outbox + Inbox + 外部任务已落库（V1—V10 共 24 张表，复合外键 + CHECK + GiST 排斥）；**222 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；交易内核闭环，Outbox 发布 / Inbox 去重 / 外部任务重试与未知结果处置均可按角色独立启停；死信重放与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权） |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置已落库（V1—V11 共 26 张表）；**231 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 29 path / 33 schema；可靠性内核剩余对账、指标、备份与故障注入；**尚无真实渠道处理器**（L/K 域缺授权） |
 | 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位已有 `/availability` 可接；CI 三步全绿 |
-| 功能项完成度 | 约 32%（124 项，DONE 32 项，见 feature-catalog §1） |
-| 下一轮目标 | `S2-04` 死信、人工重放与审计修复（受控管理 API/CLI、复核机制、重放留痕） |
+| 功能项完成度 | 约 33%（124 项，DONE 33 项，见 feature-catalog §1） |
+| 下一轮目标 | `S2-05` 内部对账与派生修复（对账任务 + 白名单修复，不用派生值覆盖事实） |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -59,7 +59,7 @@
 | S2-01 | Outbox 发布与 Worker 隔离 | P0 | 3–5 | DONE | 租约式领取（物化 CTE）、发布确认、按 token 条件标记、指数退避；13 集成 + 3 真实 Broker 冒烟 |
 | S2-02 | Inbox 消费与版本保护 | P0 | 3–5 | DONE | 去重键+位点、四态结论、缺口挂起与重放、首个消费者（投影重算）；11 集成 + 1 端到端 |
 | S2-03 | 持久化任务与外部调用状态 | P0 | 3–5 | DONE | 任务表+尝试台账、租约领取（含崩溃重领）、四类结果四种处置、未知先查询、限流熔断、退避抖动；11 集成用例 |
-| S2-04 | 死信、人工重放与审计修复 | P0 | 2–4 | TODO |
+| S2-04 | 死信、人工重放与审计修复 | P0 | 2–4 | DONE | 死信落库+处置留痕+受控 API；重放保留幂等键、高风险双人复核；9 个 HTTP 用例 |
 | S2-05 | 内部对账与派生修复 | P0 | 3–5 | TODO |
 | S2-06 | 监控、链路和告警 | P0 | 3–5 | TODO |
 | S2-07 | 最小部署、备份与恢复闭环 | P0 | 3–5 | TODO |
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 18（S0-03、S1-01—S1-13、S2-01—S2-03、S3-01a） |
+| DONE | 19（S0-03、S1-01—S1-13、S2-01—S2-04、S3-01a） |
 | VERIFYING | 3（S0-01、S0-02、S0-04） |
 | BLOCKED | 1（S5-01 渠道授权） |
-| TODO | 44 |
+| TODO | 43 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -161,6 +161,33 @@
 ```
 
 ---
+
+### R-20261030-19 S2-04 死信、人工重放与处置留痕
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **V11 迁移**：`dead_letter`（原始报文落库，补 S2-02「解析失败只写日志」的缺口）+ `ops_intervention`（目标/动作/操作者/复核人/原因/前后状态）+ 权限点 `ops:read`、`ops:operate`。
+  2. **统一分发器**：抽出 `InboxMessageDispatcher`，监听器与死信重放走同一条解析与分发路径（两处各写一遍必然漂移）；解析失败落死信。
+  3. **处置服务** `OpsService`：待处置概览、死信重放/忽略、外部任务重放/人工结案；**状态变更与留痕同一事务**。
+  4. **重放语义**：保留原幂等键；不重置尝试计数而是延长上限（重置会让 `attempt_no` 与历史冲突，且看不出被重放几次）；只允许 DEAD / MANUAL_REVIEW。
+  5. **受控接口** `OpsController`：8 个端点，读/操作权限分层；操作者取自服务端会话；不存在→404、状态不允许→409；高风险类型重放要求复核人且不得为本人。
+  6. **操作手册**：`docs/operations/dead-letter-runbook.md`（判据、步骤、速查、升级路径）。
+- 本轮明确不做：差异工单（依赖 S2-05 对账产出）、Inbox 挂起事件的 HTTP 重放入口（随 S2-05 一并设计）、前端页面（阶段 3）、死信保留期策略、双人**审批流**（当前是提交时填复核人，非待办式第二级确认）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：M-04；S2-04
+- 变更文件：
+  - 新增：`ops/{domain/{DeadLetter,DeadLetterStatus,OpsIntervention},mapper/OpsMapper,service/OpsService,web/OpsController}`、`inbox/service/InboxMessageDispatcher`、`db/migration/V11__dead_letter_and_intervention.sql`、`mapper/ops/OpsMapper.xml`、`ops/OpsApiTest`、`docs/operations/dead-letter-runbook.md`
+  - 修改：`inbox/messaging/InboxListener`（改为复用分发器）、`NoDatabaseStubConfig`（补 OpsMapper 桩）、`docs/api/openapi-v1.json`（29 path / 33 schema）
+- 验证（详见 [S2-04 记录](../verification/S2-04/2026-10-30-dead-letter-ops.md)）：
+  - `PMS_IT_DB=true PMS_IT_RABBIT=true ./mvnw -B -ntp clean verify` → `Tests run: 231, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（222 → 231）
+  - 无库无 Broker：231 run / 206 skipped / 0 failure
+  - 真实 CI：[run 41060133953](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41060133953) success（`tests=231 skipped=0`）
+  - 已验：无权限 403、只读不能重放、重放保留幂等键且二次重放 409、处置留痕含操作者/原因/前后状态、高风险缺复核 409 且自审 409、跨租户 404、坏报文重放仍保持 PENDING
+- 本轮发现（不夹带实现，转入后续轮次）：
+  1. **MyBatis 传 null 参数时 PostgreSQL 无法推断类型**：`CASE WHEN #{detail} IS NULL` 直接 500，需显式 `jdbcType=VARCHAR`。表现为"接口 500、日志无业务信息"，排查成本高。
+  2. 重放的"重置 vs 延长"是必须提前定的语义：重置会让尝试台账主键冲突，也抹掉"被重放几次"的可见性。
+  3. 复核机制要区分"两人签名"与"两级审批"：本轮实现前者（提交时填复核人），后者需要待办与通知，不是这一轮能假装的。
+- 回写确认：feature-catalog ✓（M-04 → DONE；§1 重算）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S2-05` 内部对账与派生修复（对账任务 + 白名单修复，不用派生值覆盖事实）
 
 ### R-20261030-18 S2-03 持久化任务与外部调用状态
 
