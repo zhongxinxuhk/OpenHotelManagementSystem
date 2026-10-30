@@ -1,7 +1,7 @@
 package cn.sec.hn.openbackupsaas.support;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,7 +24,9 @@ import org.springframework.test.context.ActiveProfiles;
  */
 @SpringBootTest
 @ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
+// 条件必须用可继承的 @ExtendWith 注册：JUnit 5 的 @EnabledIf* 不会被继承，
+// 放在基类上等于没写（见 IntegrationDbEnabledCondition 的说明）。
+@ExtendWith(IntegrationDbEnabledCondition.class)
 public abstract class PostgresIntegrationTest {
 
     @Autowired

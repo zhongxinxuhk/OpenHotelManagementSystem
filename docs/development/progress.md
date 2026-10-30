@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-14）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-15）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-14`（S1-12 派生房态、可售计算与重建，DONE） |
-| 当前阶段 | 阶段 1 进行中（S1-01—S1-12 全部 DONE，仅剩 S1-13 并发验收）；阶段 0 的 S0-05—S0-09 仍待完成 |
-| 已通过门禁 | 无（G0 未开审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend + frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单/房态投影八域已落库（V1—V7 共 20 张表，复合外键 + CHECK + GiST 排斥）；**173 个测试全部通过（其中 148 个需要真实 PostgreSQL），CI 上同样 173 / 0 失败 / 0 跳过**；订单命令、超时释放、查询、可售与投影重建对账均已闭环；发布器与支付仍未实现 |
-| 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位现已有 `/availability` 可接；CI 三步全绿 |
-| 功能项完成度 | 约 26%（124 项，DONE 26 项，见 feature-catalog §1） |
-| 下一轮目标 | `S1-13` 交易内核集成与并发验收（T01—T14 + 越权回归集 B-08），收口 G1 |
+| 当前轮次 | `R-20261030-15`（S1-13 交易内核验收与清理机制重写，DONE） |
+| 当前阶段 | **阶段 1 完成**（S1-01—S1-13 全部 DONE）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
+| 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend + frontend） |
+| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单/房态投影八域已落库（V1—V7 共 20 张表，复合外键 + CHECK + GiST 排斥）；**183 个测试全部通过（其中 158 个需要真实 PostgreSQL），CI 上同样 183 / 0 失败 / 0 跳过**；交易内核（建单/确认/取消/No-show/超时释放/查询/可售/投影重建对账）已闭环并通过 T01—T07、T09、T14 验收；发布器与支付仍未实现 |
+| 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位已有 `/availability` 可接；CI 三步全绿 |
+| 功能项完成度 | 约 29%（124 项，DONE 29 项，见 feature-catalog §1） |
+| 下一轮目标 | ①G1 开审（对照 [验收记录](../verification/S1-13/2026-10-30-g1-acceptance.md)）；②`S2-01` Outbox 发布与 Worker 隔离（阶段 2 起点，不依赖 S0 未决项） |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -50,7 +50,7 @@
 | S1-10 | 超时领取与幂等释放 | P0 | 2–4 | DONE | `FOR UPDATE SKIP LOCKED` 领取 + 数据库时钟二次校验 + 条件更新兜底；一次批处理一个事务，回滚即恢复；无新迁移（复用 V4 到期索引） |
 | S1-11 | 交易 API、查询与权限闭环 | P0 | 2–4 | DONE | 列表/详情接口 + 过滤下推 + 稳定分页 + 脱敏；OpenAPI v1 已冻结并加契约测试；错误响应统一带 outcome 三分类 |
 | S1-12 | 派生房态、可售计算与重建 | P0 | 3–5 | DONE | `room_inventory_day`（V7）+ `/availability` 余量与整段可售 + rebuild/reconcile；可售从权威算、投影只作读模型 |
-| S1-13 | 交易内核集成与并发验收 | P0 | 4–6 | TODO |
+| S1-13 | 交易内核集成与并发验收 | P0 | 4–6 | DONE | T01—T07、T09、T14 全覆盖；六方一致核验；清理机制重写为自动拓扑排序 |
 
 ### 阶段 2 可靠性内核（门禁 G2）
 
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 14（S0-03、S1-01—S1-12、S3-01a） |
+| DONE | 15（S0-03、S1-01—S1-13、S3-01a） |
 | VERIFYING | 3（S0-01、S0-02、S0-04） |
 | BLOCKED | 1（S5-01 渠道授权） |
-| TODO | 48 |
+| TODO | 47 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -161,6 +161,34 @@
 ```
 
 ---
+
+### R-20261030-15 S1-13 交易内核验收与清理机制重写
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **清理机制重写**：新增 `DatabaseCleaner`（从 `pg_constraint` 读外键依赖、按"没有剩余表引用它"的拓扑序逐表删除并点名失败、删完断言全库为空），新增 `PostgresIntegrationTest` 基类，15 个集成测试类改为继承它并删除全部 `@Sql`；`integration-cleanup.sql` 标记废弃。
+  2. **验收测试**：`TransactionKernelAcceptanceTest`（T01 抢订 ×10 轮、T03 多房部分冲突、T05 响应丢失、T06 三方竞争 ×5 轮，每例做六方一致核验）、`CrossTenantRegressionTest`（T14 / B-08，6 例）。
+  3. **G1 验收记录**：场景覆盖表（T01—T07、T09、T14）、六方核验说明、否决条件逐条核对、遗留风险。
+- 本轮明确不做：T08/T10（G2）、T11—T13（发布器未实现）、性能基线（S6-01）、故障注入（S2-08）、阶段 0 的 S0-05—S0-09。
+- 涉及功能项（FT-*）/ 任务（S*-*）：B-08、D-02、D-03；S1-13
+- 变更文件：
+  - 新增：`support/{DatabaseCleaner,PostgresIntegrationTest,IntegrationDbEnabledCondition}.java`、`reservation/TransactionKernelAcceptanceTest.java`、`security/CrossTenantRegressionTest.java`
+  - 修改：15 个集成测试类（去 `@Sql` 与四个注解、改继承基类）、`support/NoDatabaseStubConfig.java` 无关、`tenant/OrganizationIntegrationTest.java`（过时 Javadoc）、`test/resources/db/integration-cleanup.sql`（标记废弃）
+  - 新增文档：`docs/verification/S1-13/2026-10-30-g1-acceptance.md`
+- 验证（本轮实际执行，详见 [G1 验收记录](../verification/S1-13/2026-10-30-g1-acceptance.md)）：
+  - `PMS_IT_DB=true ./mvnw -B -ntp clean verify` → `Tests run: 183, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（173 → 183）
+  - 无库：`Tests run: 183, Failures: 0, Errors: 0, Skipped: 158`（158 个需库用例真跳过）
+  - **真实 CI**：[run 41025391729](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41025391729) @ `5539d38` → **success**，9 步全绿，job 84 秒，`tests=183 skipped=0`
+  - 已验：T01 8 并发 × 10 轮每轮恰好 1 成功且六方一致；T03 整单回滚无半截交易；T05 同键重取不产生第二笔；T06 终态唯一且订单↔占用按映射一致；T14 四类越权手法全部拦下；清理机制反向验证（新建表插数据 → 测试照常通过且该表被清空，无需改脚本）
+  - 未覆盖：T08/T10（G2）、T11—T13（发布器未实现）、性能与故障注入
+- 本轮发现（不夹带实现，转入后续轮次）：
+  1. **拓扑排序方向极易搞反**：第一版按"不依赖任何剩余表就删"排序，结果 `tenant` 先于 `hotel` 被删，87 个用例连锁报错。正确条件是"**没有剩余表引用它**"。症状（外键违反）看起来像数据问题，不像排序问题。
+  2. **`information_schema.constraint_column_usage` 对复合外键匹配不到**（实测返回 0 行），改用 `pg_constraint` + `pg_class`。
+  3. **JUnit 5 的 `@EnabledIf*` 不会被继承**：上收到基类等于没写，无库环境下 158 个用例照跑不误（有库的机器上完全看不出）。改用 `@ExtendWith` + 自定义 `ExecutionCondition`。"跳过"失效是静默的，环境开关必须在两个环境下各验一次。
+  4. **联合状态核对必须用映射**：T06 首跑在 `CANCELLED vs RELEASED` 上失败——订单与占用的状态词表不同，直接比字符串会把正确结果判成错误，比漏测更危险（会诱导人改本来对的东西）。
+  5. 六方一致核验（订单/行/占用/流水/审计/Outbox/幂等）证明有效：单表断言看不出"订单在、流水少写一晚"这类部分正确。
+- 回写确认：feature-catalog ✓（B-08、D-02、D-03 → DONE；§1 重算为 DONE 29 / VERIFYING 9 / READY 9 / TODO 68 / BLOCKED 8，约 29%）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：①**G1 开审**（技术条件已满足，对照验收记录逐条核对）；②`S2-01` Outbox 发布与 Worker 隔离（阶段 2 起点，不依赖阶段 0 未决项）
 
 ### R-20261030-14 S1-12 派生房态、可售计算与重建对账
 
