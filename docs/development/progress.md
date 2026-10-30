@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-15）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-16）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-15`（S1-13 交易内核验收与清理机制重写，DONE） |
-| 当前阶段 | **阶段 1 完成**（S1-01—S1-13 全部 DONE）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
-| 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend + frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单/房态投影八域已落库（V1—V7 共 20 张表，复合外键 + CHECK + GiST 排斥）；**183 个测试全部通过（其中 158 个需要真实 PostgreSQL），CI 上同样 183 / 0 失败 / 0 跳过**；交易内核（建单/确认/取消/No-show/超时释放/查询/可售/投影重建对账）已闭环并通过 T01—T07、T09、T14 验收；发布器与支付仍未实现 |
+| 当前轮次 | `R-20261030-16`（S2-01 Outbox 发布器与 Worker 隔离，DONE） |
+| 当前阶段 | **阶段 2 开始**（阶段 1 全部 DONE；S2-01 DONE，S2-02 起为 TODO）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
+| 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 含真实 PostgreSQL + RabbitMQ、frontend） |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ（阶段 2）；组织/身份/房间/占用/流水审计/幂等/订单/房态投影八域 + Outbox 投递已落库（V1—V8 共 20 张表，复合外键 + CHECK + GiST 排斥）；**199 个测试全部通过（其中 158 需真实 PostgreSQL、3 需真实 RabbitMQ）**；交易内核闭环，Outbox 发布器可按角色独立启停；Inbox 消费（S2-02）与支付仍未实现 |
 | 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位已有 `/availability` 可接；CI 三步全绿 |
-| 功能项完成度 | 约 29%（124 项，DONE 29 项，见 feature-catalog §1） |
-| 下一轮目标 | ①G1 开审（对照 [验收记录](../verification/S1-13/2026-10-30-g1-acceptance.md)）；②`S2-01` Outbox 发布与 Worker 隔离（阶段 2 起点，不依赖 S0 未决项） |
+| 功能项完成度 | 约 30%（124 项，DONE 30 项，见 feature-catalog §1） |
+| 下一轮目标 | `S2-02` Inbox 消费与版本保护（去重与业务变更同事务、聚合版本乱序处理、异步线程显式传递授权上下文） |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -56,7 +56,7 @@
 
 | 任务 | 名称 | 优先级 | 估算 | 状态 |
 | --- | --- | --- | --- | --- |
-| S2-01 | Outbox 发布与 Worker 隔离 | P0 | 3–5 | TODO |
+| S2-01 | Outbox 发布与 Worker 隔离 | P0 | 3–5 | DONE | 租约式领取（物化 CTE）、发布确认、按 token 条件标记、指数退避；13 集成 + 3 真实 Broker 冒烟 |
 | S2-02 | Inbox 消费与版本保护 | P0 | 3–5 | TODO |
 | S2-03 | 持久化任务与外部调用状态 | P0 | 3–5 | TODO |
 | S2-04 | 死信、人工重放与审计修复 | P0 | 2–4 | TODO |
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 15（S0-03、S1-01—S1-13、S3-01a） |
+| DONE | 16（S0-03、S1-01—S1-13、S2-01、S3-01a） |
 | VERIFYING | 3（S0-01、S0-02、S0-04） |
 | BLOCKED | 1（S5-01 渠道授权） |
-| TODO | 47 |
+| TODO | 46 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -161,6 +161,34 @@
 ```
 
 ---
+
+### R-20261030-16 S2-01 Outbox 发布与 Worker 隔离
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **发布器**：`OutboxPublisherService`（领取→发布→按租约标记，三步各自独立提交）、`OutboxPublisherMapper`/XML（物化 CTE 领取、带 `lease_token` 条件的标记与失败回写）、`EventPublisher` 端口 + `RabbitEventPublisher`（publisher confirm 等待确认 + mandatory/returns + 持久化投递）。
+  2. **Worker 隔离**：`pms.runtime.role`（api/worker/all）+ `WorkerRoleCondition`；`OutboxPoller` 只在 Worker 角色下装配；worker 可 `--spring.main.web-application-type=none` 独立启动。
+  3. **积压与事件年龄**：`OutboxBacklogMonitor` 暴露 `pms.outbox.pending`、`oldest_event_age_seconds`、`published/failed/backlog_breach`；越过 `alert-age` 记 ERROR 并计数（送达属 S2-06）。
+  4. **迁移 V8**：`last_error` 列 + 部分索引 `idx_outbox_event_due`；`next_attempt_at` 回填并设为 NOT NULL DEFAULT now()（让领取条件保持 sargable）。
+  5. **CI**：backend 门禁新增 `rabbitmq:3.13-management` service 并打开 `PMS_IT_RABBIT`，与「零跳过」断言咬合。
+- 本轮明确不做：Inbox 去重（S2-02）、死信与重放（S2-04）、告警送达（S2-06）、队列与绑定声明（消费侧）、跨批严格有序。
+- 涉及功能项（FT-*）/ 任务（S*-*）：M-01；S2-01
+- 变更文件：
+  - 新增：`journal/{domain/PendingOutboxEvent,mapper/OutboxPublisherMapper,messaging/{EventPublisher,EventPublishException,OutboxEnvelope,RabbitEventPublisher,OutboxMessagingConfig},service/{OutboxPublisherService,OutboxPoller,OutboxBacklogMonitor}}.java`、`shared/runtime/WorkerRoleCondition.java`、`db/migration/V8__outbox_delivery.sql`、`mapper/journal/OutboxPublisherMapper.xml`、测试二（`OutboxPublisherIntegrationTest`、`RabbitEventPublisherSmokeTest`）
+  - 修改：`pom.xml`（starter-amqp）、`application.properties`（角色与 Outbox 配置）、`application-{test,integration}.properties`（关闭后台任务）、`SchedulingConfig`（改无条件开启，开关各自落在任务类）、`NoDatabaseStubConfig`（补 Mapper 桩）、`docs/verification/S2-01/…`
+- 验证（详见 [S2-01 记录](../verification/S2-01/2026-10-30-outbox-publisher.md)）：
+  - `PMS_IT_DB=true PMS_IT_RABBIT=true ./mvnw -B -ntp clean verify` → `Tests run: 199, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（183 → 199）
+  - 无库无 Broker：199 run / 174 skipped / 0 failure（真跳过）
+  - 真实 CI：backend 含 RabbitMQ service，零跳过断言同时覆盖 PostgreSQL 与 RabbitMQ
+  - 已验：发布前崩溃可恢复不丢；发布成功标记前崩溃可重发但不丢；Broker 停机事件留库并留失败原因、退避 2/4/8/16 秒；连续失败中止并释放剩余租约；积压年龄越界告警计数；同聚合保序；载荷不可改写；Worker 角色无 Web 启动并把事件投递进真实队列
+- 本轮发现（不夹带实现，转入后续轮次）：
+  1. **`UPDATE … FROM (子查询 LIMIT n)` 在并发下会突破批大小**：偶发一次领走全部 20 条（诊断：`各批大小=[0,20]`、`attempt_count>1` 为 0）。psql 单/双会话与 PREPARE 复刻均正常，改 `WITH … AS MATERIALIZED` 后连跑 10 次稳定；未拿到 PG 内部证据，机制记为推断（EPQ 重查重复执行子计划）。
+  2. **反向验证纠正了因果**：删掉 `SKIP LOCKED` 用例仍过、删掉租约条件才出现 10 条重复 → 去重靠租约条件，`SKIP LOCKED` 只避免互相等待。原注释写反了。
+  3. **`@EnabledIfEnvironmentVariable` 之外的新坑**：`REQUIRES_NEW` 无关，但"零跳过断言"与"条件执行的冒烟测试"天然冲突——不把 Broker 放进 CI 就只能二选一。
+  4. **开发库在 `/tmp` 会被系统清理**：出现 `could not open file "global/pg_filenode.map"` 时先判断环境损坏，再用 `dev-db.sh reset` 重建，别用代码解释一个坏掉的数据库。
+  5. AMQP 4 的差异：`BuiltinExchangeType` 移除（用 `ExchangeTypes` 常量）、收到的消息要看 `getReceivedDeliveryMode()` 而非 `getDeliveryMode()`。
+- 回写确认：feature-catalog ✓（M-01 → DONE；§1 重算）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S2-02` Inbox 消费与版本保护（重复消息只有一次业务效果、失败事务不遗留已处理标记、旧事件不覆盖新状态、版本缺口可补查）
 
 ### R-20261030-15 S1-13 交易内核验收与清理机制重写
 

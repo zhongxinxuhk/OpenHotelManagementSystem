@@ -72,6 +72,11 @@ cd openbackupsaas && ./mvnw -q -B verify
 # 后端：与 CI 完全等价（连真实 PostgreSQL；CI 还会断言零跳过，见 .github/workflows/backend.yml）
 cd openbackupsaas && PMS_IT_DB=true ./mvnw -B -ntp -Dstyle.color=never clean verify
 
+# 后端：含真实 RabbitMQ 的 Outbox 发布冒烟（需要本机 Broker；CI 由 service 提供）
+# 起一个一次性 Broker：docker run -d --name pms-rabbit -p 55672:5672 \
+#   -e RABBITMQ_ERLANG_COOKIE=cookietest --tmpfs /var/lib/rabbitmq:rw,exec rabbitmq:3.13-management-alpine
+PMS_IT_RABBIT=true PMS_RABBIT_PORT=55672 ./mvnw -o -B test -Dtest=RabbitEventPublisherSmokeTest
+
 # 后端：仅编译（快速反馈）
 cd openbackupsaas && ./mvnw -q -B -DskipTests compile
 

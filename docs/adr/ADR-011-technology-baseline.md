@@ -48,7 +48,7 @@ MyBatis 4.1.0 的发布记录对应 Boot 4.1 适配；jOOQ 也有可用于 Java 
 | 新增 | validation、actuator、jdbc、flyway starter、flyway-database-postgresql | S1-01/02 | 数据源、健康检查与迁移配置；确认数据库模块存在 |
 | 新增 | MyBatis starter 4.1.0、springdoc 3.1.1、jdbc-test | S1-01 | Mapper 扫描、事务回滚、API schema 和访问权限集成测试 |
 | 新增 | ~~Element Plus 2.14.7~~ → Ant Design Pro 6 模板与其依赖（Umi Max、antd 6、pro-components 3、Biome） | S3-01a | 已改为由 [ADR-015](./ADR-015-frontend-ant-design-pro.md) 决定；正式业务页面接入在 S3-01 |
-| 延后 | RabbitMQ、Redis、Testcontainers、观测/日志后端的具体部署配置 | 对应 S1/S2/S6 任务 | 每项在引入时重新核验版本、许可证、支持周期及真实运行 |
+| 延后 | ~~RabbitMQ~~（**2026-10-30 S2-01 已引入**：starter-amqp + publisher confirm + 持久化投递）、Redis、Testcontainers、观测/日志后端的具体部署配置 | 对应 S1/S2/S6 任务 | 每项在引入时重新核验版本、许可证、支持周期及真实运行 |
 
 可参考[已编译候选 POM](../verification/S0-03/candidate-backend-pom.xml)逐项修改；它是验证快照，不是可以直接替代数据源配置、安全配置和测试设计的完整工程模板。
 
