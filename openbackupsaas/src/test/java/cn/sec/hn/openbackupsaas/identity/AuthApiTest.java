@@ -1,17 +1,14 @@
 package cn.sec.hn.openbackupsaas.identity;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
 import cn.sec.hn.openbackupsaas.support.IdentitySeed;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
@@ -31,12 +28,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 「安全链是否真的接上了」——令牌头、权限点、租户收窄、登出后的失效，都必须体现在状态码上。
  * 用 MockMvc 走完整过滤器链（含 {@code BearerSessionAuthenticationFilter}），不是直接调用控制器。
  */
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class AuthApiTest {
+class AuthApiTest extends PostgresIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.room;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.room.domain.HousekeepingStatus;
 import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
 import cn.sec.hn.openbackupsaas.room.domain.RoomStatus;
@@ -13,13 +14,9 @@ import cn.sec.hn.openbackupsaas.tenant.domain.OrgStatus;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -42,11 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>覆盖 S1-04 验收项：同店房号唯一、跨店房型归属被拒绝（服务层与数据库层各验一次）、
  * 启停规则、清洁状态与销售事实分离。**不覆盖**：有有效预订时的停用处置（依赖 S1-05 占用表）。
  */
-@SpringBootTest
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class RoomIntegrationTest {
+class RoomIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private RoomService roomService;

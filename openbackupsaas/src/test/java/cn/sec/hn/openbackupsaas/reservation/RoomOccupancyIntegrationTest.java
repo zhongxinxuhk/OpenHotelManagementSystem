@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.reservation;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.reservation.domain.OccupancyStatus;
 import cn.sec.hn.openbackupsaas.reservation.domain.Reservation;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine;
@@ -17,13 +18,9 @@ import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -55,11 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 相邻区间允许、重叠区间被拒、预订与维修互斥、终态释放后可再销、
  * **直接连库插入同样被拒**、并发下只有一个赢家。
  */
-@SpringBootTest
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class RoomOccupancyIntegrationTest {
+class RoomOccupancyIntegrationTest extends PostgresIntegrationTest {
 
     private static final LocalDate IN = LocalDate.of(2026, 3, 1);
     private static final LocalDate OUT = LocalDate.of(2026, 3, 5);

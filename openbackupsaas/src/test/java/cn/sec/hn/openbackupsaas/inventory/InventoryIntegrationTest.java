@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.inventory;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.inventory.domain.BookableRoomType;
 import cn.sec.hn.openbackupsaas.inventory.domain.InventoryDay;
 import cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow;
@@ -16,12 +17,8 @@ import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -45,11 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>投影滞后不会让查询给出与权威矛盾的结论。</li>
  * </ol>
  */
-@SpringBootTest
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class InventoryIntegrationTest {
+class InventoryIntegrationTest extends PostgresIntegrationTest {
 
     private static final LocalDate D1 = LocalDate.of(2026, 9, 1);
 

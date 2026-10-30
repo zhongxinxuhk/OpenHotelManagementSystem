@@ -1,19 +1,16 @@
 package cn.sec.hn.openbackupsaas.inventory;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
 import cn.sec.hn.openbackupsaas.room.domain.RoomType;
 import cn.sec.hn.openbackupsaas.room.service.RoomService;
 import cn.sec.hn.openbackupsaas.support.IdentitySeed;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
@@ -33,12 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>验证的是权限分层与参数边界，而不是再算一遍余量（那是 {@link InventoryIntegrationTest} 的事）：
  * 只读权限不能重建投影、窗口超限直接 400、跨租户门店 404。
  */
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class InventoryApiTest {
+class InventoryApiTest extends PostgresIntegrationTest {
 
     private static final LocalDate FROM = LocalDate.of(2026, 10, 1);
     private static final LocalDate TO = LocalDate.of(2026, 10, 4);

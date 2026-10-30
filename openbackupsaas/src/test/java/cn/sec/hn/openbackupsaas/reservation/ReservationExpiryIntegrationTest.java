@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.reservation;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationSourceType;
 import cn.sec.hn.openbackupsaas.reservation.domain.StayRange;
 import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationExpiryMapper;
@@ -16,12 +17,8 @@ import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -55,11 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 因为生产判定也用数据库时钟；用应用时钟造"过去"会让测试与实现走两套时间基准，
  * 那种测试在时钟漂移时先红后绿，什么也证明不了。
  */
-@SpringBootTest
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class ReservationExpiryIntegrationTest {
+class ReservationExpiryIntegrationTest extends PostgresIntegrationTest {
 
     private static final LocalDate IN = LocalDate.of(2026, 5, 1);
     private static final LocalDate OUT = LocalDate.of(2026, 5, 3); // 2 晚

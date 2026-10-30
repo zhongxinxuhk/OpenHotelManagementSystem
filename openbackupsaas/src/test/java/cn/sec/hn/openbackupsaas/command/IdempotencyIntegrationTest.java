@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.command;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.command.domain.IdempotencyStatus;
 import cn.sec.hn.openbackupsaas.command.domain.RequestDigest;
 import cn.sec.hn.openbackupsaas.command.service.IdempotencyService;
@@ -19,12 +20,8 @@ import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -54,11 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>对应四条验收：同键同内容返回原结果、同键不同内容拒绝、并发同键只一次效果、
  * 提交成功但响应丢失可恢复。最后一条用"执行后按 operationId 查回结果引用"来证明。
  */
-@SpringBootTest
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class IdempotencyIntegrationTest {
+class IdempotencyIntegrationTest extends PostgresIntegrationTest {
 
     private static final String NAMESPACE = "employee";
     private static final String COMMAND = "reservation.hold";

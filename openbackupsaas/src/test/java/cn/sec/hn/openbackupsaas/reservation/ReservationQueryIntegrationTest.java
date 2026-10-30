@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.reservation;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationQuery;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationSourceType;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationStatus;
@@ -17,11 +18,7 @@ import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -42,11 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 过滤条件真的下推并能命中；分页在"同一毫秒创建多单"时仍不重不漏；
  * 别家门店/别家租户的订单既查不到也看不出存在性；详情给出正确的房号与可执行动作。
  */
-@SpringBootTest
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class ReservationQueryIntegrationTest {
+class ReservationQueryIntegrationTest extends PostgresIntegrationTest {
 
     private static final LocalDate IN = LocalDate.of(2026, 6, 1);
     private static final LocalDate OUT = LocalDate.of(2026, 6, 4); // 3 晚

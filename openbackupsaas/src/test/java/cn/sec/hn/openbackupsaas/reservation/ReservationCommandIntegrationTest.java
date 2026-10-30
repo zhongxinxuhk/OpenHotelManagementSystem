@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.reservation;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationConflictException;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationSourceType;
 import cn.sec.hn.openbackupsaas.reservation.domain.StayRange;
@@ -11,12 +12,8 @@ import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -42,11 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 多房多晚整体原子、任一房型挑不到就整单回滚、同一幂等键重放拿回同一订单、
  * 并发热点只有一个赢家、日期非法被拒。
  */
-@SpringBootTest
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class ReservationCommandIntegrationTest {
+class ReservationCommandIntegrationTest extends PostgresIntegrationTest {
 
     private static final LocalDate IN = LocalDate.of(2026, 4, 1);
     private static final LocalDate OUT = LocalDate.of(2026, 4, 4); // 3 晚

@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.tenant;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.shared.error.ConflictException;
 import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.HotelGroup;
@@ -7,14 +8,10 @@ import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.mapper.OrganizationMapper;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -35,14 +32,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 未设置 {@code PMS_IT_DB=true} 时整类跳过，确保无数据库环境仍可跑单元测试
  * （这也是"未验证项不得宣称通过"的落地方式：跳过而不是伪造通过）。
  *
- * <p>每条用例独立：前置 {@code /db/integration-cleanup.sql} 清表，
- * 不使用事务回滚，因为外键与权限违反必须在语句级真实失败。
+ * <p>每条用例独立：由 {@link PostgresIntegrationTest} 的基类钩子在每个方法前清空全库
+ * （{@code DatabaseCleaner} 按外键拓扑序删并断言全空），**不使用事务回滚**——
+ * 外键与权限违反必须在语句级真实失败，回滚会让"约束到底有没有生效"变得不可观测。
  */
-@SpringBootTest
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class OrganizationIntegrationTest {
+class OrganizationIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private OrganizationService organizationService;

@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.journal;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.journal.domain.AuditActions;
 import cn.sec.hn.openbackupsaas.journal.domain.AuditLog;
 import cn.sec.hn.openbackupsaas.journal.domain.EffectKind;
@@ -25,13 +26,9 @@ import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -57,11 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>核心要证明的是**原子性**：一次占用写入要同时产生占用、逐晚流水、审计与事件；
  * 只要其中任何一步失败，四者一起回滚——不能出现"占用在、流水不在"这种半截事实。
  */
-@SpringBootTest
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class JournalIntegrationTest {
+class JournalIntegrationTest extends PostgresIntegrationTest {
 
     private static final LocalDate IN = LocalDate.of(2026, 4, 1);
     private static final LocalDate OUT = LocalDate.of(2026, 4, 5);

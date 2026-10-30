@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.identity;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.identity.service.AuthenticationService;
 import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
 import cn.sec.hn.openbackupsaas.shared.error.UnauthenticatedException;
@@ -13,15 +14,11 @@ import cn.sec.hn.openbackupsaas.tenant.domain.Hotel;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -49,11 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 伪造 tenant_id、跨店对象 ID、批量混入其他租户对象、撤权后旧会话失效、默认拒绝未授权写入，
  * 以及"线程复用不串租户"。**不覆盖**并发竞争（S1-13）与审计落库（S1-06）。
  */
-@SpringBootTest
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class AuthIntegrationTest {
+class AuthIntegrationTest extends PostgresIntegrationTest {
 
     private static final String[] READ_PERMISSION = {"identity:read"};
 

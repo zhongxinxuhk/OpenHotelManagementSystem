@@ -1,5 +1,6 @@
 package cn.sec.hn.openbackupsaas.reservation;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationSourceType;
 import cn.sec.hn.openbackupsaas.reservation.domain.StayRange;
@@ -10,14 +11,10 @@ import cn.sec.hn.openbackupsaas.room.service.RoomService;
 import cn.sec.hn.openbackupsaas.support.IdentitySeed;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
@@ -43,12 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>脱敏不靠肉眼检查：直接对返回的 JSON 文本断言"不含 tenantId / occupancyId / operationId"，
  * 这些字段一旦被谁"顺手加进视图"，用例就会红。
  */
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class ReservationQueryApiTest {
+class ReservationQueryApiTest extends PostgresIntegrationTest {
 
     private static final LocalDate IN = LocalDate.of(2026, 7, 1);
     private static final LocalDate OUT = LocalDate.of(2026, 7, 3);

@@ -1,18 +1,15 @@
 package cn.sec.hn.openbackupsaas.room;
 
+import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
 import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
 import cn.sec.hn.openbackupsaas.support.IdentitySeed;
 import cn.sec.hn.openbackupsaas.tenant.service.OrganizationService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.ObjectMapper;
@@ -32,12 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>为什么必须走 MockMvc 而不是直接调 service：本轮是**第一次**有带数据范围校验的业务接口，
  * 三段顺序错了照样能返回 200（只是返回了别人的数据），只有 HTTP 状态码能暴露。
  */
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("integration")
-@EnabledIfEnvironmentVariable(named = "PMS_IT_DB", matches = "true")
-@Sql(scripts = "/db/integration-cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class RoomApiTest {
+class RoomApiTest extends PostgresIntegrationTest {
 
     private static final String[] ROOM_PERMISSIONS = {"room:read", "room:write"};
 
