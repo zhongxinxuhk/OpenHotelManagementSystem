@@ -71,10 +71,10 @@ jobs:
       PMS_RABBIT_PASSWORD: ci_mq_only
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -144,7 +144,7 @@ jobs:
 
       - name: Upload surefire reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: surefire-reports
           path: openbackupsaas/target/surefire-reports/**
@@ -153,7 +153,7 @@ jobs:
 
       - name: Upload runnable jar
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: backend-jar
           # *.jar.original 是 Spring Boot 重打包前的原始 jar，发布用不到

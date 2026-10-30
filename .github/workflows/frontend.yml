@@ -34,10 +34,10 @@ jobs:
       run:
         working-directory: frontend-admin-pro
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
@@ -75,7 +75,7 @@ jobs:
 
       - name: Upload dist
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: frontend-dist
           path: frontend-admin-pro/dist/**
