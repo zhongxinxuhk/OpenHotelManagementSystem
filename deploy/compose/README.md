@@ -5,8 +5,9 @@
 
 ## 1. 这是什么，不是什么
 
-**是**：本地开发、CI 门禁、单机预发布使用的 PostgreSQL 17 + RabbitMQ 3.13 编排。
-三处跑的是**同一份文件**——改端口、改版本、改初始化逻辑，三处同时生效，并且 CI 每次推送都在实际验证它。
+**是**：本地开发、CI 门禁、单机预发布使用的 PostgreSQL 17 + RabbitMQ 3.13 编排（Docker）；
+后端 api/worker **裸机部署**（`deploy/app.sh`，不走容器）——部署形态是刻意的分工，
+见 §「中间件与后端的部署分工」。两边读**同一个** `.env`，三处（本地/CI/预发）跑**同一份**编排文件。
 
 **不是**：生产 HA 方案。没有主从、没有故障转移、没有异地备份；数据卷是单机 named volume。
 生产的拓扑、RPO/RTO 目标在阶段 6（S6-06）实施。**不要把单机 Compose 标记为生产方案。**
@@ -27,6 +28,31 @@ docker compose ps             # 两个服务 STATUS 应为 Up (healthy)
 cd ../../openbackupsaas
 ./mvnw spring-boot:run        # PMS_DB_PORT 默认 55432，RabbitMQ 默认 55672
 ```
+
+### 后端裸机部署（api / worker）
+
+中间件在 Docker 里，后端进程跑在宿主机上（`deploy/app.sh`）：
+
+```bash
+# 1. 构建 jar（宿主机构建，复用 ~/.m2 缓存）
+cd ../../openbackupsaas && ./mvnw -DskipTests package
+
+# 2. 启动 / 查看 / 停止（自动 source 同一个 .env，连 compose 映射出来的端口）
+cd ../deploy
+./app.sh start api            # 只起 HTTP 进程（PMS_RUNTIME_ROLE=api）
+./app.sh start worker         # 只起后台任务进程（无 HTTP；Outbox/Inbox/任务/对账）
+./app.sh start all            # 两个都起（单机演示形态）
+./app.sh status
+./app.sh stop all
+./app.sh logs api             # 跟随日志（Ctrl-C 退出不影响进程）
+```
+
+PID 与日志在 `deploy/app-run/`（已 gitignore）。停机先 SIGTERM 等 30 秒优雅退出，
+超时才 SIGKILL——与应用的 `server.shutdown=graceful` 配合。
+
+**统一 env 管理**：中间件与后端读**同一个** `.env`——口令变量（`PMS_DB_PASSWORD` 等）
+在文件里只出现一次，中间件建账号、后端连接账号用的是同一个值；改一处，全家生效。
+容器网络内的地址（`postgres:5432`）不属于 `.env`，由 compose 服务拓扑决定。
 
 ## 3. 服务与连接信息
 
@@ -66,7 +92,21 @@ cd ../../openbackupsaas
 所以「从零重建环境」= `docker compose down -v && docker compose up -d --wait`，
 顺带每次都验证了 V1→V12 迁移链的第一步（角色分权）可用。
 
-## 5. dev-db.sh 与 compose 怎么选
+## 5. 中间件与后端的部署分工
+
+| | 中间件（PG / RabbitMQ） | 后端（api / worker） |
+| --- | --- | --- |
+| 形态 | Docker Compose | **裸机进程**（`deploy/app.sh`） |
+| 配置 | `deploy/compose/.env`（同一个文件） | 同左（脚本 source 后导出给 java） |
+| 变更节奏 | 低（版本/端口/口令） | 高（每天多次重启） |
+| 为什么 | 有状态服务，容器化隔离数据目录与版本 | 编辑-构建-重启循环要快；排障直接看日志 |
+| 升级方式 | `compose pull` / 换镜像版本 | `mvnw package` + `app.sh stop/start` |
+
+口令只有一个来源（`.env`）：中间件建账号、后端连账号，同一个值；
+`PMS_DB_PORT` / `PMS_RABBIT_PORT` 在文件里是**宿主端口**——compose 把容器端口映射到它，
+裸机后端连 `127.0.0.1:<宿主端口>`，两个世界读同一个数。
+
+## 6. dev-db.sh 与 compose 怎么选
 
 两套环境**默认端口相同（55432），同一时刻只能起一个**。
 
@@ -77,7 +117,7 @@ cd ../../openbackupsaas
 | 沙箱/受限环境跑不了 Docker | 用 `scripts/dev-db.sh` |
 | 需要并存 | 在 `.env` 里改 `PMS_DB_PORT`（如 55433），启动应用时 `PMS_DB_PORT=55433` |
 
-## 6. 常用操作
+## 7. 常用操作
 
 ```bash
 # 状态与日志
@@ -99,7 +139,7 @@ docker compose exec -T postgres pg_restore -U pms_migrator -d pms --clean --if-e
 > 备份的**定时调度、异地存放与恢复演练**属 S2-07 后续交付（`deploy/backup/`）。
 > 上面是手工速查，不是备份方案。
 
-## 7. CI 如何使用这份编排
+## 8. CI 如何使用这份编排
 
 后端门禁（`.github/workflows/backend.yml`）不再使用 GitHub Actions 的 service containers，
 而是直接 `docker compose up -d --wait` 起同一份编排：
@@ -111,7 +151,7 @@ docker compose exec -T postgres pg_restore -U pms_migrator -d pms --clean --if-e
 
 设计原则与流水线全貌见 [`docs/development/cicd-pipeline.md`](../../docs/development/cicd-pipeline.md)。
 
-## 8. FAQ
+## 9. FAQ
 
 **Q：`docker compose up` 报端口被占用？**
 `55432` 被占 = 本机 `dev-db.sh` 的集群在跑（`./scripts/dev-db.sh stop`）或在 `.env` 改端口。
@@ -124,22 +164,17 @@ docker compose exec -T postgres pg_restore -U pms_migrator -d pms --clean --if-e
 **Q：改了 `initdb/` 下的脚本为什么不生效？**
 初始化脚本只在**空数据卷**首次启动时执行。重置：`docker compose down -v`（会删数据）。
 
-**Q：为什么 compose 里没有应用服务（api/worker）？**
-应用的部署形态（jar 直跑 / 容器 / 系统服务）与迁移作业、健康检查门、秘密注入一起构成
-部署门，属 S2-07 剩余交付与 S6 生产拓扑。编排文件里先放一个「能跑但没镜像来源」的 app
-服务只会制造假象——先有镜像流水线，再有 app 服务。
+**Q：为什么后端不进 compose？**
+裸机是**刻意的分工**，不是没做完：
+- 后端还在快速迭代（每天要重启很多次），裸机 `./mvnw package` + `./app.sh start` 的
+  编辑-重启循环远快于镜像重建；
+- 免去 CI 镜像构建流水线（registry、tag 策略）这一整块前置依赖，先把「环境统一」拿到手；
+- 排障直接看进程日志，不用进容器。
+需要容器形态时（S2-07 镜像流水线 / 预发部署），`Dockerfile` 与 compose 服务一并演进。
 
-**Q：初始化踩过哪些坑（为什么脚本长这样）？**
-三个真实踩过的坑，都写进了 compose 文件注释，改脚本前先看：
-
-1. `db-bootstrap.sql` 使用 psql 变量，entrypoint 直接执行 `.sql` 不传变量——
-   必须经 `01-bootstrap.sh` 包装传参，且 `ON_ERROR_STOP` 必须打开：
-   **initdb 对脚本错误不中止**，服务照样 healthy、分权悄悄缺失。
-2. initdb 只 glob 目录**顶层**——脚本挂成子目录会被静默忽略（日志里连 running 都没有）。
-3. 宿主机环境变量不会自动进入容器——initdb 脚本要用的变量必须在 service 的
-   `environment` 里显式声明（漏了的现象同样是「healthy 但角色无口令」）。
-4. 库 owner 统一修正为 `pms_migrator`：PostgreSQL 13+ 的 trusted 扩展（V4 依赖的
-   `btree_gist`）只允许库 owner 安装，不修正则迁移在 V4 卡住。
+**Q：裸机脚本从哪里读配置？**
+`deploy/compose/.env`——与中间件**同一个文件**（`source` 后导出给 java 进程）。
+`.env` 里的 `PMS_DB_PORT` 是宿主端口：compose 映射到它、裸机连它，两边语义天然一致。
 
 **Q：这是生产方案吗？**
 不是。单机 Compose 没有 HA 与 RPO=0 能力，见 §1 边界声明。

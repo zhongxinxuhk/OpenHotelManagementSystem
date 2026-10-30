@@ -74,8 +74,10 @@
 
 1. **部署目标还不存在。** 单机预发环境的宿主机、访问方式、回滚手段都未定义；
    写一个 deploy job 只能是 `ssh` 进某台机器然后祈祷，这不是流水线是玄学。
-2. **镜像还没产生。** compose 里没有 app 服务（见 compose README §8），因为镜像构建
-   与推送（registry、tag 策略、镜像瘦身）本身是一块需要设计的交付。
+2. **部署形态已定为分工制（R-20261030-22）**：中间件 compose、后端**裸机**
+   （`deploy/app.sh`）。预发的 deploy job 相应简化为：compose 起中间件 →
+   宿主机 `mvnw package` → `app.sh` 滚动替换 → 冒烟；镜像构建不再是预发部署的前置。
+   生产形态（容器化）在阶段 6 重新评估。
 3. **部署门应有自己的门禁。** 迁移作业怎么跑（先停写？还是在线？）、健康检查不过怎么回滚、
    谁批准部署到预发——这些是 S2-07 剩余交付的内容，在落地时一起定义。
 
@@ -86,8 +88,9 @@
 | 阶段 | 内容 | 前置 | 状态 |
 | --- | --- | --- | --- |
 | G1 门禁 | backend / frontend / qodana / release（本表 §1） | — | **已落地** |
-| 镜像构建 | `docker build` 多阶段（jlink 瘦身）→ push registry；tag = git sha + 语义版本 | registry 选型（S2-07） | 未开始 |
-| 预发部署 | deploy workflow：`deploy/compose` 起中间件 → 迁移作业（`pms_migrator`）→ 滚动替换 api/worker → 冒烟（`/actuator/health`、一条真实下单） | 预发宿主机、镜像仓库 | 未开始 |
+| 本地/预发编排 | 中间件 compose + 后端裸机脚本（`deploy/app.sh`），统一 `.env` 单源口令 | — | **已落地**（R-20261030-22） |
+| 镜像构建 | 后端容器化（多阶段 Dockerfile + registry），与生产 HA 一起评估 | 阶段 6 或预发需要时 | 未开始（裸机分工下非前置） |
+| 预发部署 | deploy job：compose 起中间件 → 宿主机构建 → `app.sh` 滚动替换 → 冒烟（`/actuator/health`、一条真实下单） | 预发宿主机 | 未开始 |
 | 备份闭环 | `deploy/backup/`：pg_dump 定时 + 异地存放 + **恢复演练记录**（能恢复才算有备份） | 预发环境 | 未开始 |
 | 生产 HA | 主从 PG、RabbitMQ 集群、多实例、蓝绿/灰度 | 阶段 6（S6-06） | 未开始 |
 
