@@ -1,18 +1,24 @@
 name: backend
 
-# 后端门禁（S1-01，S2-01 起含消息）：干净检出必须能编译、跑单元测试，并在
-# **真实 PostgreSQL** 上跑组织 / 约束 / 占用排斥 / 幂等 / 订单生命周期 / 到期承接，
-# 在**真实 RabbitMQ** 上跑 Outbox 发布的确认与持久化。
+# 后端门禁（S1-01，S2-01 起含消息，R-20261030-21 起改用 compose 起中间件）：
+# 干净检出必须能编译、跑单元测试，并在**真实 PostgreSQL** 上跑组织 / 约束 / 占用排斥 /
+# 幂等 / 订单生命周期 / 到期承接，在**真实 RabbitMQ** 上跑 Outbox 发布的确认与持久化。
 #
 # 三条不能省的约定：
 #   1. 集成测试由 PMS_IT_DB=true 打开；这里显式设成 true，并且**断言没有任何用例被跳过**
 #      （见 "Assert no skipped tests"）——只看 BUILD SUCCESS 会被静默跳过骗过。
-#   2. 数据库账号分权与 local 一致：应用账号 pms_app 只有 DML，迁移账号 pms_migrator 才能 DDL。
-#      每次从空库跑完整迁移链，等于顺带验证了 V1→最新 的迁移历史可用。
+#   2. 数据库账号分权与本地一致：应用账号 pms_app 只有 DML，迁移账号 pms_migrator 才能 DDL。
+#      分权 SQL 由 compose 的 initdb 自动执行（挂载 openbackupsaas/scripts/db-bootstrap.sql），
+#      CI 数据卷每次为空，等于每轮推送都实测「从零初始化」路径。
 #   3. 失败时把 surefire 报告留下来，成功时把可执行 jar 留下来（供手工核验）。
-#   4. RabbitMQ service 是必需的，不是可选的：Outbox 的"确认后才算发布""持久化投递"
+#   4. RabbitMQ 是必需的，不是可选的：Outbox 的"确认后才算发布""持久化投递"
 #      "不可路由即失败"只能在真实 Broker 上验证，桩无法证明。因此也打开 PMS_IT_RABBIT，
 #      与"零跳过"断言相互咬合——Broker 起不来就红，而不是静默跳过。
+#
+# 为什么用 compose 而不是 GitHub Actions service containers（v2，R-20261030-21）：
+#   本地、CI、预发跑**同一份** deploy/compose/docker-compose.yml——环境的可执行定义只有一份，
+#   消灭"本地绿 CI 红"里的环境差异类问题；compose 本身写坏（healthcheck、init 脚本、端口），
+#   这条门禁当场红，而不是等部署时才发现。设计全文见 docs/development/cicd-pipeline.md。
 on:
   push:
     paths:
@@ -20,6 +26,8 @@ on:
       # 契约基线是后端门禁的输入：只改基线不改代码时，OpenApiContractTest 同样需要重跑，
       # 否则"悄悄放宽契约"可以绕过 CI。
       - 'docs/api/openapi-v1.json'
+      # 编排文件是本门禁运行环境的一部分：改它必须重跑（compose 写坏要在这里暴露）
+      - 'deploy/compose/**'
       - '.github/workflows/backend.yml'
   pull_request:
     branches:
@@ -27,6 +35,7 @@ on:
     paths:
       - 'openbackupsaas/**'
       - 'docs/api/openapi-v1.json'
+      - 'deploy/compose/**'
       - '.github/workflows/backend.yml'
   workflow_dispatch:
 
@@ -47,42 +56,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
-    services:
-      postgres:
-        # 与 ADR-011 选定的大版本一致；锁大版本不锁补丁，补丁升级走依赖评审。
-        image: postgres:17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-
-      rabbitmq:
-        # 与本地验证一致的大版本；不锁补丁，升级走依赖评审（ADR-011 §3「延后」项在此落地）
-        image: rabbitmq:3.13-management
-        ports:
-          - 5672:5672
-        options: >-
-          --health-cmd "rabbitmq-diagnostics -q ping"
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 20
-
     env:
       PMS_DB_HOST: 127.0.0.1
-      PMS_DB_PORT: '5432'
+      # 与 compose 的宿主端口默认值一致（deploy/compose/docker-compose.yml）
+      PMS_DB_PORT: '55432'
       PMS_DB_NAME: pms
       PMS_DB_USER: pms_app
       PMS_DB_PASSWORD: ci_app_only
       PMS_DB_MIGRATOR_USER: pms_migrator
       PMS_DB_MIGRATOR_PASSWORD: ci_migrator_only
       PMS_RABBIT_HOST: 127.0.0.1
-      PMS_RABBIT_PORT: '5672'
+      PMS_RABBIT_PORT: '55672'
+      PMS_RABBIT_USER: pms_mq
+      PMS_RABBIT_PASSWORD: ci_mq_only
 
     steps:
       - uses: actions/checkout@v4
@@ -95,17 +81,19 @@ jobs:
           cache: maven
           cache-dependency-path: openbackupsaas/pom.xml
 
-      - name: Bootstrap database roles and grants
+      - name: Start middleware (same compose file as local and staging)
+        working-directory: deploy/compose
         env:
-          PGPASSWORD: postgres
-        # 容器内 host 连接为 scram 认证，因此给两个非超级用户角色设置一次性口令；
-        # 该口令只存在于本次 job 的临时容器中，不用于任何共享环境。
+          # 只存在于本 job 的临时容器，不用于任何共享环境
+          POSTGRES_PASSWORD: ci_super_only
+          PMS_RABBIT_PASSWORD: ci_mq_only
+          PMS_DB_PASSWORD: ci_app_only
+          PMS_DB_MIGRATOR_PASSWORD: ci_migrator_only
+        # --wait：等到两个服务都 healthy 才返回；起不来或 unhealthy 直接失败这一步，
+        # 让后续测试拿到的是确定就绪的中间件，而不是"大概行了"。
         run: |
-          psql -h 127.0.0.1 -U postgres -d postgres \
-               -v ON_ERROR_STOP=1 -v dbname=pms -f openbackupsaas/scripts/db-bootstrap.sql
-          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 \
-               -c "ALTER ROLE pms_app PASSWORD 'ci_app_only'" \
-               -c "ALTER ROLE pms_migrator PASSWORD 'ci_migrator_only'"
+          docker compose up -d --wait --wait-timeout 120
+          docker compose ps
 
       - name: Verify (compile + unit + postgres + rabbit integration tests)
         working-directory: openbackupsaas
@@ -139,10 +127,17 @@ jobs:
           print(f'tests={total} skipped={skipped} failures={failures} errors={errors}')
           if skipped:
               sys.exit(f'CI 中不允许跳过用例：{skipped} 个被跳过。'
-                       'PMS_IT_DB / PMS_IT_RABBIT 未生效，或 PostgreSQL / RabbitMQ service 未就绪。')
+                       'PMS_IT_DB / PMS_IT_RABBIT 未生效，或 compose 中间件未就绪。')
           if total == 0:
               sys.exit('测试总数为 0，视为门禁失效')
           PY
+
+      - name: Stop middleware
+        if: always()
+        working-directory: deploy/compose
+        # down -v：连数据卷一起清。初始化脚本只在空卷执行，清掉才能保证下一轮
+        # 实测的仍是"从零初始化"路径，也避免陈旧数据在 job 间伪装成可复用状态。
+        run: docker compose down -v
 
       - name: Upload surefire reports
         if: always()

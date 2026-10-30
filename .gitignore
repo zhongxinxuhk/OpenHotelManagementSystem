@@ -37,3 +37,6 @@ build/
 
 ### Agent 本地状态（非源码） ###
 .workbuddy/
+
+### 环境秘密（S6-05：凭据不进版本库） ###
+deploy/compose/.env
