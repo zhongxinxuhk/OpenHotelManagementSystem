@@ -1,6 +1,48 @@
 {
   "components": {
     "schemas": {
+      "AvailabilityView": {
+        "properties": {
+          "bookable": {
+            "items": {
+              "$ref": "#/components/schemas/BookableRoomType"
+            },
+            "type": "array"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryDay"
+            },
+            "type": "array"
+          },
+          "from": {
+            "format": "date",
+            "type": "string"
+          },
+          "nights": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "to": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BookableRoomType": {
+        "properties": {
+          "bookableRooms": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "roomTypeId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ChangePasswordRequest": {
         "properties": {
           "currentPassword": {
@@ -167,6 +209,54 @@
         },
         "type": "object"
       },
+      "Difference": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "roomId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stayDate": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "InventoryDay": {
+        "properties": {
+          "availableRooms": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "blockedRooms": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "roomTypeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "soldRooms": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "stayDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "totalRooms": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "LifecycleRequest": {
         "properties": {
           "expectedVersion": {
@@ -325,6 +415,77 @@
           "totalPages": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RebuildResult": {
+        "properties": {
+          "deletedRows": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "from": {
+            "format": "date",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "type": "string"
+          },
+          "writtenRows": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ReconcileReport": {
+        "properties": {
+          "differences": {
+            "items": {
+              "$ref": "#/components/schemas/Difference"
+            },
+            "type": "array"
+          },
+          "expectedRows": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "from": {
+            "format": "date",
+            "type": "string"
+          },
+          "hotelId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "ledgerMismatches": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "missingRows": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "orphanRows": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "staleRows": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "storedRows": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "to": {
+            "format": "date",
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -742,6 +903,180 @@
         },
         "tags": [
           "auth-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/availability": {
+      "get": {
+        "operationId": "availability",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "roomTypeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailabilityView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "inventory-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/inventory/rebuild": {
+      "post": {
+        "operationId": "rebuild",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "roomTypeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebuildResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "inventory-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/inventory/reconcile": {
+      "get": {
+        "operationId": "reconcile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "roomTypeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconcileReport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "inventory-controller"
         ]
       }
     },

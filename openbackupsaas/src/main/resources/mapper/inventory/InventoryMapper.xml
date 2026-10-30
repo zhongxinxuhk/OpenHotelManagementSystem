@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  房态与可售 SQL（S1-12）。四条原则：
+
+  1. **可售只从权威算**：physical_room + room_occupancy，绝不读 room_inventory_day。
+  2. **日期由 generate_series 展开**：没有占用的日子也要出行（余量=总数），
+     否则前端要把"缺行"当"满房"或"不存在"，两种解释都会出事。
+  3. **有效状态集合只写一遍**：RESERVATION 用 HELD/CONFIRMED/CHECKED_IN，
+     BLOCK 用 BLOCKED，与 V4 的排斥谓词完全一致。改这里必须同步改排斥约束。
+  4. **期望投影只有一段 SQL**（expectedProjection），重建与对账共用。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.inventory.mapper.InventoryMapper">
+
+    <!-- ============ 公共片段 ============ -->
+
+    <!-- 窗口内的住宿日（半开 [from, to)） -->
+    <sql id="windowDays">
+        (SELECT gs::date AS stay_date
+         FROM generate_series(#{w.from}::date, #{w.to}::date - 1, interval '1 day') gs)
+    </sql>
+
+    <!-- 参与销售的房间：ACTIVE 才有供给，停用房不该出现在余量与投影里 -->
+    <sql id="sellableRooms">
+        FROM physical_room r
+        WHERE r.tenant_id = #{w.tenantId}
+          AND r.hotel_id = #{w.hotelId}
+          AND r.status = 'ACTIVE'
+        <if test="w.roomTypeId != null">
+          AND r.room_type_id = #{w.roomTypeId}
+        </if>
+    </sql>
+
+    <!-- 某房某日是否被预订占用：与 V4 排斥谓词的有效状态集合一致 -->
+    <sql id="reservationOccupied">
+        EXISTS (
+            SELECT 1
+            FROM room_occupancy o
+            WHERE o.tenant_id = r.tenant_id
+              AND o.hotel_id = r.hotel_id
+              AND o.room_id = r.id
+              AND o.kind = 'RESERVATION'
+              AND o.status IN ('HELD', 'CONFIRMED', 'CHECKED_IN')
+              AND o.stay_range @> d.stay_date
+        )
+    </sql>
+
+    <sql id="blockOccupied">
+        EXISTS (
+            SELECT 1
+            FROM room_occupancy o
+            WHERE o.tenant_id = r.tenant_id
+              AND o.hotel_id = r.hotel_id
+              AND o.room_id = r.id
+              AND o.kind = 'BLOCK'
+              AND o.status = 'BLOCKED'
+              AND o.stay_range @> d.stay_date
+        )
+    </sql>
+
+    <!-- ============ 每日余量 ============ -->
+
+    <resultMap id="inventoryDayMap" type="cn.sec.hn.openbackupsaas.inventory.domain.InventoryDay">
+        <constructor>
+            <idArg column="stay_date" javaType="java.time.LocalDate"/>
+            <arg column="room_type_id" javaType="java.util.UUID"/>
+            <arg column="total_rooms" javaType="java.lang.Integer"/>
+            <arg column="sold_rooms" javaType="java.lang.Integer"/>
+            <arg column="blocked_rooms" javaType="java.lang.Integer"/>
+            <arg column="available_rooms" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findDailyAvailability" resultMap="inventoryDayMap">
+        SELECT d.stay_date,
+               r.room_type_id,
+               count(*)::int AS total_rooms,
+               count(*) FILTER (WHERE <include refid="reservationOccupied"/>)::int AS sold_rooms,
+               count(*) FILTER (WHERE <include refid="blockOccupied"/>)::int AS blocked_rooms,
+               (count(*)
+                - count(*) FILTER (WHERE <include refid="reservationOccupied"/>)
+                - count(*) FILTER (WHERE <include refid="blockOccupied"/>))::int AS available_rooms
+        FROM physical_room r
+        CROSS JOIN <include refid="windowDays"/> d
+        WHERE r.tenant_id = #{w.tenantId}
+          AND r.hotel_id = #{w.hotelId}
+          AND r.status = 'ACTIVE'
+        <if test="w.roomTypeId != null">
+          AND r.room_type_id = #{w.roomTypeId}
+        </if>
+        GROUP BY d.stay_date, r.room_type_id
+        ORDER BY d.stay_date, r.room_type_id
+    </select>
+
+    <!-- ============ 整段可售 ============ -->
+
+    <resultMap id="bookableMap" type="cn.sec.hn.openbackupsaas.inventory.domain.BookableRoomType">
+        <constructor>
+            <idArg column="room_type_id" javaType="java.util.UUID"/>
+            <arg column="bookable_rooms" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+      整段判定 = 该房间与查询区间**没有有效占用交集**。
+      注意这里是区间与区间的 &&（半开语义来自 daterange），不是逐日判断：
+      逐日判断会把"01 房今晚空、明晚被占；02 房今晚被占、明晚空"算成可售，
+      而实际上没有任何一间房能连住整段。
+    -->
+    <select id="findBookableRooms" resultMap="bookableMap">
+        SELECT r.room_type_id, count(*)::int AS bookable_rooms
+        <include refid="sellableRooms"/>
+          AND NOT EXISTS (
+                SELECT 1
+                FROM room_occupancy o
+                WHERE o.tenant_id = r.tenant_id
+                  AND o.hotel_id = r.hotel_id
+                  AND o.room_id = r.id
+                  AND o.status IN ('HELD', 'CONFIRMED', 'CHECKED_IN', 'BLOCKED')
+                  AND o.stay_range &amp;&amp; daterange(#{w.from}::date, #{w.to}::date, '[)')
+          )
+        GROUP BY r.room_type_id
+    </select>
+
+    <!-- ============ 期望投影（重建与对账共用） ============ -->
+
+    <resultMap id="expectedMap" type="cn.sec.hn.openbackupsaas.inventory.domain.ExpectedProjectionRow">
+        <constructor>
+            <idArg column="room_id" javaType="java.util.UUID"/>
+            <arg column="stay_date" javaType="java.time.LocalDate"/>
+            <arg column="reservation_unavailable" javaType="_boolean"/>
+            <arg column="block_unavailable" javaType="_boolean"/>
+            <arg column="source_room_version" javaType="java.lang.Long"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="expectedProjection">
+        SELECT r.id AS room_id,
+               d.stay_date,
+               <include refid="reservationOccupied"/> AS reservation_unavailable,
+               <include refid="blockOccupied"/> AS block_unavailable,
+               r.version AS source_room_version
+        FROM physical_room r
+        CROSS JOIN <include refid="windowDays"/> d
+        WHERE r.tenant_id = #{w.tenantId}
+          AND r.hotel_id = #{w.hotelId}
+          AND r.status = 'ACTIVE'
+        <if test="w.roomTypeId != null">
+          AND r.room_type_id = #{w.roomTypeId}
+        </if>
+    </sql>
+
+    <select id="computeExpectedProjection" resultMap="expectedMap">
+        <include refid="expectedProjection"/>
+    </select>
+
+    <resultMap id="storedMap" type="cn.sec.hn.openbackupsaas.inventory.domain.StoredProjectionRow">
+        <constructor>
+            <idArg column="room_id" javaType="java.util.UUID"/>
+            <arg column="stay_date" javaType="java.time.LocalDate"/>
+            <arg column="reservation_unavailable" javaType="_boolean"/>
+            <arg column="block_unavailable" javaType="_boolean"/>
+            <arg column="source_room_version" javaType="java.lang.Long"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findStoredProjection" resultMap="storedMap">
+        SELECT room_id, stay_date, reservation_unavailable, block_unavailable, source_room_version
+        FROM room_inventory_day
+        WHERE tenant_id = #{w.tenantId}
+          AND hotel_id = #{w.hotelId}
+          AND stay_date &gt;= #{w.from}::date
+          AND stay_date &lt; #{w.to}::date
+    </select>
+
+    <delete id="deleteProjection">
+        DELETE FROM room_inventory_day
+        WHERE tenant_id = #{w.tenantId}
+          AND hotel_id = #{w.hotelId}
+          AND stay_date &gt;= #{w.from}::date
+          AND stay_date &lt; #{w.to}::date
+    </delete>
+
+    <!--
+      重建投影：先由调用方清空窗口，再用一条 INSERT ... SELECT ... ON CONFLICT 写回。
+      清空与写入在同一事务内（见 {@code InventoryService#rebuild}），读事务看到的是
+      "旧投影"或"新投影"，不会看到"清空后未写入"的空窗——否则日历会瞬间显示全店可售。
+
+      为什么用 INSERT ... SELECT 而不是"查出期望行、应用层批量 upsert"：
+      后者要多一次往返、还要自己分批，而分批之间正是别人读到半成品的窗口；
+      数据库端一条语句写到底，简单且没有中间态。
+    -->
+    <insert id="rebuildProjection">
+        INSERT INTO room_inventory_day (tenant_id, hotel_id, room_id, stay_date,
+                                        reservation_unavailable, block_unavailable,
+                                        source_room_version, rebuilt_at)
+        SELECT #{w.tenantId}, #{w.hotelId}, e.room_id, e.stay_date,
+               e.reservation_unavailable, e.block_unavailable, e.source_room_version, now()
+        FROM (
+            <include refid="expectedProjection"/>
+        ) e
+        ON CONFLICT (tenant_id, hotel_id, room_id, stay_date) DO UPDATE
+        SET reservation_unavailable = EXCLUDED.reservation_unavailable,
+            block_unavailable       = EXCLUDED.block_unavailable,
+            source_room_version     = EXCLUDED.source_room_version,
+            rebuilt_at              = EXCLUDED.rebuilt_at
+    </insert>
+
+    <!-- ============ 流水核对 ============ -->
+
+    <resultMap id="ledgerMismatchMap" type="cn.sec.hn.openbackupsaas.inventory.mapper.InventoryMapper$LedgerMismatch">
+        <constructor>
+            <idArg column="room_id" javaType="java.util.UUID"/>
+            <arg column="stay_date" javaType="java.time.LocalDate"/>
+            <arg column="ledger_delta" javaType="java.lang.Integer"/>
+            <!-- 包装类型：record 里是 Boolean，不能写成 _boolean（那是原始类型别名） -->
+            <arg column="occupied" javaType="java.lang.Boolean"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+      流水净值应与占用状态一致：占用中 = -1（占用那条流水还没被对冲），未占用 = 0。
+      不符说明记账链路有问题：漏记占用、重复释放、或对冲写错单。
+      只核 RESERVATION 类，维修类流水归 S2-05。
+    -->
+    <select id="findLedgerMismatches" resultMap="ledgerMismatchMap">
+        SELECT l.room_id,
+               l.stay_date,
+               sum(l.delta)::int AS ledger_delta,
+               EXISTS (
+                   SELECT 1
+                   FROM room_occupancy o
+                   WHERE o.tenant_id = l.tenant_id
+                     AND o.hotel_id = l.hotel_id
+                     AND o.room_id = l.room_id
+                     AND o.kind = 'RESERVATION'
+                     AND o.status IN ('HELD', 'CONFIRMED', 'CHECKED_IN')
+                     AND o.stay_range @> l.stay_date
+               ) AS occupied
+        FROM inventory_ledger l
+        WHERE l.tenant_id = #{w.tenantId}
+          AND l.hotel_id = #{w.hotelId}
+          AND l.effect_kind = 'RESERVATION'
+          AND l.stay_date &gt;= #{w.from}::date
+          AND l.stay_date &lt; #{w.to}::date
+        <if test="w.roomTypeId != null">
+          AND EXISTS (
+                SELECT 1 FROM physical_room pr
+                WHERE pr.id = l.room_id AND pr.room_type_id = #{w.roomTypeId}
+          )
+        </if>
+        GROUP BY l.tenant_id, l.hotel_id, l.room_id, l.stay_date
+        HAVING sum(l.delta) &lt;&gt; (CASE WHEN EXISTS (
+                   SELECT 1
+                   FROM room_occupancy o
+                   WHERE o.tenant_id = l.tenant_id
+                     AND o.hotel_id = l.hotel_id
+                     AND o.room_id = l.room_id
+                     AND o.kind = 'RESERVATION'
+                     AND o.status IN ('HELD', 'CONFIRMED', 'CHECKED_IN')
+                     AND o.stay_range @> l.stay_date
+               ) THEN -1 ELSE 0 END)
+    </select>
+
+</mapper>

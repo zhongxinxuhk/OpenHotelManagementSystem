@@ -94,6 +94,11 @@ public class NoDatabaseStubConfig {
         return new ReservationQueryMapperStub();
     }
 
+    @Bean
+    cn.sec.hn.openbackupsaas.inventory.mapper.InventoryMapper inventoryMapper() {
+        return new InventoryMapperStub();
+    }
+
     static final class JournalMapperStub implements JournalMapper {
 
         @Override
@@ -501,6 +506,49 @@ public class NoDatabaseStubConfig {
         @Override
         public java.util.List<cn.sec.hn.openbackupsaas.reservation.domain.RoomAssignment> findRoomAssignments(
                 UUID tenantId, UUID hotelId, UUID reservationId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    static final class InventoryMapperStub implements cn.sec.hn.openbackupsaas.inventory.mapper.InventoryMapper {
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.inventory.domain.InventoryDay> findDailyAvailability(
+                cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow window) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.inventory.domain.BookableRoomType> findBookableRooms(
+                cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow window) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.inventory.domain.ExpectedProjectionRow>
+                computeExpectedProjection(cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow window) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.inventory.domain.StoredProjectionRow>
+                findStoredProjection(cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow window) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int deleteProjection(cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow window) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int rebuildProjection(cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow window) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.inventory.mapper.InventoryMapper.LedgerMismatch>
+                findLedgerMismatches(cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow window) {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }
