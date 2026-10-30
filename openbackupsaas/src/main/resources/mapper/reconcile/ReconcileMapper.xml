@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper">
+
+    <!--
+      三条铁律，改这段 SQL 前先读一遍：
+      1. 工单去重靠部分唯一索引 + ON CONFLICT DO UPDATE：同一（门店, 类型, 目标）
+         只允许一张 OPEN 工单。用"先查再插"会在并发扫描下造出两张。
+      2. 退场必须限定扫描范围（stay_date 落在本次窗口内）：否则只扫最近 7 天的一轮
+         会把 30 天窗口里的老问题全部"自动关闭"，而它们其实还在。
+      3. 这里没有一条 UPDATE 会碰订单、占用、流水、投影以外的表。事实类差异的处置
+         只能由人走业务流程——对账不做"补一笔订单"这种事。
+    -->
+
+    <!-- 订单状态 → 占用状态 的期望映射。唯一一处定义，扫描与报告都从这里取。 -->
+    <sql id="expectedOccupancyStatus">
+        CASE r.status
+            WHEN 'PENDING'    THEN 'HELD'
+            WHEN 'CONFIRMED'  THEN 'CONFIRMED'
+            WHEN 'CHECKED_IN' THEN 'CHECKED_IN'
+            WHEN 'CHECKED_OUT' THEN 'COMPLETED'
+            WHEN 'CANCELLED'  THEN 'RELEASED'
+            WHEN 'EXPIRED'    THEN 'EXPIRED'
+            WHEN 'NO_SHOW'    THEN 'RELEASED'
+        END
+    </sql>
+
+    <resultMap id="runMap" type="cn.sec.hn.openbackupsaas.reconcile.domain.ReconcileRunView">
+        <constructor>
+            <idArg column="run_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="window_from" javaType="java.time.LocalDate"/>
+            <arg column="window_to" javaType="java.time.LocalDate"/>
+            <arg column="trigger_source" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="findings_new" javaType="_int"/>
+            <arg column="findings_repeated" javaType="_int"/>
+            <arg column="findings_repaired" javaType="_int"/>
+            <arg column="findings_superseded" javaType="_int"/>
+            <arg column="findings_open" javaType="_int"/>
+            <arg column="started_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="finished_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="error" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="findingMap" type="cn.sec.hn.openbackupsaas.reconcile.domain.FindingView">
+        <constructor>
+            <idArg column="finding_id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="kind" javaType="cn.sec.hn.openbackupsaas.reconcile.domain.FindingKind"/>
+            <arg column="severity" javaType="cn.sec.hn.openbackupsaas.reconcile.domain.FindingSeverity"/>
+            <arg column="target_key" javaType="java.lang.String"/>
+            <arg column="detail" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="occurrences" javaType="_int"/>
+            <arg column="first_seen_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="last_seen_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="repaired_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="settled_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="settled_by" javaType="java.util.UUID"/>
+            <arg column="settle_reason" javaType="java.lang.String"/>
+            <arg column="stay_date" javaType="java.time.LocalDate"/>
+            <arg column="room_id" javaType="java.util.UUID"/>
+            <arg column="reservation_id" javaType="java.util.UUID"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="upsertedMap" type="cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper$Upserted">
+        <constructor>
+            <idArg column="finding_id" javaType="java.util.UUID"/>
+            <arg column="occurrences" javaType="_int"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="statusMismatchMap"
+               type="cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper$StatusMismatch">
+        <constructor>
+            <idArg column="occupancy_id" javaType="java.util.UUID"/>
+            <arg column="reservation_id" javaType="java.util.UUID"/>
+            <arg column="room_id" javaType="java.util.UUID"/>
+            <arg column="stay_date" javaType="java.time.LocalDate"/>
+            <arg column="reservation_status" javaType="java.lang.String"/>
+            <arg column="occupancy_status" javaType="java.lang.String"/>
+            <arg column="expected_occupancy_status" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="missingOccupancyMap"
+               type="cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper$MissingOccupancy">
+        <constructor>
+            <idArg column="reservation_id" javaType="java.util.UUID"/>
+            <arg column="stay_date" javaType="java.time.LocalDate"/>
+            <arg column="reservation_status" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="backlogMap" type="cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper$BacklogStat">
+        <constructor>
+            <arg column="pending" javaType="_int"/>
+            <arg column="oldest_seconds" javaType="_long"/>
+        </constructor>
+    </resultMap>
+
+    <!-- ==================== 批次 ==================== -->
+
+    <select id="insertRun" resultType="java.util.UUID">
+        INSERT INTO reconcile_run (tenant_id, hotel_id, window_from, window_to,
+                                   trigger_source, triggered_by)
+        VALUES (#{tenantId}, #{hotelId}, #{from}::date, #{to}::date,
+                #{triggerSource}, #{triggeredBy})
+        RETURNING run_id
+    </select>
+
+    <update id="finishRun">
+        UPDATE reconcile_run
+        SET status = 'COMPLETED',
+            findings_new = #{newFindings},
+            findings_repeated = #{repeatedFindings},
+            findings_repaired = #{repairedFindings},
+            findings_superseded = #{supersededFindings},
+            findings_open = #{openFindings},
+            finished_at = now()
+        WHERE run_id = #{runId}
+    </update>
+
+    <!--
+      失败批次也要落状态：只写日志的话，看板上"最近一次对账"仍是三天前那个成功批次，
+      没人知道对账已经坏了三天。
+    -->
+    <update id="failRun">
+        UPDATE reconcile_run
+        SET status = 'FAILED', error = #{error}, finished_at = now()
+        WHERE run_id = #{runId}
+    </update>
+
+    <update id="failStaleRuns">
+        UPDATE reconcile_run
+        SET status = 'FAILED',
+            error = '批次超时未结束（进程可能已崩溃），由下一轮回收',
+            finished_at = now()
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND status = 'RUNNING'
+          AND started_at &lt; now() - make_interval(secs =&gt; #{olderThanSeconds})
+    </update>
+
+    <select id="findRun" resultMap="runMap">
+        SELECT run_id, hotel_id, window_from, window_to, trigger_source, status,
+               findings_new, findings_repeated, findings_repaired, findings_superseded,
+               findings_open, started_at, finished_at, error
+        FROM reconcile_run
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND run_id = #{runId}
+    </select>
+
+    <select id="findRecentRuns" resultMap="runMap">
+        SELECT run_id, hotel_id, window_from, window_to, trigger_source, status,
+               findings_new, findings_repeated, findings_repaired, findings_superseded,
+               findings_open, started_at, finished_at, error
+        FROM reconcile_run
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId}
+        ORDER BY started_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- ==================== 工单 ==================== -->
+
+    <!--
+      去重入口。ON CONFLICT 推断部分唯一索引 uq_reconcile_finding_open（WHERE status = 'OPEN'）：
+      · 命中已有 OPEN 工单 → 累加 occurrences、刷新 last_seen_at 与 detail，不新建；
+      · 已修复/已忽略/已退场的旧工单不参与冲突（它们不在索引里），问题复发时会新建一张，
+        这正是想要的：复发是新的问题，不该把老工单"复活"成看起来一直没断过。
+      RETURNING occurrences 用于区分"本轮新发现"（=1）与"重复出现"，省掉一次额外查询。
+    -->
+    <select id="upsertFinding" resultMap="upsertedMap">
+        INSERT INTO reconcile_finding (tenant_id, hotel_id, kind, severity, target_key,
+                                       stay_date, room_id, reservation_id, detail,
+                                       first_run_id, last_run_id)
+        VALUES (#{tenantId}, #{hotelId}, #{f.kind}, #{severity}, #{f.targetKey},
+                #{f.stayDate}, #{f.roomId}, #{f.reservationId}, #{f.detail},
+                #{runId}, #{runId})
+        ON CONFLICT (tenant_id, hotel_id, kind, target_key) WHERE status = 'OPEN'
+        DO UPDATE SET occurrences = reconcile_finding.occurrences + 1,
+                      last_seen_at = now(),
+                      last_run_id = EXCLUDED.last_run_id,
+                      detail = EXCLUDED.detail,
+                      stay_date = EXCLUDED.stay_date,
+                      room_id = EXCLUDED.room_id,
+                      reservation_id = EXCLUDED.reservation_id
+        RETURNING finding_id, occurrences
+    </select>
+
+    <update id="supersedeStale">
+        UPDATE reconcile_finding
+        SET status = 'SUPERSEDED',
+            settled_at = now(),
+            settle_reason = '本轮扫描未再发现该差异（在扫描范围内自动退场）'
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND status = 'OPEN'
+          AND last_run_id &lt;&gt; #{runId}
+          AND (stay_date IS NULL
+               OR (stay_date &gt;= #{from}::date AND stay_date &lt; #{to}::date))
+    </update>
+
+    <!-- 修复只对派生类开放：WHERE 里带 severity = 'DERIVED' 是第二道闸（数据库 CHECK 是第一道） -->
+    <update id="markRepaired">
+        UPDATE reconcile_finding
+        SET status = 'REPAIRED',
+            repaired_at = now(),
+            settled_at = now(),
+            settle_reason = '按权威记录重建派生数据'
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND finding_id = #{findingId}
+          AND status = 'OPEN'
+          AND severity = 'DERIVED'
+    </update>
+
+    <update id="markIgnored">
+        UPDATE reconcile_finding
+        SET status = 'IGNORED',
+            settled_at = now(),
+            settled_by = #{operator},
+            settle_reason = #{reason}
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND finding_id = #{findingId}
+          AND status = 'OPEN'
+    </update>
+
+    <sql id="findingColumns">
+        finding_id, tenant_id, hotel_id, kind, severity, target_key, detail, status, occurrences,
+        first_seen_at, last_seen_at, repaired_at, settled_at, settled_by, settle_reason,
+        stay_date, room_id, reservation_id
+    </sql>
+
+    <select id="findFinding" resultMap="findingMap">
+        SELECT <include refid="findingColumns"/>
+        FROM reconcile_finding
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND finding_id = #{findingId}
+    </select>
+
+    <!--
+      排序：事实类优先于积压类、积压类优先于派生类，同级按最近出现倒序。
+      派生类能自愈，永远排在最后——否则日历上一堆"投影滞后"会把"订单占用矛盾"挤到第二页。
+    -->
+    <select id="findOpenFindings" resultMap="findingMap">
+        SELECT <include refid="findingColumns"/>
+        FROM reconcile_finding
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND status = 'OPEN'
+        <if test="severity != null">
+          AND severity = #{severity}
+        </if>
+        ORDER BY CASE severity WHEN 'FACT' THEN 0 WHEN 'BACKLOG' THEN 1 ELSE 2 END,
+                 last_seen_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findSettledFindings" resultMap="findingMap">
+        SELECT <include refid="findingColumns"/>
+        FROM reconcile_finding
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND status &lt;&gt; 'OPEN'
+        ORDER BY settled_at DESC NULLS LAST
+        LIMIT #{limit}
+    </select>
+
+    <select id="countOpenBySeverity" resultType="long">
+        SELECT count(*)
+        FROM reconcile_finding
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND status = 'OPEN'
+          AND severity = #{severity}
+    </select>
+
+    <!-- ==================== 水位 ==================== -->
+
+    <select id="findWatermark" resultType="java.time.LocalDate">
+        SELECT scanned_through
+        FROM reconcile_watermark
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId}
+    </select>
+
+    <update id="advanceWatermark">
+        INSERT INTO reconcile_watermark (tenant_id, hotel_id, scanned_through)
+        VALUES (#{tenantId}, #{hotelId}, #{scannedThrough}::date)
+        ON CONFLICT (tenant_id, hotel_id)
+        DO UPDATE SET scanned_through = GREATEST(reconcile_watermark.scanned_through,
+                                                 EXCLUDED.scanned_through),
+                      updated_at = now()
+    </update>
+
+    <!-- ==================== 扫描查询 ==================== -->
+
+    <!--
+      订单状态与占用状态矛盾。排除 SUPERSEDED：换房会留下"被取代"的历史占用，
+      它与订单当前状态本来就不需要一致——把它算成差异会让报告充满噪音。
+    -->
+    <select id="findStatusMismatches" resultMap="statusMismatchMap">
+        SELECT o.id AS occupancy_id,
+               o.reservation_id,
+               o.room_id,
+               lower(o.stay_range) AS stay_date,
+               r.status AS reservation_status,
+               o.status AS occupancy_status,
+               <include refid="expectedOccupancyStatus"/> AS expected_occupancy_status
+        FROM room_occupancy o
+        JOIN reservation r
+          ON r.tenant_id = o.tenant_id
+         AND r.hotel_id = o.hotel_id
+         AND r.id = o.reservation_id
+        WHERE o.tenant_id = #{w.tenantId}
+          AND o.hotel_id = #{w.hotelId}
+          AND o.kind = 'RESERVATION'
+          AND o.stay_range &amp;&amp; daterange(#{w.from}::date, #{w.to}::date, '[)')
+          AND o.status NOT IN ('SUPERSEDED')
+          AND o.status &lt;&gt; <include refid="expectedOccupancyStatus"/>
+    </select>
+
+    <!--
+      有效状态的订单却没有任何有效占用：房间没被占住，可能被卖第二次。
+      这是"超卖"的直接前兆，所以列为事实类差异、必须人工判断。
+    -->
+    <select id="findMissingOccupancies" resultMap="missingOccupancyMap">
+        SELECT r.id AS reservation_id,
+               GREATEST(min(lower(l.planned_range)), #{w.from}::date) AS stay_date,
+               r.status AS reservation_status
+        FROM reservation r
+        JOIN reservation_line l
+          ON l.tenant_id = r.tenant_id
+         AND l.hotel_id = r.hotel_id
+         AND l.reservation_id = r.id
+        WHERE r.tenant_id = #{w.tenantId}
+          AND r.hotel_id = #{w.hotelId}
+          AND r.status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN')
+          AND l.planned_range &amp;&amp; daterange(#{w.from}::date, #{w.to}::date, '[)')
+          AND NOT EXISTS (
+                SELECT 1
+                FROM room_occupancy o
+                WHERE o.tenant_id = r.tenant_id
+                  AND o.hotel_id = r.hotel_id
+                  AND o.reservation_id = r.id
+                  AND o.kind = 'RESERVATION'
+                  AND o.status IN ('HELD', 'CONFIRMED', 'CHECKED_IN')
+          )
+        GROUP BY r.id, r.status
+    </select>
+
+    <resultMap id="hotelRefMap" type="cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper$HotelRef">
+        <constructor>
+            <idArg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findActiveHotels" resultMap="hotelRefMap">
+        SELECT tenant_id, id AS hotel_id
+        FROM hotel
+        WHERE status = 'ACTIVE'
+        ORDER BY tenant_id, id
+        LIMIT #{limit}
+    </select>
+
+    <!-- 积压查询的 hotel_id 条件带 OR IS NULL：事件与消息可能不归属具体门店（集团级） -->
+    <select id="outboxBacklog" resultMap="backlogMap">
+        SELECT count(*)::int AS pending,
+               COALESCE(EXTRACT(EPOCH FROM (now() - min(e.occurred_at)))::bigint, 0) AS oldest_seconds
+        FROM outbox_event e
+        WHERE e.tenant_id = #{tenantId}
+          AND (e.hotel_id = #{hotelId} OR e.hotel_id IS NULL)
+          AND e.published_at IS NULL
+          AND e.occurred_at &lt;= now() - make_interval(secs =&gt; #{olderThanSeconds})
+    </select>
+
+    <select id="inboxParked" resultMap="backlogMap">
+        SELECT count(*)::int AS pending,
+               COALESCE(EXTRACT(EPOCH FROM (now() - min(i.received_at)))::bigint, 0) AS oldest_seconds
+        FROM inbox_event i
+        WHERE i.tenant_id = #{tenantId}
+          AND (i.hotel_id = #{hotelId} OR i.hotel_id IS NULL)
+          AND i.outcome = 'PARKED_GAP'
+          AND i.received_at &lt;= now() - make_interval(secs =&gt; #{olderThanSeconds})
+    </select>
+
+</mapper>

@@ -4,6 +4,7 @@ import cn.sec.hn.openbackupsaas.inventory.domain.BookableRoomType;
 import cn.sec.hn.openbackupsaas.inventory.domain.ExpectedProjectionRow;
 import cn.sec.hn.openbackupsaas.inventory.domain.InventoryDay;
 import cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow;
+import cn.sec.hn.openbackupsaas.inventory.domain.ProjectionDiff;
 import cn.sec.hn.openbackupsaas.inventory.domain.ReconcileReport;
 import cn.sec.hn.openbackupsaas.inventory.domain.StoredProjectionRow;
 import cn.sec.hn.openbackupsaas.inventory.mapper.InventoryMapper;
@@ -73,7 +74,11 @@ public class InventoryService {
     }
 
     /**
-     * 三方对账：权威重算 vs 投影 vs 流水。
+     * 三方对账（即时核对）：权威重算 vs 投影 vs 流水。
+     *
+     * <p>这是"现在对一下"的一次性报告，跑完就忘。需要"这件事还挂着没人管"的持续性视图，
+     * 用 S2-05 的对账工单（{@code /reconcile/findings}）——两者共用同一套比对规则
+     * （{@link ProjectionDiff} 与同一段期望投影 SQL），因此不会出现两份报告结论不一致。
      *
      * <p>报告只读到差异上限（{@link ReconcileReport#MAX_DIFFERENCES}）为止并标注截断，
      * 因为它是给人读的问题线索，不是导出功能；但计数是完整的——"有几处不一致"必须可信。
@@ -82,67 +87,38 @@ public class InventoryService {
     public ReconcileReport reconcile(InventoryWindow window) {
         List<ExpectedProjectionRow> expected = inventoryMapper.computeExpectedProjection(window);
         List<StoredProjectionRow> stored = inventoryMapper.findStoredProjection(window);
-
-        Map<String, StoredProjectionRow> remaining = new HashMap<>(stored.size() * 2);
-        for (StoredProjectionRow row : stored) {
-            remaining.put(key(row.roomId(), row.stayDate()), row);
-        }
+        List<ProjectionDiff.Difference> projectionDiffs = ProjectionDiff.diff(expected, stored);
 
         int missing = 0;
         int stale = 0;
         int orphan = 0;
         List<ReconcileReport.Difference> differences = new ArrayList<>();
-
-        for (ExpectedProjectionRow row : expected) {
-            StoredProjectionRow storedRow = remaining.remove(key(row.roomId(), row.stayDate()));
-            if (storedRow == null) {
-                missing++;
-                add(differences, new ReconcileReport.Difference("MISSING", row.roomId(), row.stayDate(),
-                        "投影缺失：应为 reservation=" + row.reservationUnavailable()
-                                + ", block=" + row.blockUnavailable()));
-                continue;
+        for (ProjectionDiff.Difference diff : projectionDiffs) {
+            switch (diff.kind()) {
+                case MISSING -> missing++;
+                case STALE -> stale++;
+                case ORPHAN -> orphan++;
             }
-            if (storedRow.reservationUnavailable() != row.reservationUnavailable()
-                    || storedRow.blockUnavailable() != row.blockUnavailable()) {
-                stale++;
-                add(differences, new ReconcileReport.Difference("STALE", row.roomId(), row.stayDate(),
-                        "标记不一致：投影 reservation=" + storedRow.reservationUnavailable()
-                                + ", block=" + storedRow.blockUnavailable()
-                                + "；应为 reservation=" + row.reservationUnavailable()
-                                + ", block=" + row.blockUnavailable()));
-            }
-        }
-        // 剩下的都是"投影里有、按权威不该有"：房间被停用或已不存在
-        for (StoredProjectionRow row : remaining.values()) {
-            orphan++;
-            add(differences, new ReconcileReport.Difference("ORPHAN", row.roomId(), row.stayDate(),
-                    "多余投影行：该房该晚不应存在（房间可能已停用）"));
+            differences.add(new ReconcileReport.Difference(diff.kind().name(),
+                    diff.roomId(), diff.stayDate(), diff.detail()));
         }
 
         List<InventoryMapper.LedgerMismatch> ledgerMismatches = inventoryMapper.findLedgerMismatches(window);
         for (InventoryMapper.LedgerMismatch mismatch : ledgerMismatches) {
-            add(differences, new ReconcileReport.Difference("LEDGER", mismatch.roomId(), mismatch.stayDate(),
+            differences.add(new ReconcileReport.Difference("LEDGER", mismatch.roomId(), mismatch.stayDate(),
                     "流水与占用不符：流水净值=" + mismatch.ledgerDelta()
                             + "，当前占用=" + mismatch.occupied()));
         }
 
         boolean truncated = differences.size() > ReconcileReport.MAX_DIFFERENCES;
         if (truncated) {
+            // 计数在上面已经全部统计完，这里只裁明细：先全收再裁剪，避免"计到一半就停"
             differences = new ArrayList<>(differences.subList(0, ReconcileReport.MAX_DIFFERENCES));
         }
 
         return new ReconcileReport(window.hotelId(), window.from(), window.to(),
                 expected.size(), stored.size(), missing, stale, orphan, ledgerMismatches.size(),
                 truncated, List.copyOf(differences));
-    }
-
-    private static void add(List<ReconcileReport.Difference> target, ReconcileReport.Difference difference) {
-        // 计数不受上限影响，只有明细截断；先全收再统一裁剪，避免"计到一半就停"
-        target.add(difference);
-    }
-
-    private static String key(UUID roomId, LocalDate stayDate) {
-        return roomId + "@" + stayDate;
     }
 
     /** 重建结果：删除与写入的行数用于运维确认"这段确实重算过"。 */

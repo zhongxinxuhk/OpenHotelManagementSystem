@@ -90,6 +90,11 @@ public class NoDatabaseStubConfig {
     }
 
     @Bean
+    cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper reconcileMapper() {
+        return new ReconcileMapperStub();
+    }
+
+    @Bean
     cn.sec.hn.openbackupsaas.ops.mapper.OpsMapper opsMapper() {
         return new OpsMapperStub();
     }
@@ -799,6 +804,133 @@ public class NoDatabaseStubConfig {
 
         @Override
         public java.util.Map<String, Object> findExternalTaskMeta(UUID taskId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    static final class ReconcileMapperStub
+            implements cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper {
+
+        @Override
+        public UUID insertRun(UUID tenantId, UUID hotelId, java.time.LocalDate from,
+                              java.time.LocalDate to, String triggerSource, UUID triggeredBy) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int finishRun(UUID runId, int newFindings, int repeatedFindings, int repairedFindings,
+                             int supersededFindings, int openFindings) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int failRun(UUID runId, String error) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int failStaleRuns(UUID tenantId, UUID hotelId, long olderThanSeconds) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public cn.sec.hn.openbackupsaas.reconcile.domain.ReconcileRunView findRun(
+                UUID tenantId, UUID hotelId, UUID runId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.reconcile.domain.ReconcileRunView> findRecentRuns(
+                UUID tenantId, UUID hotelId, int limit) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Upserted upsertFinding(UUID tenantId, UUID hotelId,
+                                     cn.sec.hn.openbackupsaas.reconcile.domain.RawFinding finding,
+                                     cn.sec.hn.openbackupsaas.reconcile.domain.FindingSeverity severity,
+                                     UUID runId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int supersedeStale(UUID tenantId, UUID hotelId, UUID runId,
+                                  java.time.LocalDate from, java.time.LocalDate to) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int markRepaired(UUID tenantId, UUID hotelId, UUID findingId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int markIgnored(UUID tenantId, UUID hotelId, UUID findingId, UUID operator, String reason) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public cn.sec.hn.openbackupsaas.reconcile.domain.FindingView findFinding(
+                UUID tenantId, UUID hotelId, UUID findingId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.reconcile.domain.FindingView> findOpenFindings(
+                UUID tenantId, UUID hotelId,
+                cn.sec.hn.openbackupsaas.reconcile.domain.FindingSeverity severity, int limit) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.reconcile.domain.FindingView> findSettledFindings(
+                UUID tenantId, UUID hotelId, int limit) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countOpenBySeverity(UUID tenantId, UUID hotelId,
+                                        cn.sec.hn.openbackupsaas.reconcile.domain.FindingSeverity severity) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.time.LocalDate findWatermark(UUID tenantId, UUID hotelId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int advanceWatermark(UUID tenantId, UUID hotelId, java.time.LocalDate scannedThrough) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper.HotelRef> findActiveHotels(
+                int limit) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper.StatusMismatch> findStatusMismatches(
+                cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow window) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper.MissingOccupancy> findMissingOccupancies(
+                cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow window) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper.BacklogStat outboxBacklog(
+                UUID tenantId, UUID hotelId, long olderThanSeconds) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public cn.sec.hn.openbackupsaas.reconcile.mapper.ReconcileMapper.BacklogStat inboxParked(
+                UUID tenantId, UUID hotelId, long olderThanSeconds) {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }

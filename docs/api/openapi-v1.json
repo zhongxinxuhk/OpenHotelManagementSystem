@@ -324,6 +324,92 @@
         },
         "type": "object"
       },
+      "FindingView": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "findingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "firstSeenAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hotelId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "MISSING_PROJECTION",
+              "STALE_PROJECTION",
+              "ORPHAN_PROJECTION",
+              "LEDGER_MISMATCH",
+              "STATUS_MISMATCH",
+              "MISSING_OCCUPANCY",
+              "OUTBOX_BACKLOG",
+              "INBOX_PARKED"
+            ],
+            "type": "string"
+          },
+          "lastSeenAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "occurrences": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repairedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reservationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "roomId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "settleReason": {
+            "type": "string"
+          },
+          "settledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "settledBy": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "DERIVED",
+              "FACT",
+              "BACKLOG"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "stayDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "targetKey": {
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "InventoryDay": {
         "properties": {
           "availableRooms": {
@@ -660,6 +746,135 @@
         },
         "type": "object"
       },
+      "ReconcileRunReport": {
+        "properties": {
+          "hotelId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "newFindings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "openBacklog": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "openDerived": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "openFact": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "openFindings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repairedFindings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repeatedFindings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "runId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "supersededFindings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "triggerSource": {
+            "type": "string"
+          },
+          "windowFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "windowTo": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReconcileRunView": {
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hotelId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "newFindings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "openFindings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repairedFindings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "repeatedFindings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "runId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "supersededFindings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "triggerSource": {
+            "type": "string"
+          },
+          "windowFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "windowTo": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RepairResult": {
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "findingId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ReplayResult": {
         "properties": {
           "applied": {
@@ -933,6 +1148,37 @@
             "type": "string"
           },
           "checkOut": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SummaryView": {
+        "properties": {
+          "lastRun": {
+            "$ref": "#/components/schemas/ReconcileRunView"
+          },
+          "needsAttention": {
+            "type": "boolean"
+          },
+          "openBacklog": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "openDerived": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "openFact": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "openTotal": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "scannedThrough": {
             "format": "date",
             "type": "string"
           }
@@ -1261,6 +1507,293 @@
         },
         "tags": [
           "inventory-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/findings": {
+      "get": {
+        "operationId": "findings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "OPEN",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "enum": [
+                "DERIVED",
+                "FACT",
+                "BACKLOG"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FindingView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reconcile-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/findings/{findingId}/ignore": {
+      "post": {
+        "operationId": "ignore",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "findingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepairResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reconcile-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/findings/{findingId}/repair": {
+      "post": {
+        "operationId": "repair",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "findingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepairResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reconcile-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/run": {
+      "post": {
+        "operationId": "run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "autoRepair",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconcileRunReport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reconcile-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/runs": {
+      "get": {
+        "operationId": "runs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReconcileRunView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reconcile-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/summary": {
+      "get": {
+        "operationId": "summary",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reconcile-controller"
         ]
       }
     },
