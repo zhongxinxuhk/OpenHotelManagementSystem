@@ -66,13 +66,16 @@
 ### 3.1 门禁命令（每轮至少跑与本次改动相关的那几项）
 
 ```bash
-# 后端：编译 + 单元/上下文测试（无 Docker 时数据库集成测试单独标注未跑）
+# 后端：编译 + 单元/上下文测试（不连库时集成测试会被跳过，此时只有单元测试是有效证据）
 cd openbackupsaas && ./mvnw -q -B verify
+
+# 后端：与 CI 完全等价（连真实 PostgreSQL；CI 还会断言零跳过，见 .github/workflows/backend.yml）
+cd openbackupsaas && PMS_IT_DB=true ./mvnw -B -ntp -Dstyle.color=never clean verify
 
 # 后端：仅编译（快速反馈）
 cd openbackupsaas && ./mvnw -q -B -DskipTests compile
 
-# 前端：类型检查 + 生产构建（Ant Design Pro / Umi Max）
+# 前端：类型检查 + 静态检查 + 生产构建（Ant Design Pro / Umi Max），与 CI 完全等价
 cd frontend-admin-pro && npm run tsc && npm run biome:lint && npm run build
 
 # 前端：本地起服务（端口 8000）
@@ -81,6 +84,8 @@ cd frontend-admin-pro && npm run start:no-mock # MOCK=none 直连后端，联调
 ```
 
 记录格式固定为：`命令 → 结果（通过/失败 + 关键行）→ 未覆盖项`。**不允许只写「构建通过」而不留命令与关键输出。**
+
+**本地与 CI 必须用同一条命令**：CI 的定义在 `.github/workflows/`，那里的断言（后端零跳过、前端产物不含 `CNAME`、产物 `dist/index.html` 必须存在）本身就是门禁的一部分。本地跑"差不多"的命令，会让 CI 成为第一个发现问题的环境——`npm run tsc` 缺 `max setup` 导致的 CI 失败就是这么来的（见 [CI 记录](../verification/CI/2026-10-30-github-actions.md) §3.1）。
 
 ## 4. 「DONE」判定（与规划文档 §8.2 DoD 对齐）
 
