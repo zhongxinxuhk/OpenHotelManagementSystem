@@ -103,3 +103,22 @@ src/app.tsx(5,10): error TS2305: Module '"@umijs/max"' has no exported member 'h
 3. **没有引入依赖漏洞扫描与 SBOM**（`npm audit` / OWASP dependency-check）。这类扫描需要告警基线与处置流程，属 S6-05 安全与供应链验收，现在加只会制造噪声。
 4. **没有引入第三方 test-reporter action**。surefire 报告已作为 artifact 上传，需要时可下载查看；引入第三方 action 属于供应链面，留待 S6-05 评审。
 5. **Qodana 依赖 `QODANA_TOKEN`**：未配置时 workflow 会跳过扫描并给出 warning，不会红。配置 secret 后自动开始扫描——这一点没有实测（当前仓库未配该 secret，也不该由开发侧猜测其内容）。
+
+
+## 附：action 运行时升级（2026-10-30 晚，R-20261030-22 增补）
+
+GitHub Actions 弃用 Node.js 20（强制切 Node 24）且 setup-java v4 停止更新，CI 页面出现两条告警。
+统一升级并实测：
+
+| action | v4 → v5 | 输入参数 |
+| --- | --- | --- |
+| `actions/checkout` | ✓ | 无变化 |
+| `actions/setup-java` | ✓ | 无变化（distribution/java-version/cache） |
+| `actions/setup-node` | ✓ | 无变化 |
+| `actions/upload-artifact` | ✓ | 无变化（name/path/if-no-files-found/retention-days） |
+
+`JetBrains/qodana-action@v2026.2` 是 JetBrains 自有 runner，不在弃用范围。
+升级后 [backend run 41080433602](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41080433602) 与 frontend 双 **success**，
+两条 Node 20 / setup-java v4 告警消失；日志中剩余 warning 为 Java 代码层既有技术债
+（Spring AMQP `Confirm.isAck()/getReason()` 标记移除、`@Valid` 容器元素用法），与本次无关，
+转后续轮次随依赖升级处理。
