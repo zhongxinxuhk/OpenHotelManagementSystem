@@ -47,6 +47,12 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Type check
+        # `npm run tsc` 内部是 `max setup && tsc --noEmit`。
+        # 不能省掉 max setup：@umijs/max 的 request / history / Link / useIntl 等插件导出
+        # 只存在于 umi 生成的 src/.umi 类型里。本地因为跑过 dev/build 一直有这份生成物，
+        # CI 是全新检出、没有它——2026-10-30 的 CI 实跑正是因此报了 40+ 个
+        # "Module '@umijs/max' has no exported member ..."。把顺序固化进脚本，
+        # 本地与 CI 走同一条命令，这类"只在干净环境出现"的问题才会在本地先暴露。
         run: npm run tsc
 
       - name: Lint

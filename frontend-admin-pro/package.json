@@ -29,7 +29,7 @@
     "e2e:ui": "playwright test --ui-host=0.0.0.0",
     "e2e:report": "playwright show-report e2e-out/playwright-report",
     "doctor": "react-doctor .",
-    "tsc": "tsc --noEmit"
+    "tsc": "max setup && tsc --noEmit"
   },
   "browserslist": [
     "defaults"
