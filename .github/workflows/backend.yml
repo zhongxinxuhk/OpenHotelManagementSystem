@@ -135,8 +135,11 @@ jobs:
       - name: Stop middleware
         if: always()
         working-directory: deploy/compose
-        # down -v：连数据卷一起清。初始化脚本只在空卷执行，清掉才能保证下一轮
-        # 实测的仍是"从零初始化"路径，也避免陈旧数据在 job 间伪装成可复用状态。
+        env:
+          # down 也要完整插值 compose 文件：:? 必填校验在这里同样生效。
+          # 占位值不会成为任何凭据——down 只做清理，不启动服务（CI 首跑实测踩到）。
+          POSTGRES_PASSWORD: cleanup-placeholder
+          PMS_RABBIT_PASSWORD: cleanup-placeholder
         run: docker compose down -v
 
       - name: Upload surefire reports
