@@ -19,10 +19,13 @@ public final class AuditActions {
     public static final String RESERVATION_CONFIRMED = "reservation.confirm";
     public static final String RESERVATION_CANCELLED = "reservation.cancel";
     public static final String RESERVATION_NO_SHOW = "reservation.no_show";
+    /** 锁房超时整单释放（S1-10）：与人工取消区分开，运维按这个动作名就能查出"被时间放掉的单"。 */
+    public static final String RESERVATION_EXPIRED = "reservation.expire";
 
     private static final Set<String> KNOWN =
             Set.of(OCCUPANCY_HELD, OCCUPANCY_BLOCKED, OCCUPANCY_RELEASED, OCCUPANCY_UNBLOCKED,
-                    RESERVATION_CREATED, RESERVATION_CONFIRMED, RESERVATION_CANCELLED, RESERVATION_NO_SHOW);
+                    RESERVATION_CREATED, RESERVATION_CONFIRMED, RESERVATION_CANCELLED, RESERVATION_NO_SHOW,
+                    RESERVATION_EXPIRED);
 
     private AuditActions() {
     }

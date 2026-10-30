@@ -19,6 +19,7 @@ import cn.sec.hn.openbackupsaas.reservation.domain.Reservation;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine;
 import cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy;
 import cn.sec.hn.openbackupsaas.reservation.domain.StayRange;
+import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationExpiryMapper;
 import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationMapper;
 import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
 import cn.sec.hn.openbackupsaas.room.domain.RoomStatus;
@@ -80,6 +81,11 @@ public class NoDatabaseStubConfig {
     @Bean
     ReservationMapper reservationMapper() {
         return new ReservationMapperStub();
+    }
+
+    @Bean
+    ReservationExpiryMapper reservationExpiryMapper() {
+        return new ReservationExpiryMapperStub();
     }
 
     static final class JournalMapperStub implements JournalMapper {
@@ -449,6 +455,26 @@ public class NoDatabaseStubConfig {
 
         @Override
         public List<PhysicalRoom> lockRooms(UUID tenantId, UUID hotelId, List<UUID> roomIds) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    static final class ReservationExpiryMapperStub implements ReservationExpiryMapper {
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.reservation.domain.DueReservation> claimDueReservations(
+                int batchSize) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int expireIfPending(UUID tenantId, UUID hotelId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public cn.sec.hn.openbackupsaas.reservation.domain.HoldDueState checkHoldDue(
+                UUID tenantId, UUID hotelId, UUID reservationId) {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }

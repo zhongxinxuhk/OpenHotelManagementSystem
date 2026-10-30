@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-09）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-11）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-10`（S1-09 确认、取消与 No-show，DONE） |
-| 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02—S1-09 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
+| 当前轮次 | `R-20261030-11`（S1-10 超时领取与幂等释放，DONE） |
+| 当前阶段 | 阶段 1 进行中（S1-01 VERIFYING、S1-02—S1-10 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
 | 已通过门禁 | 无（G0 未开审） |
-| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单七域已落库（V1—V6.4 共 19 张表，复合外键 + CHECK + GiST 排斥）；**121 个测试全部通过（其中 98 个需要真实 PostgreSQL）**；订单状态机（确认/取消/No-show）已闭环；发布器与支付仍未实现 |
-| 前端工程状态 | `node_modules` 已安装；`npm run tsc` ✓ / `biome:lint` ✓（2 处模板告警）；**`npm run build` ✗**——模板 `Welcome.tsx` 悬挂引用已删的 `@root/docs/cheatsheet.*.md`，见 R-20261030-10「本轮发现」 |
-| 功能项完成度 | 约 17.7%（124 项，DONE 12 项，见 feature-catalog §1） |
-| 下一轮目标 | ①`S3-01a` 收尾：替换 `Welcome` 为「今日工作台」，恢复 `npm run build`；②`S1-10` 超时领取与幂等释放 |
+| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单七域已落库（V1—V6.4 共 19 张表，复合外键 + CHECK + GiST 排斥）；**132 个测试全部通过（其中 109 个需要真实 PostgreSQL）**；订单状态机（确认/取消/No-show）与锁房超时释放均已闭环；发布器与支付仍未实现 |
+| 前端工程状态 | `node_modules` 已安装；`npm run tsc` ✓ / `biome:lint` ✓（2 处模板告警）；**`npm run build` ✗**——模板 `Welcome.tsx` 悬挂引用已删的 `@root/docs/cheatsheet.*.md`，见 R-20261030-10「本轮发现」3 |
+| 功能项完成度 | 约 18%（124 项，DONE 14 项，见 feature-catalog §1） |
+| 下一轮目标 | ①`S3-01a` 收尾：替换 `Welcome` 为「今日工作台」，恢复 `npm run build`（已连续两轮挂账）；②`S1-11` 交易 API、查询与权限闭环 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -47,7 +47,7 @@
 | S1-07 | 持久化请求幂等与提交不确定恢复 | P0 | 3–5 | DONE |
 | S1-08 | 原子锁房与订单创建 | P0 | 3–5 | DONE |
 | S1-09 | 确认、取消与 No-show | P0 | 3–5 | DONE | 整单统一迁移（DEC-04 部分履约 OPEN）；No-show 是否计费仍待 DEC-08 |
-| S1-10 | 超时领取与幂等释放 | P0 | 2–4 | TODO |
+| S1-10 | 超时领取与幂等释放 | P0 | 2–4 | DONE | `FOR UPDATE SKIP LOCKED` 领取 + 数据库时钟二次校验 + 条件更新兜底；一次批处理一个事务，回滚即恢复；无新迁移（复用 V4 到期索引） |
 | S1-11 | 交易 API、查询与权限闭环 | P0 | 2–4 | TODO |
 | S1-12 | 派生房态、可售计算与重建 | P0 | 3–5 | TODO |
 | S1-13 | 交易内核集成与并发验收 | P0 | 4–6 | TODO |
@@ -159,6 +159,44 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261030-11 S1-10 超时领取与幂等释放
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. 到期扫描语句 `ReservationExpiryMapper.claimDueReservations`：**占用驱动**（派生表 `SELECT DISTINCT reservation_id … WHERE expires_at <= now()`）→ JOIN 订单，条件为"订单仍 PENDING + 存在已到期 HELD + 不存在未到期 HELD"，`ORDER BY r.id LIMIT ${batchSize} FOR UPDATE OF r SKIP LOCKED` 领取。
+  2. 二次校验 `checkHoldDue`：同一事务内用数据库时钟复核"HELD 总数 / 未到期数"，`HoldDueState.due()` 判定才继续；条件更新 `expireIfPending`（`WHERE status='PENDING'`）返回 0 即"别人先处理"。
+  3. `ReservationExpiryService`：一次批处理 = 一个事务（领取锁必须持到写入完成）；逐单重读聚合根 → 二次校验 → 统一锁序（房间 id 升序）→ 订单/行/占用 → EXPIRED → 释放流水 + 审计 `reservation.expire` + 事件 `ReservationExpired`，全部记在同一 `operation_id` 下。
+  4. `ReservationExpiryScheduler` + `SchedulingConfig`：`@Scheduled(fixedDelayString)`，开关/间隔/初始延迟/批大小全部可配；生产默认开启，`test` 与 `integration` 档案显式关闭。
+  5. 测试：真实 PostgreSQL 11 例，覆盖四项验收点 + 批次限制 + 三类边界。
+  6. **不做迁移**：V4 的 `idx_room_occupancy_expiring`、`ck_reservation_status` 的 `EXPIRED`、V6_4 放宽后的审计动作名 CHECK 已足够（详见验证记录 §4.3）。
+- 本轮明确不做：已确认单超时（DEC-08）、部分履约（DEC-04）、订单列表/详情（S1-11）、可售投影（S1-12）、僵尸聚合状态收口（S2-05）、死信与单条失败隔离（S2-04）、到期通知与渠道同步（S2-01 之后）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：D-06；S1-10
+- 变更文件：
+  - 新增：`reservation/domain/{DueReservation,HoldDueState}.java`、`reservation/mapper/ReservationExpiryMapper.java`、`reservation/service/{ReservationExpiryService,ReservationExpiryScheduler}.java`、`shared/config/SchedulingConfig.java`
+  - 新增 SQL：`resources/mapper/reservation/ReservationExpiryMapper.xml`
+  - 修改：`journal/domain/AuditActions.java`（新增 `reservation.expire`）、`application.properties`（4 个开关项）、`application-test.properties` 与 `application-integration.properties`（关闭调度）、`test/support/NoDatabaseStubConfig.java`（新 Mapper 桩）
+  - 新增测试：`reservation/ReservationExpiryIntegrationTest.java`（11 例）
+  - 新增文档：`docs/verification/S1-10/2026-10-30-hold-expiry.md`
+- 验证（本轮实际执行，详见 [S1-10 记录](../verification/S1-10/2026-10-30-hold-expiry.md)）：
+  - `./mvnw -o -q -DskipTests compile` → 退出码 0
+  - `PMS_IT_DB=true ./mvnw -o -B -ntp test -Dtest=ReservationExpiryIntegrationTest` → 10 例通过；补第 11 例后 `Tests run: 11, Failures: 0, Errors: 0` → **BUILD SUCCESS**
+  - `PMS_IT_DB=true ./mvnw -o -B -ntp verify` → `Tests run: 132, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**
+  - 无库：`./mvnw -B -ntp test` → 132 run / **109 skipped** / 0 failure → BUILD SUCCESS（跳过而非伪通过）
+  - **反向验证**：临时去掉 `SKIP LOCKED` 后 `workerSkipsRowsAlreadyClaimedByAnotherWorker` 于 23.35s 失败（第二个 Worker 阻塞在行锁上）→ 证明该用例真的在验证领取语义；已恢复并 `grep` 确认
+  - 执行计划：改写前 `EXPLAIN` 走 `idx_room_occupancy_room`（V4 的到期索引失效）；改写后 `Index Only Scan using idx_room_occupancy_expiring / Index Cond: (expires_at <= now())`（`enable_seqscan=off` 下观测）
+  - 运行态冒烟（`local` 档案，扫描间隔 `PT3S`）：启动后 2.1s 首次扫描 → `领取 1 单，释放 1 单`，**4 秒内**观测到订单 EXPIRED、占用 EXPIRED；`audit_log` = `reservation.expire` / `SYSTEM` / `HOLD_TIMEOUT`，`outbox_event` = `ReservationExpired`，`idempotency_record` = `SUCCEEDED` 且有 `result_ref`
+  - 未覆盖：多实例真实部署、外部定时器（K8s CronJob）部署决策、批内单条失败隔离、到期通知与渠道同步
+- 本轮发现（不夹带实现，转入后续轮次）：
+  1. **"先查后改"的相关子查询会让专用索引彻底失效**。第一版 SQL 语义正确、测试全绿，但 `EXPLAIN` 显示 V4 为此建的 `idx_room_occupancy_expiring` 一次没用上——扫描量随 PENDING 单总量增长。改成占用驱动的派生表后才命中。转 S6-01：容量测试要把"到期扫描"列入负载模型，用真实量级复核计划。
+  2. **`DISTINCT` 与 `FOR UPDATE` 不能同层**（PG 直接报错，不是性能问题）。去重必须下沉到派生表，否则这条路径连跑都跑不起来。
+  3. **共享状态测试需要"持有锁不提交"的写法**。两个线程各调一次 `expireDueHolds` 的用例，即使串行执行也能通过；真正能证伪的实现检验要靠"一方领了不提交、另一方必须跳过"。同类并发用例（S1-13）应沿用这个写法。
+  4. **沙箱下 `PMS_SERVER_PORT` 不生效**（实际监听 55839），`-Dspring-boot.run.arguments=--server.port=…` 可明确覆盖。属启动方式差异，已记入验证记录 §4.4，避免下次误判为配置缺陷。
+  5. 整批同生共死是可接受的取舍（回滚即恢复），但**持续异常的单会让整批空转**，需 S2-04 引入单条失败隔离与死信。
+- 回写确认：feature-catalog ✓（D-06 → DONE；§1 统计重算为 DONE 14 / VERIFYING 11 / READY 20）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：①`S3-01a` 收尾：用「今日工作台」替换 `Welcome`，恢复 `npm run build`（已连续两轮挂账）；②`S1-11` 交易 API、查询与权限闭环
 
 ---
 
