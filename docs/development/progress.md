@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-17）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-18）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-17`（S2-02 Inbox 消费与版本保护，DONE） |
-| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01、S2-02 DONE，S2-03 起为 TODO）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
+| 当前轮次 | `R-20261030-18`（S2-03 持久化外部任务与未知结果处置，DONE） |
+| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-03 DONE，S2-04 起为 TODO）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 含真实 PostgreSQL + RabbitMQ 与端到端消费、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；九域 + Outbox + Inbox 已落库（V1—V9 共 22 张表，复合外键 + CHECK + GiST 排斥）；**211 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；交易内核闭环，Outbox 发布与 Inbox 去重/版本保护/重放均可独立启停；死信、任务化重试与支付仍未实现 |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十域 + Outbox + Inbox + 外部任务已落库（V1—V10 共 24 张表，复合外键 + CHECK + GiST 排斥）；**222 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；交易内核闭环，Outbox 发布 / Inbox 去重 / 外部任务重试与未知结果处置均可按角色独立启停；死信重放与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权） |
 | 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位已有 `/availability` 可接；CI 三步全绿 |
-| 功能项完成度 | 约 31%（124 项，DONE 31 项，见 feature-catalog §1） |
-| 下一轮目标 | `S2-03` 持久化任务与外部调用状态（任务表 + 调度 + 退避，未知结果先查询） |
+| 功能项完成度 | 约 32%（124 项，DONE 32 项，见 feature-catalog §1） |
+| 下一轮目标 | `S2-04` 死信、人工重放与审计修复（受控管理 API/CLI、复核机制、重放留痕） |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -58,7 +58,7 @@
 | --- | --- | --- | --- | --- |
 | S2-01 | Outbox 发布与 Worker 隔离 | P0 | 3–5 | DONE | 租约式领取（物化 CTE）、发布确认、按 token 条件标记、指数退避；13 集成 + 3 真实 Broker 冒烟 |
 | S2-02 | Inbox 消费与版本保护 | P0 | 3–5 | DONE | 去重键+位点、四态结论、缺口挂起与重放、首个消费者（投影重算）；11 集成 + 1 端到端 |
-| S2-03 | 持久化任务与外部调用状态 | P0 | 3–5 | TODO |
+| S2-03 | 持久化任务与外部调用状态 | P0 | 3–5 | DONE | 任务表+尝试台账、租约领取（含崩溃重领）、四类结果四种处置、未知先查询、限流熔断、退避抖动；11 集成用例 |
 | S2-04 | 死信、人工重放与审计修复 | P0 | 2–4 | TODO |
 | S2-05 | 内部对账与派生修复 | P0 | 3–5 | TODO |
 | S2-06 | 监控、链路和告警 | P0 | 3–5 | TODO |
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 17（S0-03、S1-01—S1-13、S2-01、S2-02、S3-01a） |
+| DONE | 18（S0-03、S1-01—S1-13、S2-01—S2-03、S3-01a） |
 | VERIFYING | 3（S0-01、S0-02、S0-04） |
 | BLOCKED | 1（S5-01 渠道授权） |
-| TODO | 45 |
+| TODO | 44 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -161,6 +161,34 @@
 ```
 
 ---
+
+### R-20261030-18 S2-03 持久化任务与外部调用状态
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **V10 迁移**：`external_task`（状态机、尝试次数、租约、退避、错误分类、`result_ref`；`(租户, 类型, 幂等键)` 未结任务唯一）+ `external_task_attempt`（每次真实调用一行，随任务级联删除）。
+  2. **执行器**：`ExternalTaskExecutor`（领取 → 渠道门 → **未知先查询** → 调用 → 分类 → 结算）；**整个类没有 `@Transactional`**，外部 HTTP 在事务外执行；结算一律带 `lease_token` 条件。
+  3. **四类结果四种处置**：SUCCESS→成功；PERMANENT→`FAILED`（终局）；RETRYABLE/RATE_LIMITED→指数退避+抖动（次数耗尽转 `DEAD`）；UNKNOWN→能查则查、不能查立即 `MANUAL_REVIEW`。
+  4. **渠道门**：`ChannelGate`（每渠道最小间隔限流 + 连续失败熔断）+ `ChannelPolicyRegistry`（按渠道读配置，默认 5 次 / 10 秒超时 / 熔断阈值 5 / 冷却 60 秒）。
+  5. **查询与补偿接口**：`ExternalTaskService`（入队幂等、任务与尝试查询、人工结案且仅限 `MANUAL_REVIEW`）+ `ExternalTaskWorker`（Worker 角色、可配开关）。
+- 本轮明确不做：管理 REST/CLI 与权限复核（S2-04）、死信重放（S2-04）、处置审计（S2-04）、真实渠道处理器（L/K 域缺授权 DEC-11）、分布式限流（需要共享状态）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：M-03；S2-03
+- 变更文件：
+  - 新增：`integration/{domain/{ExternalTask,TaskStatus,TaskOutcome,QueryOutcome,ErrorClass},mapper/ExternalTaskMapper,service/{ExternalTaskHandler,ExternalTaskExecutor,ExternalTaskService,ExternalTaskWorker,ChannelPolicy,ChannelPolicyRegistry,ChannelGate,Backoff}}`、`db/migration/V10__external_task.sql`、`mapper/integration/ExternalTaskMapper.xml`、`integration/ExternalTaskIntegrationTest`
+  - 修改：`application.properties`（任务与渠道策略）、`application-{test,integration}.properties`（关闭 Worker）、`NoDatabaseStubConfig`（补 Mapper 桩）
+- 验证（详见 [S2-03 记录](../verification/S2-03/2026-10-30-external-task.md)）：
+  - `PMS_IT_DB=true PMS_IT_RABBIT=true ./mvnw -B -ntp clean verify` → `Tests run: 222, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（211 → 222）
+  - 无库无 Broker：222 run / 197 skipped / 0 failure
+  - 真实 CI：[run 41058995729](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41058995729) success，`tests=222 skipped=0`
+  - 逐条对验收：崩溃后可重领（租约有效期内不抢、过期后可领）／未知先查询（查到成功直接结案、查无记录才重发）／不能查询转人工／永久错误终局且第二轮 claimed=0／退避抖动落区间／次数耗尽转 DEAD／限流跳过不消耗尝试／熔断后不再调用／人工改判仅限 MANUAL_REVIEW
+- 本轮发现（不夹带实现，转入后续轮次）：
+  1. **异常的兜底方向必须选"未知"而不是"可重试"**：处理器抛出的未捕获异常可能发生在请求已发出之后，当作可重试就会重复执行。
+  2. **异常路径不要主动释放租约**：若异常发生在调用之后，释放会让别的实例立刻重发；让租约自然过期更安全。
+  3. **限流跳过不能计入尝试次数**：否则"对方让我慢点"会变成"我没机会再试"。为此把"领取"与"尝试"拆成两个计数。
+  4. **单机内存限流是已知边界**（多实例翻倍），精确配额应在网关层；写在类注释与验证记录里，避免被误当成全局配额。
+  5. 框架不强制中断调用线程：粗暴中断会让"到底发没发出去"更说不清，超时控制应由处理器（HTTP 客户端）负责并翻译成 UNKNOWN。
+- 回写确认：feature-catalog ✓（M-03 → DONE；§1 重算）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S2-04` 死信、人工重放与审计修复（受控管理 API/CLI、复核机制、重放留痕）
 
 ### R-20261030-17 S2-02 Inbox 消费与版本保护
 
