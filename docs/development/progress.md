@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-20）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-21）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-20`（S2-05 内部对账与派生修复，DONE） |
-| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-05 DONE，S2-06 起为 TODO）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
-| 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 含真实 PostgreSQL + RabbitMQ 与端到端消费、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单已落库（V1—V12 共 29 张表，复合外键 + CHECK + GiST 排斥）；**257 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 35 path / 38 schema；交易内核闭环，对账差异已成"有身份、可追责"的工单；指标告警、备份恢复与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权） |
+| 当前轮次 | `R-20261030-21`（中间件 Compose 编排、部署文档与 CI/CD v2，DONE） |
+| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-05 DONE，S2-06 起为 TODO，S2-07 部分完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
+| 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 已改为与本地/预发同一份 compose 起中间件、frontend） |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单已落库（V1—V12 共 29 张表，复合外键 + CHECK + GiST 排斥）；**257 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 35 path / 38 schema；**中间件编排已交付并在 CI 实跑**（deploy/compose，本地=CI=预发同构）；备份闭环、指标告警与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权） |
 | 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位已有 `/availability` 可接；CI 三步全绿 |
 | 功能项完成度 | 约 34%（124 项，DONE 34 项，见 feature-catalog §1） |
-| 下一轮目标 | `S2-06` 监控、链路与告警（Prometheus/OTel 接入、指标体系、告警送达与值守路由） |
+| 下一轮目标 | `S2-06` 监控、链路与告警（Prometheus/OTel 接入、指标体系、告警送达与值守路由）；S2-07 剩余：镜像构建、迁移作业、备份恢复闭环 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -62,7 +62,7 @@
 | S2-04 | 死信、人工重放与审计修复 | P0 | 2–4 | DONE | 死信落库+处置留痕+受控 API；重放保留幂等键、高风险双人复核；9 个 HTTP 用例 |
 | S2-05 | 内部对账与派生修复 | P0 | 3–5 | DONE | 差异工单（部分唯一索引去重）+ 三级分级 + 修复白名单（仅派生）+ 水位；15 集成 + 11 HTTP 用例 |
 | S2-06 | 监控、链路和告警 | P0 | 3–5 | TODO |
-| S2-07 | 最小部署、备份与恢复闭环 | P0 | 3–5 | TODO |
+| S2-07 | 最小部署、备份与恢复闭环 | P0 | 3–5 | VERIFYING | compose 编排已交付并进 CI（R-20261030-21）；剩余：镜像构建、迁移作业、备份恢复演练 |
 | S2-08 | 故障注入与可靠性验收 | P0 | 4–6 | TODO |
 
 ### 阶段 3 商家、集团与前台端（门禁 G3）
@@ -126,9 +126,9 @@
 | 状态 | 任务数 |
 | --- | --- |
 | DONE | 20（S0-03、S1-01—S1-13、S2-01—S2-05、S3-01a） |
-| VERIFYING | 3（S0-01、S0-02、S0-04） |
+| VERIFYING | 4（S0-01、S0-02、S0-04、S2-07 部分） |
 | BLOCKED | 1（S5-01 渠道授权） |
-| TODO | 42 |
+| TODO | 41 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -161,6 +161,34 @@
 ```
 
 ---
+
+### R-20261030-21 中间件 Compose 编排、部署文档与 CI/CD v2
+
+- 状态：DONE（S2-07 的 compose 部分；备份/恢复与镜像构建仍为 TODO）
+- 范围（本轮只做这些）：
+  1. **`deploy/compose/`**：`docker-compose.yml`（postgres:17 + rabbitmq:3.13-management-alpine，healthcheck、named volume、端口默认与应用零配置约定对齐）+ `initdb/01-bootstrap.sh`（以 psql 变量调用共享分权 SQL）+ `initdb/02-set-passwords.sh`（口令设置，psql 变量转义）+ `.env.example` + README。
+  2. **`db-bootstrap.sql` 修正一个隐式依赖**：显式 `GRANT CREATE, USAGE ON SCHEMA public TO pms_migrator`——原脚本依赖"建库人恰好是迁移账号"（PG15+ public 的 CREATE 默认属于库 owner），换一种建库方式迁移即 permission denied。
+  3. **initdb 里库 owner 统一为 pms_migrator**：对齐 dev 语义；trusted 扩展（btree_gist）只允许库 owner 安装，否则迁移卡在 V4。
+  4. **CI/CD v2**：backend 门禁的 service containers 改为同一份 compose（`up -d --wait` 起、`down -v` 收）；触发 paths 纳入 `deploy/compose/**`；新增设计文档 `docs/development/cicd-pipeline.md`。
+  5. **`.gitignore`**：忽略 `deploy/compose/.env`（凭据不进版本库，S6-05）。
+- 本轮明确不做：应用服务的编排（先有镜像流水线再有 app 服务，不造假的）、备份定时与恢复演练（S2-07 剩余）、镜像构建与推送、生产 HA（阶段 6）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：M-07（部分）；S2-07（部分）；CI 归 N-01 维护
+- 变更文件：
+  - 新增：`deploy/compose/{docker-compose.yml,README.md,.env.example,initdb/01-bootstrap.sh,initdb/02-set-passwords.sh}`、`docs/development/cicd-pipeline.md`
+  - 修改：`openbackupsaas/scripts/db-bootstrap.sql`（显式 GRANT）、`.github/workflows/backend.yml`（compose 化）、`.gitignore`
+- 验证（本地实测，override 端口 55433/55673）：
+  - `docker compose up -d --wait` → 两服务 healthy；`down -v && up` 全量重演三次（修三处问题各一次）
+  - 分权 `pms_app` 建库/建表权 = false/false；`pms_app`/`pms_migrator` 宿主机密码连接 OK；MQ 用户 `pms_mq` 管理 API 认证 200
+  - **真实应用连 compose 库**：Flyway 跑完全部 18 个迁移（29 张业务表 + btree_gist 扩展）并正常启动
+  - dev-db.sh 环境回归：修改后的 bootstrap SQL 在 dev 库重跑幂等通过，迁移数/表数一致
+  - CI 实跑（compose 化后首次）：见 [S2-07 记录](../verification/S2-07/2026-10-30-compose-and-cicd.md)
+- 本轮发现（四个真实踩坑，全部写进 compose 注释与 README）：
+  1. **initdb 对脚本错误不中止**：分权 SQL 直接挂进 initdb 时因 psql 变量缺失而中途报错，容器照样 healthy、分权悄悄缺失——错误被"健康状态"掩盖。
+  2. **initdb 只 glob 顶层**：脚本挂成子目录被静默忽略（日志里连 running 都没有）。
+  3. **宿主机变量不会自动进容器**：initdb 脚本要用的变量必须在 service environment 显式声明，漏了的现象同样是"healthy 但无口令"。
+  4. **"建库人恰好是迁移账号"是隐式依赖**：PG15+ 的 public schema CREATE 与 PG13+ 的 trusted 扩展都只认库 owner——dev 环境两次都是巧合在兜底，compose 把巧合拆穿。
+- 回写确认：feature-catalog ✓（M-07 → VERIFYING 40%）/ §1 快照 ✓ / 规划 §1.3 ✓ / README ✓
+- 下一步：`S2-06` 监控告警；S2-07 剩余（镜像构建、迁移作业、备份恢复演练）
 
 ### R-20261030-20 S2-05 内部对账与派生修复
 
