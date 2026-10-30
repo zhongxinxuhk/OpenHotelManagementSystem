@@ -47,6 +47,12 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- 可靠消息：阶段 2 唯一 Broker（ADR-011 §2「消息」行：只选 RabbitMQ，阶段 2 接入） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
         <!-- 数据访问：JDBC + MyBatis（单一持久化方案，不混用 JPA/jOOQ） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

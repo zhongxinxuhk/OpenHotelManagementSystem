@@ -90,6 +90,11 @@ public class NoDatabaseStubConfig {
     }
 
     @Bean
+    cn.sec.hn.openbackupsaas.journal.mapper.OutboxPublisherMapper outboxPublisherMapper() {
+        return new OutboxPublisherMapperStub();
+    }
+
+    @Bean
     ReservationQueryMapper reservationQueryMapper() {
         return new ReservationQueryMapperStub();
     }
@@ -549,6 +554,36 @@ public class NoDatabaseStubConfig {
         @Override
         public java.util.List<cn.sec.hn.openbackupsaas.inventory.mapper.InventoryMapper.LedgerMismatch>
                 findLedgerMismatches(cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow window) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    static final class OutboxPublisherMapperStub
+            implements cn.sec.hn.openbackupsaas.journal.mapper.OutboxPublisherMapper {
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.journal.domain.PendingOutboxEvent> claimBatch(
+                UUID leaseToken, long leaseSeconds, int batchSize) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int markPublished(UUID eventId, UUID leaseToken) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int markFailed(UUID eventId, UUID leaseToken, String error, long backoffSeconds) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countPending() {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Long oldestPendingSeconds() {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }
