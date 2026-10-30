@@ -13,12 +13,16 @@ on:
   push:
     paths:
       - 'openbackupsaas/**'
+      # 契约基线是后端门禁的输入：只改基线不改代码时，OpenApiContractTest 同样需要重跑，
+      # 否则"悄悄放宽契约"可以绕过 CI。
+      - 'docs/api/openapi-v1.json'
       - '.github/workflows/backend.yml'
   pull_request:
     branches:
       - main
     paths:
       - 'openbackupsaas/**'
+      - 'docs/api/openapi-v1.json'
       - '.github/workflows/backend.yml'
   workflow_dispatch:
 

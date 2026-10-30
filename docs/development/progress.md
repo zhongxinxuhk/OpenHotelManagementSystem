@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-12）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-13）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-12`（GitHub Actions 门禁完善与实跑 + 前端构建收口，DONE） |
-| 当前阶段 | 阶段 1 进行中（S1-01—S1-10 全部 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
-| 已通过门禁 | 无（G0 未开审）；**CI 门禁已在真实 GitHub Actions 上全绿**（backend + frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单七域已落库（V1—V6.4 共 19 张表，复合外键 + CHECK + GiST 排斥）；**132 个测试全部通过（其中 109 个需要真实 PostgreSQL），CI 上同样 132 / 0 失败 / 0 跳过**；订单状态机与锁房超时释放均已闭环；发布器与支付仍未实现 |
-| 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ **`build` ✓**（dist 5.8M、标题「酒店 PMS」、无模板 CNAME）；首页已换成「今日工作台」；CI 三步全绿 |
-| 功能项完成度 | 约 20%（124 项，DONE 18 项，见 feature-catalog §1） |
-| 下一轮目标 | `S1-11` 交易 API、查询与权限闭环（订单列表/详情/操作结果查询 + OpenAPI v1 冻结），解锁首页指标与待办的真实数据接入 |
+| 当前轮次 | `R-20261030-13`（S1-11 交易 API、查询与 OpenAPI v1 冻结，DONE） |
+| 当前阶段 | 阶段 1 进行中（S1-01—S1-11 全部 DONE）；阶段 0 的 S0-05—S0-09 仍待完成 |
+| 已通过门禁 | 无（G0 未开审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend + frontend） |
+| 后端工程状态 | 依赖按 ADR-011 收敛；组织/身份/房间/占用/流水审计/幂等/订单七域已落库（V1—V6.4 共 19 张表，复合外键 + CHECK + GiST 排斥）；**154 个测试全部通过（其中 129 个需要真实 PostgreSQL），CI 上同样 154 / 0 失败 / 0 跳过**；订单命令、超时释放、订单查询与 OpenAPI v1 契约均已闭环；可售投影与发布器仍未实现 |
+| 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓（dist 5.8M、标题「酒店 PMS」、无模板 CNAME）；首页已换成「今日工作台」（指标位等 S1-11 之后的页面接入）；CI 三步全绿 |
+| 功能项完成度 | 约 23%（124 项，DONE 21 项，见 feature-catalog §1） |
+| 下一轮目标 | `S1-12` 派生房态、可售计算与重建（D-01 / E 域），随后 `S1-13` 交易内核并发验收 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -48,7 +48,7 @@
 | S1-08 | 原子锁房与订单创建 | P0 | 3–5 | DONE |
 | S1-09 | 确认、取消与 No-show | P0 | 3–5 | DONE | 整单统一迁移（DEC-04 部分履约 OPEN）；No-show 是否计费仍待 DEC-08 |
 | S1-10 | 超时领取与幂等释放 | P0 | 2–4 | DONE | `FOR UPDATE SKIP LOCKED` 领取 + 数据库时钟二次校验 + 条件更新兜底；一次批处理一个事务，回滚即恢复；无新迁移（复用 V4 到期索引） |
-| S1-11 | 交易 API、查询与权限闭环 | P0 | 2–4 | TODO |
+| S1-11 | 交易 API、查询与权限闭环 | P0 | 2–4 | DONE | 列表/详情接口 + 过滤下推 + 稳定分页 + 脱敏；OpenAPI v1 已冻结并加契约测试；错误响应统一带 outcome 三分类 |
 | S1-12 | 派生房态、可售计算与重建 | P0 | 3–5 | TODO |
 | S1-13 | 交易内核集成与并发验收 | P0 | 4–6 | TODO |
 
@@ -125,10 +125,10 @@
 
 | 状态 | 任务数 |
 | --- | --- |
-| DONE | 12（S0-03、S1-01—S1-10、S3-01a） |
+| DONE | 13（S0-03、S1-01—S1-11、S3-01a） |
 | VERIFYING | 3（S0-01、S0-02、S0-04） |
 | BLOCKED | 1（S5-01 渠道授权） |
-| TODO | 50 |
+| TODO | 49 |
 | 合计 | 66 |
 
 ## 3. 阶段门禁状态
@@ -159,6 +159,43 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261030-13 S1-11 交易 API、查询与 OpenAPI v1 冻结
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. 查询侧新增一套：`ReservationQuery`（条件对象，构造器校验）、`ReservationQueryMapper` + XML、`ReservationQueryService`、`ReservationQueryController`，与命令侧彻底分开（命令带锁与幂等，查询 `readOnly` 不占锁）。
+  2. `GET /api/v1/hotels/{hotelId}/reservations`：分页 + `status`（可重复）/`sourceType`/`no`（前缀）/`roomCode`/`stayFrom`+`stayTo`（区间交集）过滤，固定排序 `created_at DESC, id DESC`，count 与列表共用同一段 where。
+  3. `GET /api/v1/hotels/{hotelId}/reservations/{id}`：订单行 + 房号 + 占用状态 + `allowedActions`（由状态机守卫算出）+ `version`；不下发 `tenantId`/占用 id/操作 id。
+  4. 错误契约：所有 `ProblemDetail` 带 `outcome`（`REJECTED`/`CONFLICT`/`UNKNOWN`），新增参数类型不匹配与缺参的 400 处理（覆写 `handleTypeMismatch`）。
+  5. OpenAPI v1 冻结：`docs/api/openapi-v1.json`（18 path / 22 schema）+ `OpenApiContractTest` 比对结构（方法/状态码/参数/schema 字段），文案不进比对。
+  6. 修 `backend.yml` 的 paths：把契约基线 `docs/api/openapi-v1.json` 纳入触发条件，否则只改基线可绕过门禁。
+- 本轮明确不做：可售查询与投影（D-01 / S1-12）、前端页面接入（S3-03）、导出（S3-09）、自定义排序与游标分页、创建响应里 `occupancyId` 的移除（破坏性变更，需与前端接入一起定）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：D-08、D-10、D-12；S1-11
+- 变更文件：
+  - 新增：`reservation/domain/{ReservationQuery,ReservationSummary,RoomAssignment}.java`、`reservation/mapper/ReservationQueryMapper.java`、`reservation/service/ReservationQueryService.java`、`reservation/web/{ReservationQueryController,ReservationDetailView}.java`、`shared/web/{ErrorOutcome,PageView}.java`、`resources/mapper/reservation/ReservationQueryMapper.xml`
+  - 修改：`shared/web/GlobalExceptionHandler.java`（outcome + 两个 400 处理器）、`shared/config/SecurityConfig.java`（401/403 也带 outcome）、`test/support/NoDatabaseStubConfig.java`（新 Mapper 桩）、`.github/workflows/backend.yml`（契约基线纳入 paths）
+  - 新增契约基线：`docs/api/openapi-v1.json`
+  - 新增测试：`reservation/ReservationQueryIntegrationTest.java`（11）、`reservation/ReservationQueryApiTest.java`（9）、`contract/OpenApiContractTest.java`（2）
+  - 新增文档：`docs/verification/S1-11/2026-10-30-reservation-query.md`
+- 验证（本轮实际执行，详见 [S1-11 记录](../verification/S1-11/2026-10-30-reservation-query.md)）：
+  - `./mvnw -o -q -DskipTests compile` → 退出码 0
+  - `PMS_IT_DB=true ./mvnw -B -ntp clean verify` → `Tests run: 154, Failures: 0, Errors: 0, Skipped: 0` → **BUILD SUCCESS**（新增 22 例：132 → 154）
+  - 无库：`./mvnw -B -ntp test` → 154 run / **129 skipped** / 0 failure → BUILD SUCCESS
+  - **真实 CI**：[run 41020142020](https://github.com/zhongxinxuhk/OpenHotelManagementSystem/actions/runs/41020142020) @ `972c988` → **success**，9 步全绿，日志 `Tests run: 154, Failures: 0, Errors: 0, Skipped: 0`、断言 `tests=154 skipped=0`
+  - 反向验证 1：临时删掉 `ReservationQuery` 的 10 个 getter 后查询用例仍全过 → 证明 MyBatis 3.5.19 已支持 record 访问器，那批 getter 是多余的，已删除
+  - 反向验证 2：临时从基线删掉列表接口的 `size` 参数 → 契约测试立即失败并精确指出差异，恢复后转绿
+  - 未覆盖：可售投影（S1-12）、并发验收（S1-13）、前端页面（S3-03）、导出（S3-09）
+- 本轮发现（不夹带实现，转入后续轮次）：
+  1. **springdoc 用简单类名做 schema key，同名嵌套 record 会被合并**。`ReservationDetailView.LineView` 与 `ReservationView.LineView` 撞名，导致 OpenAPI 里详情的 `lines` 指向创建响应的字段（含 `occupancyId`）——运行时 JSON 正确、文档错误，只有契约测试能发现。已重命名 `DetailLineView`。**规则：对外视图类型不要用同名嵌套类。**
+  2. **契约测试要只比结构**。若把 description/example 纳入比对，改个错别字就要动基线，最后所有人都会习惯性"重新生成基线"，契约名存实亡。
+  3. **凭印象给框架打补丁会留下假事实**。本轮先写了"MyBatis 不认 record 访问器"的绕路代码与注释，反向验证后推翻。凡"因为框架不支持"而加的绕路，都该先验一次。
+  4. **paths 过滤会漏掉"输入文件"**：契约基线放在 `docs/api/` 时，只改基线不会触发 backend。已修。类似的还有将来若把 SQL 迁移或 schema 放到 `docs/` 之外的位置。
+  5. 创建响应里的 `occupancyId` 属实现细节外泄，移除需与前端一并决定，记入待办（不夹带）。
+- 回写确认：feature-catalog ✓（D-08/D-10/D-12 → DONE；§1 重算为 DONE 21 / VERIFYING 10 / READY 16 / TODO 68 / BLOCKED 8，约 23%）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S1-12` 派生房态、可售计算与重建（D-01 + E 域投影，含"清空派生数据后可重建一致结果"的验收）
 
 ---
 

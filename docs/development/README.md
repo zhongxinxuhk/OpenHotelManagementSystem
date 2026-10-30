@@ -87,6 +87,23 @@ cd frontend-admin-pro && npm run start:no-mock # MOCK=none 直连后端，联调
 
 **本地与 CI 必须用同一条命令**：CI 的定义在 `.github/workflows/`，那里的断言（后端零跳过、前端产物不含 `CNAME`、产物 `dist/index.html` 必须存在）本身就是门禁的一部分。本地跑"差不多"的命令，会让 CI 成为第一个发现问题的环境——`npm run tsc` 缺 `max setup` 导致的 CI 失败就是这么来的（见 [CI 记录](../verification/CI/2026-10-30-github-actions.md) §3.1）。
 
+### 3.2 接口契约（OpenAPI v1）
+
+基线：[`docs/api/openapi-v1.json`](../api/openapi-v1.json)，由 `OpenApiContractTest` 逐次比对**结构**（HTTP 方法、状态码、参数、schema 字段），文案不参与比对。
+
+确实要改接口时，按这个顺序：
+
+```bash
+# 1) 起本地服务（local 档案默认开启 springdoc）
+cd openbackupsaas && ./mvnw -B spring-boot:run
+# 2) 导出并覆盖基线（去掉 servers、格式化）
+curl -s http://127.0.0.1:8080/v3/api-docs | python3 -c "import json,sys;d=json.load(sys.stdin);d.pop('servers',None);print(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True))" > ../docs/api/openapi-v1.json
+# 3) 跑契约测试确认一致
+PMS_IT_DB=true ./mvnw -B test -Dtest=OpenApiContractTest
+```
+
+**必须在本轮进度条目里写明"契约变更"及原因**。让变更是有意识的行为，而不是被测试逼着点一下"重新生成"。
+
 ## 4. 「DONE」判定（与规划文档 §8.2 DoD 对齐）
 
 一个功能项/任务只有在下列全部成立时才可标 `DONE`：
