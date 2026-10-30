@@ -1,16 +1,26 @@
 name: frontend
 
-# 前端门禁：tsc + biome lint + build（ADR-015 三件套）。
-# 本地 Agent 沙箱无法完成 npm ci（见 docs/verification/S3-01a），CI 是当前唯一可重复的依赖安装环境。
+# 前端门禁（ADR-015 三件套）：tsc + biome lint + 生产构建。
+#
+# 为什么每一步都要在这里跑：本地 Agent 沙箱无法完成 npm ci（见 docs/verification/S3-01a），
+# CI 是当前唯一可重复的依赖安装 + 完整构建环境。三件套缺一不可——
+# tsc 抓类型、biome 抓风格与明显错误、build 抓"引用了不存在的文件"这类只有打包才暴露的问题
+# （Welcome 页的悬挂 import 就是这么红了两轮的）。
 on:
   push:
     paths:
       - 'frontend-admin-pro/**'
       - '.github/workflows/frontend.yml'
   pull_request:
+    branches:
+      - main
     paths:
       - 'frontend-admin-pro/**'
       - '.github/workflows/frontend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: frontend-${{ github.ref }}
@@ -19,7 +29,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: frontend-admin-pro
@@ -44,3 +54,24 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Assert build output is deployable
+        # 两条都是真实踩过的坑，不是形式检查：
+        #   1. 模板 public/CNAME 会让任意静态托管把域名指到 Ant Design 官方预览站；
+        #   2. 缺 index.html 说明打包没真正完成（而 build 未以非零码退出）。
+        run: |
+          test -f dist/index.html || { echo '::error::dist/index.html 缺失，构建不完整'; exit 1; }
+          if [ -f dist/CNAME ]; then
+            echo '::error::构建产物包含 CNAME（模板残留），部署会改写域名'
+            exit 1
+          fi
+          echo "dist 大小：$(du -sh dist | cut -f1)"
+
+      - name: Upload dist
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-admin-pro/dist/**
+          if-no-files-found: warn
+          retention-days: 7

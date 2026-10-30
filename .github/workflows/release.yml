@@ -1,0 +1,111 @@
+name: release-artifacts
+
+# 发布产物打包（CD 的起点，不是部署）。
+#
+# 边界说明，避免把这个 workflow 当成"上线按钮"：
+#   - 它只做「从一个指定 ref 产出可追溯的发布物」：后端可执行 jar、前端 dist、SHA256SUMS。
+#   - **部署**（目标环境、密钥、健康检查、回滚）属 S2-07「最小部署、备份与恢复闭环」，
+#     目前没有部署目标与环境凭据，这里不假装有。
+#   - 出包不替代门禁：`-DskipTests` 只是为了不重复跑一遍测试。请从 backend / frontend
+#     两个 workflow 均为绿色的提交出包，否则产物里可能是没测过的代码。
+#
+# 为什么用 workflow_dispatch 而不是 tag 触发：发布节奏还没定（S6-06 发布与回滚演练之前，
+# 版本号规则与研究中的 DEC 项都未冻结）。等规则定案后再加 tag 触发，不需要改这里的分步结构。
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '出包的 git ref（分支、tag 或 commit SHA）'
+        required: true
+        default: 'main'
+      retention-days:
+        description: '产物保留天数（1–90）'
+        required: false
+        default: '14'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.ref }}
+  cancel-in-progress: false
+
+jobs:
+  backend-jar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: openbackupsaas/pom.xml
+
+      - name: Package (skip tests, see workflow header)
+        working-directory: openbackupsaas
+        run: ./mvnw -B -ntp -Dstyle.color=never -DskipTests package
+
+      - name: Checksums
+        working-directory: openbackupsaas/target
+        run: |
+          # 排除 Spring Boot 重打包前的原始 jar
+          shasum -a 256 *.jar | grep -v '\.jar\.original' > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload jar + checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: pms-backend-${{ github.run_number }}
+          path: |
+            openbackupsaas/target/*.jar
+            !openbackupsaas/target/*.jar.original
+            openbackupsaas/target/SHA256SUMS
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}
+
+  frontend-dist:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend-admin-pro
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend-admin-pro/package-lock.json
+
+      - name: Install (locked)
+        run: npm ci --no-audit --no-fund
+
+      - name: Build (production)
+        # 先构建再算校验和：dist 未生成就让 job 失败，不要上传一个空目录
+        run: |
+          npm run build
+          test -f dist/index.html || { echo '::error::dist/index.html 缺失，构建不完整'; exit 1; }
+
+      - name: Checksums
+        run: |
+          cd dist
+          find . -type f -print0 | sort -z | xargs -0 shasum -a 256 > SHA256SUMS
+          wc -l SHA256SUMS
+
+      - name: Upload dist + checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: pms-frontend-${{ github.run_number }}
+          path: frontend-admin-pro/dist/**
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}

@@ -4,37 +4,68 @@
 #-------------------------------------------------------------------------------#
 
 name: Qodana
+
+# 静态质量扫描（补充 tsc / biome 覆盖不到的问题）。
+#
+# 与原模板的三处差异，都是为了"不要一个恒红的 job"：
+#   1. push 分支不再硬编码某条 feature 分支，改为 main；
+#   2. checkout 的 ref 用 `pull_request.head.sha || github.sha`——
+#      原写法在 push 事件下取到空字符串，checkout 会退化成默认分支，扫的不是这次提交；
+#   3. QODANA_TOKEN 未配置时**跳过扫描并给出 warning**，而不是让 job 直接失败：
+#      密钥属于仓库配置，不该让代码门禁依赖某个 secret 是否已经填好。
 on:
   workflow_dispatch:
   pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
-      - feat/stage1-identity-room-occupancy
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+concurrency:
+  group: qodana-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   qodana:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      checks: write
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - name: 'Qodana Scan'
+
+      - name: Probe Qodana token
+        id: probe
+        # secrets 不能直接写进 if:，因此用 env 传进来再由 shell 判断
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+        run: |
+          if [ -z "${QODANA_TOKEN}" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Qodana 已跳过::仓库未配置 QODANA_TOKEN；配置后本 job 会自动开始扫描"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Qodana Scan
+        if: steps.probe.outputs.enabled == 'true'
         uses: JetBrains/qodana-action@v2026.2
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
         with:
-          # When pr-mode is set to true, Qodana analyzes only the files that have been changed
+          # pr-mode 仅分析变更文件；全量扫描交给 push 到 main 的场合
           pr-mode: false
           use-caches: true
           post-pr-comment: true
           use-annotations: true
-          # Upload Qodana results (SARIF, other artifacts, logs) as an artifact to the job
+          # 上传 Qodana 结果（SARIF 与其他产物）为 job artifact
           upload-result: false
-          # quick-fixes available in Ultimate and Ultimate Plus plans
+          # 自动修复仅 Ultimate / Ultimate Plus 套餐可用
           push-fixes: 'none'
