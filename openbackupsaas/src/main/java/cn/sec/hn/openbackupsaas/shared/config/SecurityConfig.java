@@ -106,6 +106,9 @@ public class SecurityConfig {
         problem.setTitle(title);
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("requestId", String.valueOf(org.slf4j.MDC.get(RequestIdFilter.MDC_KEY)));
+        // 与 GlobalExceptionHandler 保持同一套三分类：过滤链拒绝的 401/403 也属于
+        // "调用方该改输入或换账号"，客户端不应把它当成待核实的未知结果（S1-11）。
+        problem.setProperty("outcome", cn.sec.hn.openbackupsaas.shared.web.ErrorOutcome.REJECTED);
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");

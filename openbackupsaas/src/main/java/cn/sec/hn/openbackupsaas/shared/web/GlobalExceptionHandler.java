@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -16,9 +17,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.net.URI;
@@ -26,13 +29,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 统一错误响应：RFC 9457 ProblemDetail，不返回堆栈、内部类名或 SQL。
+ * 统一错误响应（RFC 9457 ProblemDetail），不返回堆栈、内部类名或 SQL。
  *
  * <p>继承 {@link ResponseEntityExceptionHandler} 以保留 Spring MVC 对 404/405/415 等标准异常的处理，
- * 只覆写校验失败与补充兜底，避免把 404 误报成 500。
+ * 只覆写"参数层"错误与补充兜底，避免把 404 误报成 500。
  *
- * <p>错误码体系与「失败/冲突/待核实」三分类在 S1-11 冻结，此处只保证：
- * 客户端能拿到 status、detail、requestId 与字段级错误。
+ * <p><b>S1-11 起每个错误响应都带 {@code outcome}</b>（{@link ErrorOutcome}）：
+ * 客户端据此区分「失败 / 冲突 / 待核实」，不用靠状态码猜。
+ * 其中 {@code UNKNOWN} 尤其重要——它意味着"结果不确定"，前端必须给查询原交易结果的入口，
+ * 而不是显示失败让用户重新下单（那会变成重复预订）。
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
@@ -47,7 +52,52 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "请求参数校验失败");
         problem.setTitle("请求参数不合法");
         problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.REJECTED);
         problem.setProperty("errors", toFieldErrors(ex));
+        return handleExceptionInternal(ex, problem, headers, HttpStatus.BAD_REQUEST, request);
+    }
+
+    /**
+     * 路径/查询参数类型不匹配（如 {@code ?status=FOO}、非法 UUID、非法日期）。
+     *
+     * <p>覆写的是父类的 {@code handleTypeMismatch}（Spring 6/7 的方法名，不是
+     * {@code handleMethodArgumentTypeMismatch}）——写错名字时 {@code @Override} 会在编译期报错，
+     * 但如果不加 {@code @Override} 就会变成一个永不生效的"处理器"，参数错误仍然返回
+     * Spring 的英文原文且不带 requestId，与其它错误形态不一致。
+     */
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException ex,
+                                                        HttpHeaders headers,
+                                                        HttpStatusCode status,
+                                                        WebRequest request) {
+        String field = ex instanceof MethodArgumentTypeMismatchException mismatch
+                ? mismatch.getName()
+                : String.valueOf(ex.getPropertyName());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "参数 " + field + " 的取值不合法");
+        problem.setTitle("请求参数不合法");
+        problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.REJECTED);
+        problem.setProperty("errors", List.of(Map.of(
+                "field", field,
+                "message", "无法解析为期望的类型")));
+        return handleExceptionInternal(ex, problem, headers, HttpStatus.BAD_REQUEST, request);
+    }
+
+    /** 缺少必填查询参数：同样是 400，且要指出是哪个参数。 */
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestParameter(MissingServletRequestParameterException ex,
+                                                                         HttpHeaders headers,
+                                                                         HttpStatusCode status,
+                                                                         WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "缺少必填参数 " + ex.getParameterName());
+        problem.setTitle("请求参数不合法");
+        problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.REJECTED);
+        problem.setProperty("errors", List.of(Map.of(
+                "field", ex.getParameterName(),
+                "message", "必填")));
         return handleExceptionInternal(ex, problem, headers, HttpStatus.BAD_REQUEST, request);
     }
 
@@ -58,16 +108,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("请求无法处理");
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.REJECTED);
         return problem;
     }
 
-    /** 业务冲突（编码重复、状态不允许）：409，客户端应提示处理而不是改输入。 */
+    /** 业务冲突（状态不允许、版本过期、占用冲突）：409，客户端应提示处理而不是自动重试。 */
     @ExceptionHandler(ConflictException.class)
     public ProblemDetail onConflict(ConflictException ex, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, String.valueOf(ex.getMessage()));
         problem.setTitle("操作与当前状态冲突");
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.CONFLICT);
         return problem;
     }
 
@@ -83,6 +135,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("未认证");
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.REJECTED);
         return problem;
     }
 
@@ -101,6 +154,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("无访问权限");
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.REJECTED);
         return problem;
     }
 
@@ -111,6 +165,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("对象不存在");
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.REJECTED);
         return problem;
     }
 
@@ -131,19 +186,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("数据约束冲突");
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("requestId", requestId);
+        problem.setProperty("outcome", ErrorOutcome.CONFLICT);
         return problem;
     }
 
-    /** 未预期异常：对外只给通用文案 + requestId，堆栈只进日志。 */
+    /**
+     * 未预期异常：对外只给通用文案 + requestId，堆栈只进日志。
+     *
+     * <p>{@code outcome = UNKNOWN} 是这里唯一对外承诺的东西：客户端必须把这类响应当成
+     * <b>"结果不确定"</b>，而不是"失败"——写操作可能已经提交，重试必须走幂等键或
+     * 查询原交易结果（D-10）。
+     */
     @ExceptionHandler(Exception.class)
     public ProblemDetail onUnexpected(Exception ex, HttpServletRequest request) {
         String requestId = currentRequestId();
         log.error("unhandled exception requestId={} path={}", requestId, request.getRequestURI(), ex);
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
-                "服务内部错误，请携带 requestId 反馈");
+                "服务内部错误，请携带 requestId 反馈；写操作请先查询原交易结果再决定是否重试");
         problem.setTitle("服务内部错误");
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("requestId", requestId);
+        problem.setProperty("outcome", ErrorOutcome.UNKNOWN);
         return problem;
     }
 

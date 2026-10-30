@@ -1,0 +1,1658 @@
+{
+  "components": {
+    "schemas": {
+      "ChangePasswordRequest": {
+        "properties": {
+          "currentPassword": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          },
+          "newPassword": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "type": "object"
+      },
+      "CreateReservationRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LineRequest"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "sourceType": {
+            "enum": [
+              "FRONTDESK",
+              "DIRECT",
+              "OTA",
+              "MINIPROGRAM"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "lines",
+          "sourceType"
+        ],
+        "type": "object"
+      },
+      "CreateRoomRequest": {
+        "properties": {
+          "code": {
+            "maxLength": 16,
+            "minLength": 0,
+            "type": "string"
+          },
+          "floor": {
+            "format": "int32",
+            "maximum": 200,
+            "minimum": -10,
+            "type": "integer"
+          },
+          "notes": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "roomTypeId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "roomTypeId"
+        ],
+        "type": "object"
+      },
+      "CreateRoomTypeRequest": {
+        "properties": {
+          "bedType": {
+            "maxLength": 32,
+            "minLength": 0,
+            "type": "string"
+          },
+          "capacityAdults": {
+            "format": "int32",
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "capacityChildren": {
+            "format": "int32",
+            "maximum": 20,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "code": {
+            "maxLength": 32,
+            "minLength": 0,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "type": "object"
+      },
+      "DetailLineView": {
+        "properties": {
+          "assignedRoomCode": {
+            "type": "string"
+          },
+          "assignedRoomId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lineId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lineNo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "occupancyStatus": {
+            "enum": [
+              "HELD",
+              "CONFIRMED",
+              "CHECKED_IN",
+              "RELEASED",
+              "EXPIRED",
+              "COMPLETED",
+              "SUPERSEDED",
+              "BLOCKED",
+              "UNBLOCKED"
+            ],
+            "type": "string"
+          },
+          "plannedRange": {
+            "$ref": "#/components/schemas/StayRange"
+          },
+          "requestedRoomTypeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "CHECKED_IN",
+              "CHECKED_OUT",
+              "CANCELLED",
+              "EXPIRED",
+              "NO_SHOW"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LifecycleRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "LineRequest": {
+        "properties": {
+          "checkIn": {
+            "format": "date",
+            "type": "string"
+          },
+          "checkOut": {
+            "format": "date",
+            "type": "string"
+          },
+          "roomTypeId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "checkIn",
+          "checkOut",
+          "roomTypeId"
+        ],
+        "type": "object"
+      },
+      "LineView": {
+        "properties": {
+          "assignedRoomId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lineId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "occupancyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestedRoomTypeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stayRange": {
+            "$ref": "#/components/schemas/StayRange"
+          }
+        },
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "password": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          },
+          "tenantCode": {
+            "maxLength": 32,
+            "minLength": 0,
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "tenantCode",
+          "username"
+        ],
+        "type": "object"
+      },
+      "LoginResponse": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserView"
+          }
+        },
+        "type": "object"
+      },
+      "OperationView": {
+        "properties": {
+          "commandName": {
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hotelId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "operationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultCode": {
+            "type": "string"
+          },
+          "resultRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PageViewReservationSummary": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReservationSummary"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totalPages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ReservationDetailView": {
+        "properties": {
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DetailLineView"
+            },
+            "type": "array"
+          },
+          "reservationNo": {
+            "type": "string"
+          },
+          "sourceType": {
+            "enum": [
+              "FRONTDESK",
+              "DIRECT",
+              "OTA",
+              "MINIPROGRAM"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "CHECKED_IN",
+              "CHECKED_OUT",
+              "CANCELLED",
+              "EXPIRED",
+              "NO_SHOW"
+            ],
+            "type": "string"
+          },
+          "stayRange": {
+            "$ref": "#/components/schemas/StayRange"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ReservationSummary": {
+        "properties": {
+          "checkIn": {
+            "format": "date",
+            "type": "string"
+          },
+          "checkOut": {
+            "format": "date",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lineCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "reservationNo": {
+            "type": "string"
+          },
+          "sourceType": {
+            "enum": [
+              "FRONTDESK",
+              "DIRECT",
+              "OTA",
+              "MINIPROGRAM"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "CHECKED_IN",
+              "CHECKED_OUT",
+              "CANCELLED",
+              "EXPIRED",
+              "NO_SHOW"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ReservationView": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LineView"
+            },
+            "type": "array"
+          },
+          "reservationNo": {
+            "type": "string"
+          },
+          "sourceType": {
+            "enum": [
+              "FRONTDESK",
+              "DIRECT",
+              "OTA",
+              "MINIPROGRAM"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "CHECKED_IN",
+              "CHECKED_OUT",
+              "CANCELLED",
+              "EXPIRED",
+              "NO_SHOW"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RoomStatusRequest": {
+        "properties": {
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "RoomTypeStatusRequest": {
+        "properties": {
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "RoomTypeView": {
+        "properties": {
+          "bedType": {
+            "type": "string"
+          },
+          "capacityAdults": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "capacityChildren": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RoomView": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "floor": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "housekeepingStatus": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "roomTypeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "StayRange": {
+        "properties": {
+          "checkIn": {
+            "format": "date",
+            "type": "string"
+          },
+          "checkOut": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateRoomRequest": {
+        "properties": {
+          "floor": {
+            "format": "int32",
+            "maximum": 200,
+            "minimum": -10,
+            "type": "integer"
+          },
+          "notes": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "roomTypeId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UserView": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "hotelIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sessionExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "userId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "企业级酒店 PMS 接口。库存与订单事实以 PostgreSQL 为准，写操作需携带幂等键（S1-07/S1-11 冻结字段名）。",
+    "title": "PMS API",
+    "version": "0.0.1-SNAPSHOT"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/v1/auth/password": {
+      "post": {
+        "operationId": "changePassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reservations": {
+      "get": {
+        "operationId": "list_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "enum": [
+                  "PENDING",
+                  "CONFIRMED",
+                  "CHECKED_IN",
+                  "CHECKED_OUT",
+                  "CANCELLED",
+                  "EXPIRED",
+                  "NO_SHOW"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sourceType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "FRONTDESK",
+                "DIRECT",
+                "OTA",
+                "MINIPROGRAM"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "no",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "roomCode",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stayFrom",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stayTo",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageViewReservationSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reservation-query-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Caller-Namespace",
+            "required": false,
+            "schema": {
+              "default": "frontend",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReservationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationView"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "reservation-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reservations/{reservationId}": {
+      "get": {
+        "operationId": "detail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reservationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationDetailView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reservation-query-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reservations/{reservationId}/cancel": {
+      "post": {
+        "operationId": "cancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reservationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Caller-Namespace",
+            "required": false,
+            "schema": {
+              "default": "frontend",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reservation-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reservations/{reservationId}/confirm": {
+      "post": {
+        "operationId": "confirm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reservationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Caller-Namespace",
+            "required": false,
+            "schema": {
+              "default": "frontend",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reservation-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reservations/{reservationId}/no-show": {
+      "post": {
+        "operationId": "markNoShow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reservationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Caller-Namespace",
+            "required": false,
+            "schema": {
+              "default": "frontend",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reservation-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/room-types": {
+      "get": {
+        "operationId": "list_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoomTypeView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "room-type-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoomTypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomTypeView"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "room-type-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/room-types/{roomTypeId}": {
+      "get": {
+        "operationId": "get_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "roomTypeId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomTypeView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "room-type-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/room-types/{roomTypeId}/status": {
+      "post": {
+        "operationId": "changeStatus_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "roomTypeId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomTypeStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomTypeView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "room-type-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/rooms": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "roomTypeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ACTIVE",
+                "INACTIVE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "floor",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoomView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "room-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoomRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomView"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "room-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/rooms/{roomId}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "roomId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "room-controller"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "roomId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoomRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "room-controller"
+        ]
+      }
+    },
+    "/api/v1/hotels/{hotelId}/rooms/{roomId}/status": {
+      "post": {
+        "operationId": "changeStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "roomId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "room-controller"
+        ]
+      }
+    },
+    "/api/v1/identity/users/{userId}/hotel-scopes": {
+      "get": {
+        "operationId": "hotelScopes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "identity-controller"
+        ]
+      }
+    },
+    "/api/v1/operations/lookup": {
+      "get": {
+        "operationId": "byKey",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "hotelId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "command",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "operation-controller"
+        ]
+      }
+    },
+    "/api/v1/operations/{operationId}": {
+      "get": {
+        "operationId": "byOperation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "operationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "operation-controller"
+        ]
+      }
+    }
+  }
+}

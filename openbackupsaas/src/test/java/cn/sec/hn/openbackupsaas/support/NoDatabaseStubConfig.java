@@ -21,6 +21,7 @@ import cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy;
 import cn.sec.hn.openbackupsaas.reservation.domain.StayRange;
 import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationExpiryMapper;
 import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationMapper;
+import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationQueryMapper;
 import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
 import cn.sec.hn.openbackupsaas.room.domain.RoomStatus;
 import cn.sec.hn.openbackupsaas.room.domain.RoomType;
@@ -86,6 +87,11 @@ public class NoDatabaseStubConfig {
     @Bean
     ReservationExpiryMapper reservationExpiryMapper() {
         return new ReservationExpiryMapperStub();
+    }
+
+    @Bean
+    ReservationQueryMapper reservationQueryMapper() {
+        return new ReservationQueryMapperStub();
     }
 
     static final class JournalMapperStub implements JournalMapper {
@@ -474,6 +480,26 @@ public class NoDatabaseStubConfig {
 
         @Override
         public cn.sec.hn.openbackupsaas.reservation.domain.HoldDueState checkHoldDue(
+                UUID tenantId, UUID hotelId, UUID reservationId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    static final class ReservationQueryMapperStub implements ReservationQueryMapper {
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.reservation.domain.ReservationSummary> findSummaries(
+                cn.sec.hn.openbackupsaas.reservation.domain.ReservationQuery query) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countSummaries(cn.sec.hn.openbackupsaas.reservation.domain.ReservationQuery query) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.reservation.domain.RoomAssignment> findRoomAssignments(
                 UUID tenantId, UUID hotelId, UUID reservationId) {
             throw new UnsupportedOperationException(MESSAGE);
         }
