@@ -3,7 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/OpenHotelManagementSystem.iml" filepath="$PROJECT_DIR$/OpenHotelManagementSystem.iml" />
-      <module fileurl="file://$PROJECT_DIR$/openbackupsaas/openbackupsaas.iml" filepath="$PROJECT_DIR$/openbackupsaas/openbackupsaas.iml" />
+      <module fileurl="file://$PROJECT_DIR$/frontend-engineering-vue/frontend-engineering-vue.iml" filepath="$PROJECT_DIR$/frontend-engineering-vue/frontend-engineering-vue.iml" />
     </modules>
   </component>
 </project>

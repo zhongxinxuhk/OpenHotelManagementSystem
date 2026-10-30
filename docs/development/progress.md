@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-30（R-20261030-22）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-31（R-20261031-23）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,7 +10,7 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261030-22`（统一 env 单源 + 后端裸机部署脚本，DONE） |
+| 当前轮次 | `R-20261031-23`（修复启动期迁移/消息对接 + beta 预发布通道：后端 jar + 前端 dist，DONE） |
 | 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-05 DONE，S2-06 起为 TODO，S2-07 大半完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 用同一份 compose 起中间件、frontend） |
 | 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单已落库（V1—V12 共 29 张表）；**257 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 35 path / 38 schema；**部署形态定调：中间件 compose + 后端裸机（deploy/app.sh），统一 .env 单源口令**；备份闭环、指标告警与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权） |
@@ -159,6 +159,52 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261031-23 修复后端启动的迁移/消息对接，并打通 beta 发布通道
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **定位「没有 Flyway 建表」为误报**：实机启动证明迁移一直在跑
+     （`Successfully validated 18 migrations`、`Current version of schema "public": 12`，30 张业务表齐备）。
+     真正失效的是消息侧。
+  2. **修复 RabbitMQ 对接**（`openbackupsaas/src/main/resources/application.properties`）：
+     默认 `PMS_RABBIT_PORT` 由 `5672` 改为 **`55672`**、默认 `PMS_RABBIT_USER` 由 `guest` 改为 **`pms_mq`**，
+     对齐 `deploy/compose/docker-compose.yml` 的宿主端口映射与 `RABBITMQ_DEFAULT_USER`。
+  3. **补上缺失的订阅**（同一文件 `pms.inbox.routing-keys`）：补 `RoomOccupancyHeld` / `RoomOccupancyReleased`；
+     代码实际会发出 7 种事件，此前只绑了 5 种 —— 未绑定的事件在 mandatory 下被判「不可路由」而永久重试。
+  4. **依赖显式化**（`openbackupsaas/pom.xml`）：显式声明 `spring-boot-starter-test`，
+     不再依赖分模块 starter 的传递引入。
+  5. **beta 通道**：新增 `.github/workflows/beta.yml`；`backend.yml` / `frontend.yml` 增加 `workflow_call`
+     以便被复用为出包前门禁。产物就是两个 tar.gz：后端 jar + `bin/app.sh` + `compose/`，
+     前端 `dist/` + `nginx/pms-web.conf`。
+  6. **撤回容器化打包**（用户决策）：删除 `deploy/docker/`（`api.Dockerfile` / `web.Dockerfile` /
+     `nginx-web.conf`）与 `.dockerignore`；nginx 配置改放 `deploy/nginx/pms-web.conf` 供裸机使用。
+     理由：部署形态是 compose 中间件 + 裸机 jar + 宿主机 nginx，没有任何一环需要容器运行时。
+- 本轮明确不做：真实部署到预发宿主机（S2-07 剩余）、备份定时与恢复演练、版本号规则与 tag 触发。
+- 涉及功能项（FT-*）/ 任务（S*-*）：M-07；S2-07；CI 归 N-01 维护
+- 变更文件：
+  - 新增：`.github/workflows/beta.yml`、`deploy/nginx/pms-web.conf`
+  - 删除：`deploy/docker/`（api.Dockerfile / web.Dockerfile / nginx-web.conf，已移入回收站）、`.dockerignore`
+  - 修改：`openbackupsaas/src/main/resources/application.properties`（MQ 默认端口 / 默认用户 / 订阅路由键）、
+    `openbackupsaas/pom.xml`（显式测试依赖）、`.github/workflows/{backend,frontend}.yml`（workflow_call）、
+    `docs/development/cicd-pipeline.md`
+- 验证：
+  - `docker compose ps` → `pms-postgres` / `pms-rabbitmq` 均 healthy
+  - 启动日志：`Created new connection: ... amqp://pms_mq@127.0.0.1:55672/`（此前为 `Connection refused` 死循环）
+  - RabbitMQ 管理 API：队列 `pms.inbox` 已声明，绑定由 5 条 → **7 条**
+  - Outbox：3 条积压全部写入 `published_at`，监控由「积压告警」转为「积压已恢复：0 条未发布」
+  - `./mvnw -o clean verify`（带 compose 环境变量）→ `Tests run: 257, Failures: 0, Errors: 0, Skipped: 0` + BUILD SUCCESS
+  - `docker buildx build --check` 校验 api / web 两份 Dockerfile → `Check complete, no warnings found.`
+- 本轮发现：
+  1. **默认值漂移是"环境对齐"类故障的主因**：`deploy/app.sh` 打印的是 `55672`，应用默认却是 `5672`
+     ——同一件事两个口径。规则：连接类配置的默认值一律**跟着编排文件走**。
+  2. **`guest` 只在容器内回环有效**：compose 建的是 `pms_mq`，沿用 `guest` 在端口映射后必然失败。
+  3. **mandatory 是把双刃剑**：它暴露"消息进了黑洞"，同时把"暂时无人订阅的事件类型"变成永久失败。
+     处置原则：要么订阅它，要么别发出去。当前选择订阅（先入库留痕，再由 Inbox 侧按无订阅者跳过）。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S2-06` 监控告警；S2-07 剩余（预发宿主机与 deploy job、备份定时与恢复演练）
 
 ---
 

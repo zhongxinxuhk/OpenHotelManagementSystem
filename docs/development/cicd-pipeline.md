@@ -11,6 +11,7 @@
 | `frontend` | push/PR 触及前端 | `tsc`（含 `max setup`）+ `biome` + `build` + 产物断言 | `dist/` |
 | `qodana_code_quality` | push/PR | 静态质量扫描（token 未配置时跳过并告警） | Qodana 报告 |
 | `release` | 手动（指定 ref） | 打包 jar + dist + SHA256SUMS | 两个 artifact + 校验和 |
+| `beta` | push 到 `main`（触及前后端 / 部署脚本）或手动 | **先跑两个门禁**（`workflow_call`）→ 编译后端 jar、构建前端 dist → 打成 `pms-backend.tar.gz` / `pms-frontend.tar.gz` → 发布/更新 tag 为 `beta` 的 Pre-release | 两个 tar.gz + `SHA256SUMS` |
 
 **v2 的关键变化**：backend 门禁的中间件不再用 GitHub Actions 的 service containers，
 改为直接运行 `deploy/compose/docker-compose.yml`。
@@ -64,9 +65,14 @@
         │
         ├──(手动)──▶ release：jar + dist + SHA256SUMS
         │
-        ▼ (规划中，见 §5)
-    镜像构建 → 预发部署（compose）→ 冒烟 → 生产（阶段 6，HA）
+        └──(push main)──▶ beta：needs 两个门禁 →
+                            后端 jar（mvnw package）+ 前端 dist（npm ci && npm run build）
+                            → pms-backend.tar.gz / pms-frontend.tar.gz / SHA256SUMS
+                            → GitHub Pre-release tag `beta`
 ```
+
+**注意：CI 里仍然用 Docker**——但只用于**跑集成测试的中间件**（Postgres / RabbitMQ），
+不是打包形态。产物是 jar 与 dist 两个 tar.gz，部署时不涉及容器运行时。
 
 ## 4. 「部署」为什么还没有出现在流水线里
 
@@ -89,7 +95,7 @@
 | --- | --- | --- | --- |
 | G1 门禁 | backend / frontend / qodana / release（本表 §1） | — | **已落地** |
 | 本地/预发编排 | 中间件 compose + 后端裸机脚本（`deploy/app.sh`），统一 `.env` 单源口令 | — | **已落地**（R-20261030-22） |
-| 镜像构建 | 后端容器化（多阶段 Dockerfile + registry），与生产 HA 一起评估 | 阶段 6 或预发需要时 | 未开始（裸机分工下非前置） |
+| 镜像构建 | ~~容器镜像~~ **已取消**（R-20261031-23）：部署形态为 compose 中间件 + 裸机 jar + 宿主机 nginx，无一环需要容器运行时 | — | N/A |
 | 预发部署 | deploy job：compose 起中间件 → 宿主机构建 → `app.sh` 滚动替换 → 冒烟（`/actuator/health`、一条真实下单） | 预发宿主机 | 未开始 |
 | 备份闭环 | `deploy/backup/`：pg_dump 定时 + 异地存放 + **恢复演练记录**（能恢复才算有备份） | 预发环境 | 未开始 |
 | 生产 HA | 主从 PG、RabbitMQ 集群、多实例、蓝绿/灰度 | 阶段 6（S6-06） | 未开始 |

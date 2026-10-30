@@ -53,7 +53,7 @@ public class InboxMessagingConfig {
     @Bean
     Declarables inboxBindings(Queue inboxQueue,
                               TopicExchange inboxEventsExchange,
-                              @Value("${pms.inbox.routing-keys:Reservation*}") String routingKeys) {
+                              @Value("${pms.inbox.routing-keys:ReservationCreated,ReservationConfirmed,ReservationCancelled,ReservationNoShow,ReservationExpired,RoomOccupancyHeld,RoomOccupancyReleased}") String routingKeys) {
         List<Binding> bindings = new ArrayList<>();
         for (String key : routingKeys.split(",")) {
             String trimmed = key.trim();

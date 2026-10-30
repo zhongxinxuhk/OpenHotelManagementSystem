@@ -18,6 +18,8 @@ on:
       - 'frontend-admin-pro/**'
       - '.github/workflows/frontend.yml'
   workflow_dispatch:
+  # 与 backend 同理：beta 出包前被调用，全绿才允许打包（详见 .github/workflows/beta.yml）。
+  workflow_call:
 
 permissions:
   contents: read

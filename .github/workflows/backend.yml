@@ -38,6 +38,9 @@ on:
       - 'deploy/compose/**'
       - '.github/workflows/backend.yml'
   workflow_dispatch:
+  # 被 beta 发布流程当作"出包前的门禁"复用（就不可能有绕过门禁的出包路径）。
+  # 可复用工作流检出的正是调用方的同一个 commit，因此不存在"测 A 出包 B"。
+  workflow_call:
 
 # 最小权限：本 workflow 只读仓库。
 permissions:

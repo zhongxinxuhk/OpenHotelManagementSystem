@@ -93,8 +93,10 @@ public class RabbitEventPublisher implements EventPublisher {
             throw new EventPublishException("等待确认超时（" + confirmTimeout.toSeconds() + " 秒）", ex);
         }
 
-        if (!confirm.isAck()) {
-            throw new EventPublishException("Broker 拒绝消息：" + confirm.getReason());
+        // Confirm 是 record：spring-amqp 4.x 起访问器为 ack() / reason()，
+        // isAck() / getReason() 已标记 @Deprecated(forRemoval = true)。
+        if (!confirm.ack()) {
+            throw new EventPublishException("Broker 拒绝消息：" + confirm.reason());
         }
 
         ReturnedMessage returned = correlation.getReturned();
