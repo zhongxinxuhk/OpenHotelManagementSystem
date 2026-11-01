@@ -1,0 +1,16 @@
+export default {
+  'menu.workbench': '运营工作台',
+  'menu.verification': '实名审核',
+  'menu.verification.queue': '审核队列',
+  'menu.customer': '客服',
+  'menu.customer.tickets': '工单',
+  'menu.audit': '业务审计',
+  'menu.audit.operations': '操作留痕',
+  'menu.ota': 'OTA 对接',
+  'menu.ota.commercial': '商业授权',
+  'menu.login': '登录',
+  'menu.exception': '异常页',
+  'menu.exception.403': '无访问权限',
+  'menu.exception.404': '页面不存在',
+  'menu.exception.500': '服务异常',
+};
