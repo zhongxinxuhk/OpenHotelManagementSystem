@@ -87,6 +87,49 @@ export default [
         component: './inventory',
         access: 'canReadInventory',
       },
+      {
+        /*
+         * 排房（R-20261102-04）：把已确认订单排到具体房间。
+         * 后端 S3-04 未实现，骨架页只含列定义与真实空态。
+         */
+        path: '/hotel/assignment',
+        name: 'assignment',
+        icon: 'partition',
+        component: './hotel/Assignment',
+        access: 'canReadReservation',
+      },
+      {
+        /*
+         * 创建酒店/民宿（R-20261102-04）：表单骨架。
+         * POST /hotels 未开放（A-01 扩展），提交不发请求、明确提示。
+         */
+        path: '/hotel/create',
+        name: 'create',
+        icon: 'plusCircle',
+        component: './hotel/Create',
+        access: 'canWriteOrg',
+      },
+    ],
+  },
+  {
+    /*
+     * OTA 对接（R-20261102-04）：骨架页。
+     * L 域未实现（渠道授权未到位）。
+     */
+    path: '/ota',
+    name: 'ota',
+    icon: 'cloudSync',
+    routes: [
+      {
+        path: '/ota',
+        redirect: '/ota/integration',
+      },
+      {
+        path: '/ota/integration',
+        name: 'integration',
+        icon: 'api',
+        component: './ota/Integration',
+      },
     ],
   },
   {

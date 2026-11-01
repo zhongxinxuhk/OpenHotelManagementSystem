@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-02（R-20261102-03）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-02（R-20261102-04）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,14 +10,14 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261102-03`（平台业务员控制台 platform-ops：实名审核工作台（队列+决定+留痕真实接口）+ 运营工作台 + 骨架空态页；浏览器冒烟 10/10；五控制台第 2/5 轮，DONE） |
-| 五控制台计划 | 需求方指示（2026-11-02）：按优先级创建 ①管理员 ②平台业务员 ③商家扩展 ④C 端 Web ⑤企业商旅 共五个控制台；Web 统一 AntD Pro，H5/小程序只建目录放 README。进度：①② DONE，③④⑤ 待做 |
+| 当前轮次 | `R-20261102-04`（商家控制台扩展：创建门店表单/排房/OTA 对接三个页面（需求占位+诚实空态）+ identity 菜单词条补齐；五控制台第 3/5 轮，DONE） |
+| 五控制台计划 | 需求方指示（2026-11-02）：按优先级创建 ①管理员 ②平台业务员 ③商家扩展 ④C 端 Web ⑤企业商旅 共五个控制台；Web 统一 AntD Pro，H5/小程序只建目录放 README。进度：①②③ DONE，④⑤ 待做 |
 | 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-06 DONE，S2-07 大半完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 用同一份 compose 起中间件、frontend） |
 | 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ + mail starter；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V17 共 42 张表）；**411 个测试通过（需真实 PostgreSQL、4 需真实 RabbitMQ、3 需真实 SMTP/MailPit）**；接口契约 64 path / 77 schema（本轮无变更）；（`OutboxPublisherIntegrationTest` 的非确定性失败已在 R-20261101-30 定位并修复：两侧时钟不同源；生产侧同类跨时钟依赖仍记在待办）；**部署形态定调：中间件 compose（PG+Rabbit+MailPit）+ 后端裸机（deploy/app.sh），统一 .env 单源口令**；**可观测性已落地**：业务指标门面 `PmsMetrics`（低基数约束）、`/actuator/prometheus` 暴露、OTel 链路桥接（默认关）、Outbox 积压 gauge/告警原语、Prometheus 抓取+告警规则+运维手册；备份闭环与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权）；**超级管理员初始化脚本已交付**（`scripts/seed-super-admin.sql`，admin/admin，刻意不进 Flyway 迁移链）；**员工开通闭环已交付**：服务端生成一次性初始口令 + `must_change_password` 强制首改（V13）；**匿名公开面已建**：`/api/v1/public/**` 是唯一匿名前缀，`pms.public-api.enabled` 默认 false（限流 J-05 前不对外）；**住客与平台身份平面已建**：guest 三表 + platform 三表 + 会话两张 + 渠道配置（全库无 `tenant_id` 的一族表）；**三条安全链按路径前缀隔离**（`/api/v1/guest/**`、`/api/v1/platform/**`、其余），令牌哈希域分离，跨平面令牌在库层不可互换；**人工实名审核闭环已交付**（权威渠道熔断时人工照常——结构保证而非 if）；**住客用户名+密码登录已交付**（注册即登录、账号枚举防护、登录方式开关=实现∧控制台开关）；**凭证绑定已交付**（挑战-响应、防爆破三件套、一次性消费、解绑自保护）；**EMAIL 验证码通道已接通**（R-20261102-01：SMTP 实发送器 + 路由器集中分发 + MailPit compose + 全链路验证；默认关、显式开；PHONE 待供应商；验证码登录下一轮）；**匿名入口限流已交付**（J-05：令牌桶 + 可信代理解析 + 9 条档位 + 429/`Retry-After` 契约 + `pms.security.rate_limited` 指标；默认只信 TCP 对端，防 `X-Forwarded-For` 伪造；ADR-020） |
-| 前端工程状态 | **多工程结构 `frontend/`**：`merchant-web/`（商家端，三件套绿，e2e 26/26）；`platform-admin/`（管理员控制台，可运行：登录/策略/渠道真实接口 + 骨架空态，冒烟 17/17）；**`platform-ops/`（平台业务员控制台，R-20261102-03 新建可运行）**：实名审核工作台（队列掩码/决定必填理由/留痕回查/并发 409）+ 运营工作台（真实聚合）+ 客服/审计/OTA 骨架空态，tsc ✓ 0 / biome ✓ 0（120 文件）/ build ✓ 8 路由，**浏览器冒烟 10/10**（驳回决定全链路，真实后端）；`merchant-h5/`、`guest/`、`corp-portal/` 待后续轮次；**npm 依赖安装已可行**；类型由契约脚本生成（支持指定工程）；**Agent 环境坑：`APP_ROOT` 与 Umi 撞名，需 `env -u APP_ROOT`** |
+| 前端工程状态 | **多工程结构 `frontend/`**：`merchant-web/`（商家端，可运行：三件套绿 + e2e 26/26；**R-20261102-04 新增排房/创建门店/OTA 对接三页**——需求占位+诚实空态，创建提交不发请求；identity 菜单词条补齐）；`platform-admin/`（管理员控制台，冒烟 17/17）；`platform-ops/`（业务员控制台，实名审核工作台冒烟 10/10）；`guest/`、`corp-portal/` 待后续轮次；**npm 依赖安装已可行**；类型由契约脚本生成（支持指定工程）；**Agent 环境坑：`APP_ROOT` 与 Umi 撞名，需 `env -u APP_ROOT`**；**运行态冒烟前须重跑种子（compose DB 会被集成测试 DatabaseCleaner 清空，R-20261102-04 实测）** |
 | 功能项完成度 | **约 40%**（129 项，DONE 46 / VERIFYING 8，见 feature-catalog §1；J-01 本轮 95% → 98%：EMAIL 通道接通，剩验证码登录与忘记密码） |
-| 下一轮目标 | **五控制台系列**：③merchant-web 扩展（酒店/民宿创建、排房、OTA 对接页，R-20261102-04）；④C 端 Web 控制台 guest + guest-h5 目录；⑤企业商旅 corp-portal；收尾统一接 CI 矩阵。之后回到：验证码登录、忘记密码、公开面开启 checklist、权威核验渠道对接、PHONE 短信；待办：vitest 纳入前端门禁 |
+| 下一轮目标 | **五控制台系列**：④C 端 Web 控制台 guest（登录/邮箱验证码/绑定真实接口 + 预订骨架）+ guest-h5 目录 README（R-20261102-05）；⑤企业商旅 corp-portal；收尾统一接 CI 矩阵。之后回到：验证码登录、忘记密码、公开面开启 checklist、权威核验渠道对接、PHONE 短信；待办：vitest 纳入前端门禁 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -160,6 +160,47 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261102-04 商家控制台扩展 merchant-web（五控制台第 3/5 轮）
+
+- 状态：DONE（三个新页面交付：排房/创建门店为需求占位骨架，OTA 为骨架）
+- 背景：五控制台计划第 3 个——**扩展已有 merchant-web**（而非新建工程）。
+  后端对应接口均未实现（门店创建归 A-01 扩展、排房归 S3-04、OTA 归 L 域），
+  页面按「表单与列定义即需求 + 诚实空态」交付，不假装功能存在。
+- 范围（本轮只做这些）：
+  1. **创建酒店/民宿**（`/hotel/create`）：表单（名称/编码/类型/时区）；
+     提交**不发任何请求**——模态框明确说明接口状态（前端规范 §7：不演）。
+  2. **排房**（`/hotel/assignment`）：列定义（订单号/客人/房型/到离店日/已排房间）
+     + 真实空态 + 归属说明（S3-04）。
+  3. **OTA 对接**（`/ota/integration`）：真实空态 + L 域前置说明。
+  4. **顺手补齐 identity 菜单词条缺口**：R-26 加了员工/角色页面但
+     `sync-menu-locales.mjs` 的 MENU 字典没有 identity 组（8 语言菜单显示原始 key）——
+     本轮补上；同时把三个新页面的词条按 8 语言同步。
+- 涉及功能项（FT-*）/ 任务（S*-*）：A-01（创建表单占位）、S3-04（排房占位）、
+  S5-01（OTA 占位）；O-11/O-12 无关
+- 变更文件：`frontend/merchant-web/src/pages/hotel/{Create,Assignment}.tsx`、
+  `pages/ota/Integration.tsx`、`config/routes.ts`、`scripts/sync-menu-locales.mjs`（MENU+10 键）
+- 验证（本轮实际执行）：
+  - 三件套：`tsc` ✓ 0 error / `biome lint` ✓ 0 error 0 warning（142 文件）/
+    `build` ✓（新路由 hotel/assignment、hotel/create、ota/integration 均产出）
+  - **浏览器冒烟 6/6 + 截图视觉确认**（真实后端）：登录 → 菜单完整渲染
+    （排房/创建门店/OTA 对接/员工与角色全在，截图确认）→ 排房页真实空态 →
+    创建页提交给出诚实提示（不发请求）→ OTA 页真实空态
+  - 未覆盖：三个页面的真实后端行为（接口不存在——这是页面的诚实前提）
+- 本轮发现（重要）：
+  1. **compose DB 被 `PMS_IT_DB=true` 的全量 verify 清空了种子数据**：集成测试的
+     DatabaseCleaner 按用例清库，而本地 compose 与集成测试共用同一个库——
+     R-01 跑的 `clean verify` 把此前种子好的 admin/platform-admin 全清了。
+     运行态冒烟前**必须重跑种子脚本**；这不是 bug 而是共享库的既有行为，
+     但「先跑测试再冒烟」的顺序会让种子静默消失，值得记住。
+  2. seed 脚本 `ON CONFLICT DO NOTHING` 不重置口令：改口令后的账号重跑种子
+     仍用旧口令——冒烟前需要手工 UPDATE（本轮用项目 BCrypt 生成哈希重置了
+     platform-admin 与 admin）。
+- 回写确认：feature-catalog 无需改行（三页均为占位，无 FT 状态变化）/
+  §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：R-20261102-05 C 端 Web 控制台 guest-web + guest-h5 目录 README
 
 ---
 
