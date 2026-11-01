@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.reservation.web;
 
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationQuery;
+import io.swagger.v3.oas.annotations.Operation;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationSourceType;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationStatus;
 import cn.sec.hn.openbackupsaas.reservation.domain.ReservationSummary;
@@ -59,6 +60,7 @@ public class ReservationQueryController {
      */
     @GetMapping
     @PreAuthorize("hasAuthority('reservation:read')")
+    @Operation(operationId = "listReservations")
     public PageView<ReservationSummary> list(
             @PathVariable UUID hotelId,
             @RequestParam(required = false) List<ReservationStatus> status,
@@ -83,6 +85,7 @@ public class ReservationQueryController {
      * 不下发不需要的数据，而不是下发后再遮起来。
      */
     @GetMapping("/{reservationId}")
+    @Operation(operationId = "getReservationDetail")
     @PreAuthorize("hasAuthority('reservation:read')")
     public ReservationDetailView detail(@PathVariable UUID hotelId, @PathVariable UUID reservationId) {
         UUID tenantId = hotelAccess.requireAccess(hotelId);

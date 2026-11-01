@@ -47,6 +47,23 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!--
+          可观测性（S2-06）：Prometheus 抓取端点（micrometer-registry-prometheus，runtime）
+          + OpenTelemetry 链路桥接（默认只做进程内上下文传播，**不外发 span**）。
+          采样率默认 0（见 application.properties 的 management.tracing.sampling.probability）；
+          需要把链路发到采集器时，再加 opentelemetry-exporter-otlp 并配置 management.otlp.tracing.endpoint。
+          原则同 Outbox：不能让"默认配置"就把内部调用细节发到一个没被批准的外部端点。
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
         <!-- 可靠消息：阶段 2 唯一 Broker（ADR-011 §2「消息」行：只选 RabbitMQ，阶段 2 接入） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

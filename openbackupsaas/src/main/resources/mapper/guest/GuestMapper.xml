@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  住客身份 SQL（ADR-018）。与其它模块不同，本文件的语句**没有 tenant_id 条件**——
+  住客不属于任何租户，这是有意为之的唯一例外。
+
+  纪律（与 GuestMapper 接口注释一致）：
+  1. 这里不得出现任何租户业务表。住客表可以被引用，但不能反向引用别人；
+  2. guest_id_verification 的写入只能经由本文件，加密与判重的不变量在那里；
+  3. 任何语句都不返回身份证号明文——库里根本没有明文列。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.guest.mapper.GuestMapper">
+
+    <resultMap id="guestAccountMap" type="cn.sec.hn.openbackupsaas.guest.domain.GuestAccount">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.guest.domain.GuestAccountStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="guestVerificationMap" type="cn.sec.hn.openbackupsaas.guest.domain.GuestVerification">
+        <constructor>
+            <idArg column="account_id" javaType="java.util.UUID"/>
+            <arg column="id_number_mask" javaType="java.lang.String"/>
+            <arg column="real_name_mask" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.guest.domain.GuestVerificationStatus"/>
+            <arg column="submitted_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="verified_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <!-- ===== 主身份 ===== -->
+
+    <insert id="insertAccount">
+        INSERT INTO guest_account (id, display_name, status, version, created_at, updated_at)
+        VALUES (#{id}, #{displayName}, #{status}, #{version}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findAccount" resultMap="guestAccountMap">
+        SELECT id, display_name, status, version, created_at, updated_at
+        FROM guest_account
+        WHERE id = #{id}
+    </select>
+
+    <!-- ===== 凭证 ===== -->
+
+    <insert id="insertCredential">
+        INSERT INTO guest_credential (id, account_id, provider, subject, secret_hash,
+                                      verified_at, created_at)
+        VALUES (#{id}, #{accountId}, #{provider}, #{subject}, #{secretHash},
+                #{verifiedAt}, #{at})
+    </insert>
+
+    <resultMap id="usernameCredentialMap"
+               type="cn.sec.hn.openbackupsaas.guest.domain.UsernameCredential">
+        <constructor>
+            <arg column="account_id" javaType="java.util.UUID"/>
+            <arg column="secret_hash" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findUsernameCredential" resultMap="usernameCredentialMap">
+        SELECT account_id, secret_hash
+        FROM guest_credential
+        WHERE provider = 'USERNAME' AND subject = #{subject}
+    </select>
+
+    <select id="findAccountIdByCredential" resultType="java.util.UUID">
+        SELECT account_id
+        FROM guest_credential
+        WHERE provider = #{provider} AND subject = #{subject}
+    </select>
+
+    <update id="markCredentialVerified">
+        UPDATE guest_credential
+        SET verified_at = #{at}
+        WHERE account_id = #{accountId}
+          AND provider = #{provider}
+          AND subject = #{subject}
+          AND verified_at IS NULL
+    </update>
+
+    <!-- ===== 实名档案 ===== -->
+
+    <insert id="insertVerification">
+        INSERT INTO guest_id_verification (account_id, id_number_enc, id_number_hmac, id_number_mask,
+                                           real_name_enc, real_name_mask, status, submitted_at, updated_at)
+        VALUES (#{accountId}, #{idNumberEnc}, #{idNumberHmac}, #{idNumberMask},
+                #{realNameEnc}, #{realNameMask}, 'PENDING', #{at}, #{at})
+    </insert>
+
+    <!--
+      重新提交：状态回到 PENDING、清掉旧的 verified_at。
+      必须清 —— 否则"已核验通过的旧结论"会继续挂在新资料上，
+      等于改个身份证号就自动通过核验。
+    -->
+    <update id="updateVerification">
+        UPDATE guest_id_verification
+        SET id_number_enc  = #{idNumberEnc},
+            id_number_hmac = #{idNumberHmac},
+            id_number_mask = #{idNumberMask},
+            real_name_enc  = #{realNameEnc},
+            real_name_mask = #{realNameMask},
+            status         = 'PENDING',
+            verified_at    = NULL,
+            submitted_at   = #{at},
+            updated_at     = #{at}
+        WHERE account_id = #{accountId}
+    </update>
+
+    <select id="findVerification" resultMap="guestVerificationMap">
+        SELECT account_id, id_number_mask, real_name_mask, status, submitted_at, verified_at
+        FROM guest_id_verification
+        WHERE account_id = #{accountId}
+    </select>
+
+    <select id="findAccountIdByIdNumberHmac" resultType="java.util.UUID">
+        SELECT account_id
+        FROM guest_id_verification
+        WHERE id_number_hmac = #{idNumberHmac}
+    </select>
+
+    <!-- ===== 会话（ADR-019） ===== -->
+
+    <resultMap id="guestSessionViewMap" type="cn.sec.hn.openbackupsaas.guest.domain.GuestSessionView">
+        <constructor>
+            <arg column="session_id" javaType="java.util.UUID"/>
+            <arg column="account_id" javaType="java.util.UUID"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="expires_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insertSession">
+        INSERT INTO guest_session (id, account_id, token_hash, issued_at, expires_at, version)
+        VALUES (#{id}, #{accountId}, #{tokenHash}, #{issuedAt}, #{expiresAt}, 0)
+    </insert>
+
+    <select id="findUsableSession" resultMap="guestSessionViewMap">
+        SELECT s.id           AS session_id,
+               s.account_id   AS account_id,
+               a.display_name AS display_name,
+               s.expires_at   AS expires_at
+        FROM guest_session s
+        JOIN guest_account a ON a.id = s.account_id
+        WHERE s.token_hash = #{tokenHash}
+          AND s.revoked_at IS NULL
+          AND s.expires_at > now()
+          AND a.status = 'ACTIVE'
+    </select>
+
+    <update id="revokeSession">
+        UPDATE guest_session
+        SET revoked_at = #{at}, revoke_reason = #{reason}, version = version + 1
+        WHERE id = #{sessionId} AND revoked_at IS NULL
+    </update>
+
+    <update id="revokeAllSessionsOfAccount">
+        UPDATE guest_session
+        SET revoked_at = #{at}, revoke_reason = #{reason}, version = version + 1
+        WHERE account_id = #{accountId}
+          AND revoked_at IS NULL
+          AND expires_at > #{at}
+    </update>
+
+    <!-- ===== 人工审核（ADR-019 §2.5） ===== -->
+
+    <resultMap id="pendingVerificationMap" type="cn.sec.hn.openbackupsaas.guest.domain.PendingVerification">
+        <constructor>
+            <arg column="account_id" javaType="java.util.UUID"/>
+            <arg column="id_number_mask" javaType="java.lang.String"/>
+            <arg column="real_name_mask" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.guest.domain.GuestVerificationStatus"/>
+            <arg column="submitted_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findPendingVerifications" resultMap="pendingVerificationMap">
+        SELECT account_id, id_number_mask, real_name_mask, status, submitted_at
+        FROM guest_id_verification
+        WHERE status = 'PENDING'
+        ORDER BY submitted_at, account_id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countPendingVerifications" resultType="long">
+        SELECT count(*) FROM guest_id_verification WHERE status = 'PENDING'
+    </select>
+
+    <update id="applyVerificationDecision">
+        UPDATE guest_id_verification
+        SET status      = #{decision},
+            verified_at = #{verifiedAt},
+            updated_at  = #{at}
+        WHERE account_id = #{accountId}
+          AND status = 'PENDING'
+    </update>
+
+    <resultMap id="guestVerificationReviewMap"
+               type="cn.sec.hn.openbackupsaas.guest.domain.GuestVerificationReview">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="account_id" javaType="java.util.UUID"/>
+            <arg column="id_number_mask" javaType="java.lang.String"/>
+            <arg column="real_name_mask" javaType="java.lang.String"/>
+            <arg column="decision" javaType="cn.sec.hn.openbackupsaas.guest.domain.GuestVerificationStatus"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="reason" javaType="java.lang.String"/>
+            <arg column="detail" javaType="java.lang.String"/>
+            <arg column="reviewer_id" javaType="java.util.UUID"/>
+            <arg column="reviewer_name" javaType="java.lang.String"/>
+            <arg column="decided_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insertReview">
+        INSERT INTO guest_verification_review (id, account_id, id_number_mask, real_name_mask,
+                                               decision, source, reason, detail,
+                                               reviewer_id, reviewer_name, decided_at)
+        VALUES (#{id}, #{accountId}, #{idNumberMask}, #{realNameMask},
+                #{decision}, #{source}, #{reason}, #{detail},
+                #{reviewerId}, #{reviewerName}, #{decidedAt})
+    </insert>
+
+    <select id="findReviews" resultMap="guestVerificationReviewMap">
+        SELECT id, account_id, id_number_mask, real_name_mask, decision, source, reason, detail,
+               reviewer_id, reviewer_name, decided_at
+        FROM guest_verification_review
+        WHERE account_id = #{accountId}
+        ORDER BY decided_at DESC
+    </select>
+
+    <!-- ===== 凭证绑定：归属挑战（ADR-019 §2.10） ===== -->
+
+    <resultMap id="ownershipChallengeMap"
+               type="cn.sec.hn.openbackupsaas.guest.domain.OwnershipChallenge">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="account_id" javaType="java.util.UUID"/>
+            <arg column="provider" javaType="java.lang.String"/>
+            <arg column="subject" javaType="java.lang.String"/>
+            <arg column="code_hash" javaType="java.lang.String"/>
+            <arg column="expires_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="attempts" javaType="_int"/>
+            <arg column="consumed_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insertChallenge">
+        INSERT INTO guest_ownership_challenge
+            (id, account_id, provider, subject, code_hash, expires_at, created_at)
+        VALUES (#{id}, #{accountId}, #{provider}, #{subject}, #{codeHash}, #{expiresAt}, #{at})
+    </insert>
+
+    <select id="findChallenge" resultMap="ownershipChallengeMap">
+        SELECT id, account_id, provider, subject, code_hash, expires_at, attempts, consumed_at
+        FROM guest_ownership_challenge
+        WHERE id = #{id}
+    </select>
+
+    <update id="bumpChallengeAttempts">
+        UPDATE guest_ownership_challenge
+        SET attempts = attempts + 1
+        WHERE id = #{id} AND consumed_at IS NULL
+    </update>
+
+    <update id="consumeChallenge">
+        UPDATE guest_ownership_challenge
+        SET consumed_at = #{at}
+        WHERE id = #{id}
+          AND consumed_at IS NULL
+          AND attempts &lt; #{maxAttempts}
+          AND expires_at &gt; #{at}
+    </update>
+
+    <!-- ===== 凭证列表与解绑 ===== -->
+
+    <resultMap id="guestCredentialViewMap"
+               type="cn.sec.hn.openbackupsaas.guest.domain.GuestCredentialView">
+        <constructor>
+            <arg column="provider" javaType="java.lang.String"/>
+            <arg column="subject" javaType="java.lang.String"/>
+            <arg column="verified_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findCredentialsOfAccount" resultMap="guestCredentialViewMap">
+        SELECT provider, subject, verified_at
+        FROM guest_credential
+        WHERE account_id = #{accountId}
+        ORDER BY provider, subject
+    </select>
+
+    <select id="countCredentials" resultType="long">
+        SELECT count(*) FROM guest_credential WHERE account_id = #{accountId}
+    </select>
+
+    <delete id="deleteCredential">
+        DELETE FROM guest_credential
+        WHERE account_id = #{accountId} AND provider = #{provider} AND subject = #{subject}
+    </delete>
+
+</mapper>

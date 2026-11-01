@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.reservation.web;
 
 import cn.sec.hn.openbackupsaas.reservation.service.ReservationCommandService;
+import io.swagger.v3.oas.annotations.Operation;
 import cn.sec.hn.openbackupsaas.shared.security.HotelAccess;
 import cn.sec.hn.openbackupsaas.shared.security.TenantContextHolder;
 import jakarta.validation.Valid;
@@ -39,6 +40,7 @@ public class ReservationController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(operationId = "createReservation")
     @PreAuthorize("hasAuthority('reservation:write')")
     public ReservationView create(@PathVariable UUID hotelId,
                                  @RequestHeader(value = "X-Caller-Namespace", defaultValue = "frontend")
@@ -55,6 +57,7 @@ public class ReservationController {
     }
 
     @PostMapping("/{reservationId}/confirm")
+    @Operation(operationId = "confirmReservation")
     @PreAuthorize("hasAuthority('reservation:write')")
     public ReservationView confirm(@PathVariable UUID hotelId,
                                   @PathVariable UUID reservationId,
@@ -68,6 +71,7 @@ public class ReservationController {
     }
 
     @PostMapping("/{reservationId}/cancel")
+    @Operation(operationId = "cancelReservation")
     @PreAuthorize("hasAuthority('reservation:write')")
     public ReservationView cancel(@PathVariable UUID hotelId,
                                  @PathVariable UUID reservationId,
@@ -81,6 +85,7 @@ public class ReservationController {
     }
 
     @PostMapping("/{reservationId}/no-show")
+    @Operation(operationId = "markReservationNoShow")
     @PreAuthorize("hasAuthority('reservation:write')")
     public ReservationView markNoShow(@PathVariable UUID hotelId,
                                      @PathVariable UUID reservationId,

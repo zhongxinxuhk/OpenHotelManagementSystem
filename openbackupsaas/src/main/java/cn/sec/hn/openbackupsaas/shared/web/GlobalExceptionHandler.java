@@ -1,7 +1,10 @@
 package cn.sec.hn.openbackupsaas.shared.web;
 
+import cn.sec.hn.openbackupsaas.shared.error.ChallengeDeliveryUnavailableException;
 import cn.sec.hn.openbackupsaas.shared.error.ConflictException;
+import cn.sec.hn.openbackupsaas.shared.error.LoginMethodUnavailableException;
 import cn.sec.hn.openbackupsaas.shared.error.NotFoundException;
+import cn.sec.hn.openbackupsaas.shared.error.PasswordChangeRequiredException;
 import cn.sec.hn.openbackupsaas.shared.error.UnauthenticatedException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -129,6 +132,44 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * <p>文案由抛出方决定且必须是统一话术（登录失败不区分账号/密码/租户），
      * 这里不追加细节，避免把失败原因变成可用信息。
      */
+    /**
+     * 归属验证的发送通道未接通：503。
+     *
+     * <p>生产默认没有发送实现（服务商未定）。这是"服务端没准备好"而非
+     * "调用方错了"，所以 503 而不是 4xx；客户端应提示稍后再试或换方式，
+     * 而不是让用户怀疑自己输入错了。
+     */
+    @ExceptionHandler(ChallengeDeliveryUnavailableException.class)
+    public ProblemDetail onChallengeDeliveryUnavailable(ChallengeDeliveryUnavailableException ex,
+                                                        HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
+                String.valueOf(ex.getMessage()));
+        problem.setTitle("验证通道未接通");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.REJECTED);
+        return problem;
+    }
+
+    /**
+     * 登录方式未开放：403。
+     *
+     * <p>这条与"凭据无效"（401）刻意分开：它描述的是**方式**而非**账号**，
+     * 不存在账号枚举问题，可以明说。客户端据此提示"换一种方式登录"，
+     * 而不是让用户反复试密码。
+     */
+    @ExceptionHandler(LoginMethodUnavailableException.class)
+    public ProblemDetail onLoginMethodUnavailable(LoginMethodUnavailableException ex,
+                                                  HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
+                String.valueOf(ex.getMessage()));
+        problem.setTitle("登录方式未开放");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.REJECTED);
+        return problem;
+    }
+
     @ExceptionHandler(UnauthenticatedException.class)
     public ProblemDetail onUnauthenticated(UnauthenticatedException ex, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, String.valueOf(ex.getMessage()));
@@ -166,6 +207,29 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("requestId", currentRequestId());
         problem.setProperty("outcome", ErrorOutcome.REJECTED);
+        return problem;
+    }
+
+    /**
+     * 仍需改初始口令：403 + 稳定错误码（V13）。
+     *
+     * <p>状态码用 403 而不是 401：这个人是**已认证**的，重新登录解决不了问题——
+     * 用 401 会让前端清掉令牌并跳登录页，用户在登录页再登一次还是被挡，
+     * 形成"登录成功但什么都点不开"的循环。
+     *
+     * <p>响应体额外带 {@code code = PASSWORD_CHANGE_REQUIRED}，客户端据此跳改密页，
+     * 而不是把它当成普通无权限提示。
+     */
+    @ExceptionHandler(PasswordChangeRequiredException.class)
+    public ProblemDetail onPasswordChangeRequired(PasswordChangeRequiredException ex,
+                                                  HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
+                String.valueOf(ex.getMessage()));
+        problem.setTitle("需要先修改口令");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("requestId", currentRequestId());
+        problem.setProperty("outcome", ErrorOutcome.REJECTED);
+        problem.setProperty("code", PasswordChangeRequiredException.CODE);
         return problem;
     }
 

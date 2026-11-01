@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.inventory.web;
 
 import cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow;
+import io.swagger.v3.oas.annotations.Operation;
 import cn.sec.hn.openbackupsaas.inventory.domain.ReconcileReport;
 import cn.sec.hn.openbackupsaas.inventory.service.InventoryService;
 import cn.sec.hn.openbackupsaas.shared.security.HotelAccess;
@@ -45,6 +46,7 @@ public class InventoryController {
 
     /** 每日余量 + 整段可售，一次返回。 */
     @GetMapping("/availability")
+    @Operation(operationId = "getAvailability")
     @PreAuthorize("hasAuthority('inventory:read')")
     public AvailabilityView availability(
             @PathVariable UUID hotelId,
@@ -65,6 +67,7 @@ public class InventoryController {
      * 第二次会先删掉刚写的行再写回来，行数一致。
      */
     @PostMapping("/inventory/rebuild")
+    @Operation(operationId = "rebuildInventory")
     @PreAuthorize("hasAuthority('inventory:write')")
     public InventoryService.RebuildResult rebuild(
             @PathVariable UUID hotelId,
@@ -82,6 +85,7 @@ public class InventoryController {
      * 里的 {@code kind} 定位是"投影没建"、"标记过期"、"多余行"还是"流水对不上"。
      */
     @GetMapping("/inventory/reconcile")
+    @Operation(operationId = "reconcileInventory")
     @PreAuthorize("hasAuthority('inventory:read')")
     public ReconcileReport reconcile(
             @PathVariable UUID hotelId,

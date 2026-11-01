@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.room.web;
 
 import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
+import io.swagger.v3.oas.annotations.Operation;
 import cn.sec.hn.openbackupsaas.room.domain.RoomStatus;
 import cn.sec.hn.openbackupsaas.room.service.RoomService;
 import cn.sec.hn.openbackupsaas.shared.security.HotelAccess;
@@ -41,6 +42,7 @@ public class RoomController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(operationId = "createRoom")
     @PreAuthorize("hasAuthority('room:write')")
     public RoomView create(@PathVariable UUID hotelId, @Valid @RequestBody CreateRoomRequest request) {
         UUID tenantId = hotelAccess.requireAccess(hotelId);
@@ -52,6 +54,7 @@ public class RoomController {
     /** 列表条件都是可选的，但门店必选——不存在"跨店全量列表"。 */
     @GetMapping
     @PreAuthorize("hasAuthority('room:read')")
+    @Operation(operationId = "listRooms")
     public List<RoomView> list(@PathVariable UUID hotelId,
                                @RequestParam(required = false) UUID roomTypeId,
                                @RequestParam(required = false) RoomStatus status,
@@ -63,6 +66,7 @@ public class RoomController {
     }
 
     @GetMapping("/{roomId}")
+    @Operation(operationId = "getRoom")
     @PreAuthorize("hasAuthority('room:read')")
     public RoomView get(@PathVariable UUID hotelId, @PathVariable UUID roomId) {
         UUID tenantId = hotelAccess.requireAccess(hotelId);
@@ -70,6 +74,7 @@ public class RoomController {
     }
 
     @PatchMapping("/{roomId}")
+    @Operation(operationId = "updateRoom")
     @PreAuthorize("hasAuthority('room:write')")
     public RoomView update(@PathVariable UUID hotelId,
                            @PathVariable UUID roomId,
@@ -81,6 +86,7 @@ public class RoomController {
     }
 
     @PostMapping("/{roomId}/status")
+    @Operation(operationId = "changeRoomStatus")
     @PreAuthorize("hasAuthority('room:write')")
     public RoomView changeStatus(@PathVariable UUID hotelId,
                                  @PathVariable UUID roomId,

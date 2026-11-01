@@ -1,10 +1,12 @@
 package cn.sec.hn.openbackupsaas.identity.service;
 
 import cn.sec.hn.openbackupsaas.identity.domain.AppUser;
+import cn.sec.hn.openbackupsaas.identity.domain.PasswordPolicy;
 import cn.sec.hn.openbackupsaas.identity.domain.SessionView;
 import cn.sec.hn.openbackupsaas.identity.domain.UserSession;
 import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
 import cn.sec.hn.openbackupsaas.shared.error.UnauthenticatedException;
+import cn.sec.hn.openbackupsaas.shared.observability.PmsMetrics;
 import cn.sec.hn.openbackupsaas.shared.security.PmsPrincipal;
 import cn.sec.hn.openbackupsaas.shared.security.SessionTokens;
 import cn.sec.hn.openbackupsaas.tenant.domain.Tenant;
@@ -51,19 +53,17 @@ public class AuthenticationService {
      */
     private static final String DUMMY_BCRYPT = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
-    /** 口令长度下限 12：达到 NIST SP 800-63B 对单因素口令的最低建议长度。 */
-    private static final int PASSWORD_MIN_LENGTH = 12;
-    private static final int PASSWORD_MAX_LENGTH = 128;
-
     private final IdentityMapper identityMapper;
     private final OrganizationMapper organizationMapper;
     private final PasswordEncoder passwordEncoder;
+    private final PmsMetrics metrics;
     private final Clock clock;
     private final Duration sessionTtl;
 
     public AuthenticationService(IdentityMapper identityMapper,
                                  OrganizationMapper organizationMapper,
                                  PasswordEncoder passwordEncoder,
+                                 PmsMetrics metrics,
                                  Clock clock,
                                  @Value("${pms.security.session-ttl:PT8H}") Duration sessionTtl) {
         if (sessionTtl.isNegative() || sessionTtl.isZero()) {
@@ -72,6 +72,7 @@ public class AuthenticationService {
         this.identityMapper = identityMapper;
         this.organizationMapper = organizationMapper;
         this.passwordEncoder = passwordEncoder;
+        this.metrics = metrics;
         this.clock = clock;
         this.sessionTtl = sessionTtl;
     }
@@ -89,6 +90,7 @@ public class AuthenticationService {
 
         Tenant tenant = organizationMapper.findTenantByCode(code).orElse(null);
         if (tenant == null || !tenant.status().allowsWrite()) {
+            metrics.auth("login_failure", "tenant_unavailable");
             log.info("login rejected: tenant unavailable code={}", code);
             throw new UnauthenticatedException(GENERIC_FAILURE);
         }
@@ -97,14 +99,17 @@ public class AuthenticationService {
         if (user == null) {
             // 陪跑一次哈希，避免"账号不存在"明显更快
             passwordEncoder.matches(rawPassword, DUMMY_BCRYPT);
+            metrics.auth("login_failure", "unknown_user");
             log.info("login rejected: unknown user tenantId={} username={}", tenant.id(), login);
             throw new UnauthenticatedException(GENERIC_FAILURE);
         }
         if (!user.status().canLogin()) {
+            metrics.auth("login_failure", "user_disabled");
             log.info("login rejected: user disabled tenantId={} userId={}", tenant.id(), user.id());
             throw new UnauthenticatedException(GENERIC_FAILURE);
         }
         if (!passwordEncoder.matches(rawPassword, user.passwordHash())) {
+            metrics.auth("login_failure", "bad_password");
             log.info("login rejected: bad password tenantId={} userId={}", tenant.id(), user.id());
             throw new UnauthenticatedException(GENERIC_FAILURE);
         }
@@ -117,7 +122,13 @@ public class AuthenticationService {
         identityMapper.insertSession(session);
         identityMapper.updateLastLogin(tenant.id(), user.id(), now);
 
-        PmsPrincipal principal = buildPrincipal(session, user);
+        // 复用 authenticate() 来组装主体，而不是另写一份构造逻辑：
+        // 登录响应里的身份快照必须与后续每个请求解析出来的完全一致。
+        // 两份构造代码的后果是"登录时看到的权限/标记"和"下一次请求生效的"悄悄分叉，
+        // 而且不会有任何测试报错——只是某天加字段时忘了同步其中一处。
+        PmsPrincipal principal = authenticate(token)
+                .orElseThrow(() -> new IllegalStateException("会话刚写入却解析不到，检查会话表约束"));
+        metrics.auth("login_success");
         log.info("login succeeded tenantId={} userId={} sessionId={} token={}",
                 tenant.id(), user.id(), session.id(), SessionTokens.fingerprint(token));
         return new LoginResult(token, expiresAt, principal);
@@ -139,7 +150,8 @@ public class AuthenticationService {
                     Set<UUID> hotelIds = Set.copyOf(
                             identityMapper.findHotelScopeIds(view.tenantId(), view.userId()));
                     return new PmsPrincipal(view.sessionId(), view.tenantId(), view.userId(),
-                            view.username(), view.displayName(), view.expiresAt(), hotelIds, permissions);
+                            view.username(), view.displayName(), view.expiresAt(), hotelIds, permissions,
+                            view.mustChangePassword());
                 });
     }
 
@@ -148,6 +160,7 @@ public class AuthenticationService {
     public void logout(PmsPrincipal principal) {
         int revoked = identityMapper.revokeSession(principal.tenantId(), principal.sessionId(),
                 OffsetDateTime.now(clock), "LOGOUT");
+        metrics.auth("logout");
         log.info("logout tenantId={} userId={} sessionId={} revoked={}",
                 principal.tenantId(), principal.userId(), principal.sessionId(), revoked);
     }
@@ -164,6 +177,7 @@ public class AuthenticationService {
                 .orElseThrow(() -> new UnauthenticatedException(GENERIC_FAILURE));
 
         if (!passwordEncoder.matches(currentRawPassword, user.passwordHash())) {
+            metrics.auth("password_change_failure", "bad_current_password");
             log.info("change password rejected: bad current password tenantId={} userId={}",
                     principal.tenantId(), principal.userId());
             throw new UnauthenticatedException(GENERIC_FAILURE);
@@ -178,30 +192,14 @@ public class AuthenticationService {
                 passwordEncoder.encode(newRawPassword), now);
         int revoked = identityMapper.revokeUserSessions(principal.tenantId(), principal.userId(), now,
                 "PASSWORD_CHANGED", principal.sessionId());
+        metrics.auth("password_changed");
         log.info("password changed tenantId={} userId={} otherSessionsRevoked={}",
                 principal.tenantId(), principal.userId(), revoked);
     }
 
-    private PmsPrincipal buildPrincipal(UserSession session, AppUser user) {
-        Set<String> permissions = Set.copyOf(
-                identityMapper.findPermissionCodes(session.tenantId(), session.userId()));
-        Set<UUID> hotelIds = Set.copyOf(
-                identityMapper.findHotelScopeIds(session.tenantId(), session.userId()));
-        return new PmsPrincipal(session.id(), session.tenantId(), session.userId(),
-                user.username(), user.displayName(), session.expiresAt(), hotelIds, permissions);
-    }
-
     /** 口令策略在此收口；长度之外的复杂度规则（禁用弱口令字典）待 S6-05 安全验收补充。 */
     private static void requireAcceptablePassword(String rawPassword, String username) {
-        if (rawPassword == null || rawPassword.length() < PASSWORD_MIN_LENGTH) {
-            throw new IllegalArgumentException("新口令长度不足 " + PASSWORD_MIN_LENGTH + " 位");
-        }
-        if (rawPassword.length() > PASSWORD_MAX_LENGTH) {
-            throw new IllegalArgumentException("新口令长度超过 " + PASSWORD_MAX_LENGTH + " 位");
-        }
-        if (rawPassword.toLowerCase(java.util.Locale.ROOT).contains(username)) {
-            throw new IllegalArgumentException("新口令不能包含登录名");
-        }
+        PasswordPolicy.requireAcceptable(rawPassword, username);
     }
 
     private static String normalizeTenantCode(String tenantCode) {

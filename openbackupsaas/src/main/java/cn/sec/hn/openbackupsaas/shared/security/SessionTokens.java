@@ -38,14 +38,36 @@ public final class SessionTokens {
         return ENCODER.encodeToString(bytes);
     }
 
-    /** 令牌 → 库内哈希。查询与入库都必须经过本方法，禁止两处各写一套。 */
+    /**
+     * 令牌 → 库内哈希（员工平面，无域前缀）。查询与入库都必须经过本方法，
+     * 禁止两处各写一套。
+     *
+     * <p>员工平面保持无前缀是**为了不迁移存量会话**：改派生方式会让所有在线员工
+     * 被踢下线。住客与平台两条新平面从诞生起就带域前缀（见 {@link #hashInDomain}）。
+     */
     public static String hash(String token) {
+        return hashInDomain("", token);
+    }
+
+    /**
+     * 带域前缀的令牌哈希（ADR-019 §2.2）。
+     *
+     * <p><b>为什么需要域分离</b>：三个平面的会话存在三张表里，如果哈希算法完全相同，
+     * 同一个令牌串在每张表的哈希值就**一模一样**。此时只要有人写出
+     * "先查 A 表、查不到兜底查 B 表"这种看着挺健壮的代码，一个平面的令牌
+     * 就会被另一个平面认出来。加了域前缀，这类兜底查询不可能命中。
+     *
+     * <p>{@code domain} 传空串等价于无前缀，仅供员工平面使用。
+     */
+    public static String hashInDomain(String domain, String token) {
         if (token == null || token.isBlank()) {
             throw new IllegalArgumentException("令牌不能为空");
         }
+        String prefix = domain == null ? "" : domain;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
+            byte[] material = (prefix + token).getBytes(StandardCharsets.UTF_8);
+            return HexFormat.of().formatHex(digest.digest(material));
         } catch (NoSuchAlgorithmException ex) {
             // SHA-256 是 JDK 必须提供的算法；走到这里说明运行环境被裁剪，属于不可运行状态。
             throw new IllegalStateException("当前 JVM 不提供 SHA-256", ex);

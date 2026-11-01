@@ -34,13 +34,33 @@ import java.util.regex.Pattern;
  * <p>不加 {@code @Component}：它是测试源码里的工具，主应用的组件扫描不会看到它，
  * 由 {@link PostgresIntegrationTest} 直接构造，避免出现"以为注册了其实没注册"的假象。
  *
- * <p><b>字典表不清理：</b>{@code permission} 由迁移写入、{@code flyway_schema_history}
- * 是迁移元数据，两者都不是测试数据。把它们排除在外是明确的，不是"顺手跳过"。
+ * <p><b>字典表与结构性配置不清理：</b>{@code permission} 由迁移写入、
+ * {@code flyway_schema_history} 是迁移元数据，两者都不是测试数据。
+ * 同理还有 {@code platform_action}（平台动作字典）与 {@code guest_verification_channel}
+ * （实名核验渠道，迁移里写入了人工兜底渠道）与 {@code guest_login_policy}（登录方式开关，种子含 USERNAME=true）。
+ *
+ * <p>判断标准是"这张表的内容**是否属于业务数据**"：字典与结构性配置由迁移确定，
+ * 业务运行过程中不会新增；如果它们在测试开始时被清掉，任何依赖字典存在的外键写入
+ * 都会失败，而错误表现是"外键约束冲突"，很难让人联想到"清理范围太宽"。
+ * 把它们排除在外是明确的，不是"顺手跳过"。
+ *
+ * <p><b>代价</b>：这些表里的测试数据会跨用例残留。所以往这类表插数据的测试
+ * 必须自己清理（用固定 code 并在插入前删除），不能依赖 {@code clean()}。
  */
 public class DatabaseCleaner {
 
-    /** 不参与清理的表：迁移元数据与全局权限字典。 */
-    private static final Set<String> PRESERVED = Set.of("flyway_schema_history", "permission");
+    /**
+     * 不参与清理的表：迁移元数据、字典、结构性配置。
+     *
+     * <p>加新表之前先问一句：这张表的内容是"迁移确定的"还是"业务流程产生的"？
+     * 只有前者可以放进来。
+     */
+    private static final Set<String> PRESERVED = Set.of(
+            "flyway_schema_history",
+            "permission",
+            "platform_action",
+            "guest_verification_channel",
+            "guest_login_policy");
 
     /** 表名来自 information_schema，仍做字符校验：拼接 SQL 时不该有任何幻想空间。 */
     private static final Pattern SAFE_IDENTIFIER = Pattern.compile("^[a-z][a-z0-9_]*$");

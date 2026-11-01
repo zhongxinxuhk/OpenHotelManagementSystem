@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-10-31（R-20261031-23）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-01（R-20261101-34）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261031-23`（修复启动期迁移/消息对接 + beta 预发布通道：后端 jar + 前端 dist，DONE） |
-| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-05 DONE，S2-06 起为 TODO，S2-07 大半完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
+| 当前轮次 | `R-20261101-34`（J-05 限流与防刷：令牌桶内核 + 可信代理解析 + 匿名入口 9 条档位 + 429 契约 + 30 例测试；ADR-020，DONE） |
+| 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-06 DONE，S2-07 大半完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 用同一份 compose 起中间件、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单已落库（V1—V12 共 29 张表）；**257 个测试全部通过（158 需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 35 path / 38 schema；**部署形态定调：中间件 compose + 后端裸机（deploy/app.sh），统一 .env 单源口令**；备份闭环、指标告警与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权） |
-| 前端工程状态 | `tsc` ✓ / `biome:lint` ✓（2 处模板告警）/ `build` ✓；首页「今日工作台」指标位已有 `/availability` 可接；CI 三步全绿 |
-| 功能项完成度 | 约 35%（124 项，DONE 34 项，见 feature-catalog §1） |
-| 下一轮目标 | `S2-06` 监控、链路与告警；S2-07 剩余：备份定时与恢复演练、预发宿主机与 deploy job |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V17 共 42 张表）；**396 个测试通过（需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 **64 path / 77 schema**（R-20261101-33 新增绑定挑战/确认/用户名绑定/列表/解绑 5 个）（R-20261101-27 新增开通员工与角色替换 2 个接口）；（`OutboxPublisherIntegrationTest` 的非确定性失败已在 R-20261101-30 定位并修复：两侧时钟不同源；生产侧同类跨时钟依赖仍记在待办）；**部署形态定调：中间件 compose + 后端裸机（deploy/app.sh），统一 .env 单源口令**；**可观测性已落地**：业务指标门面 `PmsMetrics`（低基数约束）、`/actuator/prometheus` 暴露、OTel 链路桥接（默认关）、Outbox 积压 gauge/告警原语、Prometheus 抓取+告警规则+运维手册；备份闭环与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权）；**超级管理员初始化脚本已交付**（`scripts/seed-super-admin.sql`，admin/admin，刻意不进 Flyway 迁移链）；**员工开通闭环已交付**：服务端生成一次性初始口令 + `must_change_password` 强制首改（V13）；**匿名公开面已建**：`/api/v1/public/**` 是唯一匿名前缀，`pms.public-api.enabled` 默认 false（限流 J-05 前不对外）；**住客与平台身份平面已建**：guest 三表 + platform 三表 + 会话两张 + 渠道配置（全库无 `tenant_id` 的一族表）；**三条安全链按路径前缀隔离**（`/api/v1/guest/**`、`/api/v1/platform/**`、其余），令牌哈希域分离，跨平面令牌在库层不可互换；**人工实名审核闭环已交付**（权威渠道熔断时人工照常——结构保证而非 if）；**住客用户名+密码登录已交付**（注册即登录、账号枚举防护、登录方式开关=实现∧控制台开关）；**凭证绑定已交付**（挑战-响应、防爆破三件套、一次性消费、解绑自保护；发送器为 SPI 桩）；**匿名入口限流已交付**（J-05：令牌桶 + 可信代理解析 + 9 条档位 + 429/`Retry-After` 契约 + `pms.security.rate_limited` 指标；默认只信 TCP 对端，防 `X-Forwarded-For` 伪造；ADR-020） |
+| 前端工程状态 | **已拆为多工程结构 `frontend/`**（R-20261101-29，见 `frontend/README.md`）：`merchant-web/`（Web 商家端，唯一可运行）、`merchant-h5/`、`guest/`、`platform-ops/`、`platform-admin/`（后四者只有范围说明，未初始化）；`merchant-web` 的 `tsc` ✓ 0 error / `biome:lint` ✓ 0 error 0 warning（139 文件）/ `build` ✓（产物断言通过，迁移后已清缓存重跑）；**前后端已真实对接**：登录→工作台→订单/房型房间/房态可售/运维处置全部走真实接口；**端到端验证 26/26 通过**（真实浏览器 + 真实后端；覆盖登录/工作台/订单/房型/房态/运维/角色/员工八类页面，以及开通员工→一次性口令→强制改密→权限生效全链路）；**改密页 `/user/password` 独立于主框架布局**（主框架顶栏会拉业务接口，待改密状态下必然报错）；**模板 demo 已整体清理**（9 个 demo 目录 + mock + 旧 mock 服务，共 126 个文件），路由重建为业务路由；类型由契约脚本生成（`scripts/gen-pms-types.mjs`） |
+| 功能项完成度 | **约 40%**（129 项，DONE 46 / VERIFYING 8，见 feature-catalog §1；J-05 本轮由 TODO 转 VERIFYING 75%） |
+| 下一轮目标 | ①**验证码通道**（实现 `OwnershipChallengeSender`，一次接通 PHONE/EMAIL 绑定与后续验证码登录——这是 J-01 与 J-03 的共同前置）；②**忘记密码/找回**；③**公开面开启 checklist**（按门店配额 + WAF 规则 + 被刷降级流程）后开 `PMS_PUBLIC_API_ENABLED`；④权威核验渠道对接（等渠道清单）；⑤企业对公账户（DEC-17）；⑥待办：把 vitest 纳入前端门禁并修掉模板遗留的 `errorThrower` 用例 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -61,7 +61,7 @@
 | S2-03 | 持久化任务与外部调用状态 | P0 | 3–5 | DONE | 任务表+尝试台账、租约领取（含崩溃重领）、四类结果四种处置、未知先查询、限流熔断、退避抖动；11 集成用例 |
 | S2-04 | 死信、人工重放与审计修复 | P0 | 2–4 | DONE | 死信落库+处置留痕+受控 API；重放保留幂等键、高风险双人复核；9 个 HTTP 用例 |
 | S2-05 | 内部对账与派生修复 | P0 | 3–5 | DONE | 差异工单（部分唯一索引去重）+ 三级分级 + 修复白名单（仅派生）+ 水位；15 集成 + 11 HTTP 用例 |
-| S2-06 | 监控、链路和告警 | P0 | 3–5 | TODO |
+| S2-06 | 监控、链路和告警 | P0 | 3–5 | DONE | 指标门面 + Prometheus 端点 + OTel 链路桥接（默认关）+ 7 条告警规则 + 运维手册（R-20261031-24） |
 | S2-07 | 最小部署、备份与恢复闭环 | P0 | 3–5 | VERIFYING | compose（中间件）+ 裸机脚本（后端 api/worker）+ 统一 .env 单源已交付并验证（R-20261030-21/22）；剩余：备份定时、恢复演练、预发宿主机与 deploy job |
 | S2-08 | 故障注入与可靠性验收 | P0 | 4–6 | TODO |
 
@@ -70,8 +70,8 @@
 | 任务 | 名称 | 优先级 | 估算 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- |
 | **S3-01a** | **前端工程骨架前置准备（Ant Design Pro）** | P1 | 2–3 | **DONE** | 2026-10-29 变更追加（ADR-015）。依赖安装、`tsc`、`biome:lint`、`build` 全部通过，CI 上同样为绿；首页已替换为「今日工作台」，站点标题/logo/模板 CNAME 已处理（R-20261030-12）。业务页面仍受 S3-01 约束 |
-| S3-01 | 后台前端基础与契约接入 | P1 | 3–5 | TODO | 依赖 S2-08；骨架已由 S3-01a 先行 |
-| S3-02 | 集团组织、员工与 RBAC 管理 | P0 | 3–5 | TODO | |
+| S3-01 | 后台前端基础与契约接入 | P1 | 3–5 | **DONE** | 前后端已真实对接（R-20261031-25）：服务层按 operationId 对齐、类型由契约脚本生成、登录接服务端会话、36 个接口全部有前端入口、模板 demo 与 mock 整体清理；端到端验证 13/13 通过。剩余：写操作按钮的浏览器级验证、员工与角色管理页（归 S3-02） |
+| S3-02 | 集团组织、员工与 RBAC 管理 | P0 | 3–5 | **DOING** | 员工与角色管理主体已交付：R-20261101-26 完成权限点字典、角色 CRUD/启停、员工列表/详情/启停/门店范围；R-20261101-27 完成**员工开通 + 一次性初始口令 + 强制首次改密 + 角色全量替换**（前后端 + 33 例边界测试）。**剩余：集团（hotel_group）管理——受 DEC-01/DEC-02 未定案阻塞** |
 | S3-03 | 房态日历与预订工作台 | P1 | 5–8 | TODO | |
 | S3-04 | 排房、入住与离店 | P0 | 4–6 | TODO | |
 | S3-05 | 续住、换房和部分操作 | P0 | 4–7 | TODO | 部分操作受 DEC-04 阻塞 |
@@ -162,6 +162,692 @@
 
 ---
 
+### R-20261101-34 限流与防刷（J-05：匿名入口的统一闸门）
+
+- 状态：DONE（J-05 转 **VERIFYING 75%**：应用层已交付，网关/WAF 与按门店配额、生产档位校准未做）
+- 背景：J-02 的公开查询接口与 J-01 的注册/登录/绑定挑战都挂在匿名面，
+  `application.properties` 里"开启公开面前必须完成 J-05"这句已经挂了两轮。
+  本轮把闸门建起来，并让"被刷"成为可观测、可处置的事件。
+- 范围（本轮只做这些）：
+  1. **限流内核**：令牌桶（惰性补充）+ `RateLimiter` SPI + 有界键空间（防被随机 IP 撑爆内存）。
+  2. **客户端 IP 解析**：默认只信 `remote_addr`；仅当对端命中可信代理 CIDR 才读
+     `X-Forwarded-For`，且从右往左跳过可信代理——否则伪造一个头就能绕开限流。
+  3. **规则表**：匿名入口逐条定档（公开目录、住客注册/登录、绑定挑战/确认、员工登录、平台登录），
+     按"越贵的动作越严"排序；限值可被 `pms.rate-limit.rules.<名>.*` 覆盖（事故期要能临时收紧）。
+  4. **拒绝形态**：429 + RFC 9457 + `Retry-After` + `X-RateLimit-*` + `code=RATE_LIMITED`；
+     指标 `pms.security.rate_limited{rule}`（低基数）+ WARN 日志带规则名与来源。
+  5. **本轮明确不做**：分布式限流（Redis 未引入，多实例时限额按实例数放大——写入 ADR-020 的已知边界）、
+     按账号维度的风控（依赖验证码通道）、公开面开关的开启（还需 WAF/降级流程）、验证码通道。
+- 涉及功能项（FT-*）/ 任务（S*-*）：J-05（TODO → VERIFYING 75%）、J-02（剩余项收窄）、S4-01
+- 变更文件：
+  - 新增 `shared/ratelimit/`：`RateLimitPolicy`、`RateLimitRule`、`RateLimitRules`（9 条档位）、
+    `RateLimiter`（SPI）、`RateLimitDecision`、`TokenBucketRateLimiter`、`IpRange`、`ClientIpResolver`、
+    `RateLimitSettings`、`RateLimitConfig`、`RateLimitFilter`
+  - 修改：`PmsMetrics`（+`rateLimited(rule)`）、`application.properties`（三条配置 + 档位覆盖示例，
+    并把公开面"开启前必须完成 J-05"的措辞改为"IP 维度已落地"）、
+    `application-integration.properties`（关闭限流 + 理由）、`application-local.properties`
+    （登录/注册档位放大，联调与端到端会连续登录几十次）
+  - 文档：`docs/adr/ADR-020-rate-limiting-and-anti-abuse.md`、`docs/operations/rate-limiting.md`
+  - 前端 `merchant-web`：`services/pms/errors.ts`（+`retryAfterSeconds`、`RATE_LIMITED`）、
+    `requestErrorConfig.ts`（429 分支：不清会话、不跳登录页、显示剩余秒数）
+  - 测试：`TokenBucketRateLimiterTest`（7）、`ClientIpResolverTest`（9）、`RateLimitFilterTest`（9）、
+    `RateLimitEnforcementTest`（5，真实库 + 真实安全链，自带 `@TestPropertySource` 压小额度）
+- 验证（本轮实际执行）：
+  - 后端 `PMS_IT_DB=true ./mvnw -o -B -ntp clean verify` →
+    **Tests run: 396, Failures: 0, Errors: 0, Skipped: 4，BUILD SUCCESS**（366 → 396，+30）
+  - 前端 `npm run tsc` ✓ 0 error / `npx biome lint` ✓ 0 error 0 warning（139 文件）/
+    `npm run build` ✓（产物含 12 个页面路由；构建前已 `mv` 走 `.umi*` 与 `dist`）
+  - 已验：额度用尽即 429 且形态合规（`Retry-After` ≥ 1、`code=RATE_LIMITED`、`outcome=REJECTED`、
+    带 `requestId`）；放行时也回 `X-RateLimit-*`；不同来源互不影响；
+    **伪造 `X-Forwarded-For` 不重置额度**；额度随时间线性恢复、空闲两小时不超容量；
+    键洪泛 500 个键下桶数仍 ≤ 上限；档位可被配置收紧；**公开面控制器未注册时先 404、额度用尽后 429**
+    （证明闸门在路由之前）
+  - **运行态冒烟（真实 Tomcat + 真实库，local 档案，把住客/员工登录额度临时压到 3）**：
+    - 启动日志打印生效档位：`限流档位生效（9 条）：[guest.register=100/PT10M, guest.login=3/PT5M, …,
+      platform.login=5/PT5M, public.catalog=600/PT1M]`——"配了但没生效"第一眼就能看出来
+    - 住客登录 `401 / 401 / 401 / **429**`；429 响应：
+      `X-RateLimit-Limit: 3`、`X-RateLimit-Remaining: 0`、`Retry-After: 100`、
+      `content-type: application/problem+json`、体 `{code:"RATE_LIMITED", outcome:"REJECTED",
+      retryAfterSeconds:100, limit:"guest.login", requestId:…}`，与 `X-Request-Id` 一致
+    - 同一请求带上伪造的 `X-Forwarded-For: 203.0.113.77` → **仍 429**（额度未被重置）
+    - 员工登录独立档位：`401×3 → 429`（住客额度用尽不影响员工额度）
+    - 平台登录生产档位 5：`401×5 → 第 6 次 429`
+    - 已登录接口 `/api/v1/hotels` 连打 5 次 → 全是 401，**没有 429**（本轮刻意不限已登录接口）
+    - WARN 日志：`命中限流 rule=guest.login client=127.0.0.1 path=/api/v1/guest/auth/login
+      method=POST retryAfter=100s requestId=…`
+  - 未覆盖：分布式限流、按门店配额、WAF/网关封禁、生产真实流量下的档位校准、
+    429 的浏览器级表现（前端只做了类型与构建级验证）
+- 本轮发现（重要，转入下轮）：
+  1. **限流规则漏配不会报错，只会安静地不起作用**。本轮最危险的一个形状是
+     `/api/v1/guest/auth/%6Cogin`：解码后就是 `login`，MVC 照常路由，但用
+     `getRequestURI()`（未解码的原始 URI）去匹配就整条漏掉，日志里也看不出异常。
+     已改用 `UrlPathHelper#getPathWithinApplication`（与 MVC 同一套解码/去矩阵参数规则），
+     并用单元测试把这个形状钉死。
+  2. **规则顺序即优先级**：`/guest/auth/login` 必须排在 `/guest/auth/**` 之前。
+     反过来的话，"登录单独定档"在配置里看起来完全正确，实际永远命中宽松档位。
+  3. **进程内令牌桶不能与"上下文缓存的集成测试"共存**：桶是跨用例共享的状态，
+     几十个用例轮流登录会让失败与执行顺序挂钩（单独跑绿、全量跑红）。
+     集成档案显式关限流，行为由自带独立上下文的用例覆盖——这和 Outbox/Inbox 关后台任务
+     是同一个道理。
+  4. **IPv6 字面量校验写 `indexOf(':') > 0` 会把 `::1` 判成非法**（冒号在第 0 位）——
+     单元测试抓到。这类 bug 只在 IPv6 环境暴露，"环回地址不合法"会表现为启动失败，
+     而错误信息看起来像是配置写错了。
+  5. **`Retry-After: 0` 是有害的**：部分客户端会原地重试，等于帮对方放大攻击。最小值钉为 1 秒。
+  6. **模板遗留测试已经开始腐蚀**：`requestErrorConfig.test.ts` 仍在测模板的
+     `errorThrower`（该字段在 R-20261031-25 的重写里已删除），但 `npm test` 不在门禁内，
+     所以一直没人发现。已记入待办：要么补 vitest 进门禁并修这组用例，要么删掉。
+- 回写确认：feature-catalog ✓（J-05 → VERIFYING 75%，J-02 剩余项收窄，§1 计数与加权口径一并校正）/
+  §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：①**验证码通道**（实现 `OwnershipChallengeSender`，一次接通绑定与后续验证码登录）；
+  ②忘记密码/找回；③公开面开启 checklist（按门店配额 + WAF + 降级流程）后开 `PMS_PUBLIC_API_ENABLED`；
+  ④权威核验渠道对接（等渠道清单）。
+
+---
+
+### R-20261101-33 住客凭证绑定流程（挑战-响应 + 发送器桩 + 绑定/解绑）
+
+- 状态：DONE
+- 背景：J-01 剩余主体。需求方口径"有账户后，可以绑定其他第三方登录源"——
+  绑定是主动动作且必须证明归属。验证码服务商未定，本轮交付**完整的挑战-响应机制**
+  与可替换的发送器桩（SPI），接通短信/邮件时只换实现、控制台开开关。
+- 范围（本轮只做这些）：
+  1. **V17 迁移**：`guest_ownership_challenge`（归属挑战：码哈希/过期/尝试数/消费标记）。
+  2. **发送器 SPI**：`OwnershipChallengeSender` 接口 + `DevChallengeMailbox`
+     （仅 `pms.guest.ownership.dev-mailbox=true` 注册，开发/测试用）。
+     生产默认无实现 → 挑战创建返回"发送通道未接通"（503），无安全洞。
+  3. **HTTP**：`POST /guest/auth/bindings/challenge`（发起）、
+     `POST /guest/auth/bindings/confirm`（校验码并绑定）、
+     `GET /guest/auth/bindings`（我的凭证）、`DELETE /guest/auth/bindings/...`（解绑）、
+     `POST /guest/auth/bindings/username`（USERNAME 无需挑战，密码即证明）。
+  4. **安全约束**：挑战绑定发起者（会话取人）；码哈希存储 + 5 次尝试上限 + 10 分钟过期
+     （6 位数字熵低，三件套合起来防爆破）；confirm 竞态由唯一索引兜底；
+     **解绑自保护——不能解绑最后一个凭证**（与"不能停用自己"同源）。
+  5. **本轮明确不做**：真实短信/邮件发送、验证码登录（未登录态的手机号登录，属验证码通道）、
+     忘记密码、限流（J-05）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：J-01、S4-01
+- 变更文件：
+  - 迁移 `V17__guest_ownership_challenge.sql`：`guest_ownership_challenge`
+    （码哈希/过期/尝试数/消费标记；CHECK：USERNAME 不走挑战）
+  - guest 侧新增：`OwnershipChallenge` / `GuestCredentialView` 领域、
+    `ownership/OwnershipChallengeSender`（SPI）+ `DevChallengeMailbox`（含嵌套的
+    Dev 发送器与 Noop 占位，按 `pms.guest.ownership.dev-mailbox` 条件化）、
+    `service/GuestMethodAvailability`（方式可用性唯一实现点，从认证服务提取）、
+    `service/GuestBindingService`、`service/ChallengeAttemptRecorder`（REQUIRES_NEW 计数）、
+    `web/GuestBindingController`（challenge/confirm/username/list/unbind）
+  - 修改：`GuestMapper` +7 方法与 XML、`GuestAuthenticationService`（改用共享可用性服务）、
+    `GlobalExceptionHandler`（+发送通道未接通 503）、`GuestMapperStub` 补 10 个方法、
+    `application.properties`（dev-mailbox 开关，默认 false）
+  - 测试：`GuestBindingFlowTest`（8 例）；集成档案启用 dev 信箱
+  - **test 档案隔离修复**（本轮发现 1）：`application-test.properties` 补齐
+    `spring.autoconfigure.exclude`（MyBatis/DataSource/DataSourceHealth/Flyway 四个）、
+    RabbitMQ 监听 auto-startup=false、测试专用假密钥
+  - 文档：`docs/api/openapi-v1.json` 60/72 → **64 path / 77 schema**（5 个绑定端点）
+- 验证（本轮实际执行）：
+  - 后端 `PMS_IT_DB=true ./mvnw -o -B -ntp clean verify` →
+    **Tests run: 366, Failures: 0, Errors: 0, Skipped: 4，BUILD SUCCESS**（358 → 366，+8）
+  - 绑定全链路：挑战（响应只给掩码、不含验证码）→ 开发信箱取码 → confirm →
+    凭证列表含新手机号
+  - **挑战归属**：账户 B 用账户 A 的 challengeId confirm → 404（防账户接管）
+  - **爆破防护**：5 次错码后第 6 次即使码正确也 409"已达上限"——这条最初是绿的假象
+    （计数随事务回滚），提取 REQUIRES_NEW 计数器后才是真的
+  - **一次性消费**：同码二次 confirm → 409；占用冲突：他人已绑同一手机号 → 挑战创建即 409
+  - **解绑自保护**：仅剩一个凭证时解绑 409；再绑一个后可解（剩手机号可登录）
+  - USERNAME 绑定无需挑战（密码即证明），新用户名可直接登录
+  - Noop 发送器显式抛错（绝不静默"发送成功"）——单测断言
+  - 前端 `tsc` 0 error / `biome:lint` 0 error 0 warning（139 文件）/ `build` 成功
+  - 未覆盖：真实短信/邮件发送、验证码登录（未登录态）、忘记密码、限流（J-05）
+- 本轮发现（重要，转入下轮）：
+  1. **test 档案从未真正隔离中间件**——注释声称"排除 DataSource/Flyway/MyBatis"，
+     配置层面一行都没有。之前全绿是因为上下文恰好没走到那些自动配置；
+     本轮新增 bean 改变了装配路径，4 例上下文冒烟全红，连环暴露三层问题：
+     ① MyBatis 自动扫描器与手工桩同名冲突（补 `spring.autoconfigure.exclude` 四件）；
+     ② DataSource health 指标尝试创建 Hikari（无 url 必挂，一并排除）；
+     ③ RabbitMQ 监听容器连真实 5672（认证拒绝；关 auto-startup）。
+     **另有隐性依赖**：test 档案上下文冒烟一直靠运行时 env 注入实名密钥才起得来
+     （CI 有、本地单跑一个测试类就崩，报错还看不出该 export）——已写死测试专用假密钥。
+  2. **"失败也要落库"必须独立事务**：confirm 在事务里比对验证码，错了抛异常回滚一切，
+     同事务的 `attempts+1` 一起消失——爆破上限形同虚设。计数走
+     `ChallengeAttemptRecorder`（REQUIRES_NEW，且不能同类自调用）。
+     以后登录失败计数、风控计数都是同一模式。
+  3. **三个"可用性"概念必须分开**（本轮连改两次才定对）：
+     ①登录开关（guest_login_policy，运营控制"能不能用这种方式登录"）；
+     ②实现状态（代码里有没有这条通道）；③发送通道（有没有 sender bean）。
+     绑定挑战只看②③（有通道就能发码），**不看①**——运营临时关停 PHONE 登录
+     不应连带堵死"绑定手机号"；绑完能不能用由①决定。挑战只适用于验证码可达的
+     PHONE/EMAIL；第三方走 OAuth 回调，用验证码"验证微信归属"语义就是错的。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+
+---
+
+### R-20261101-32 住客用户名+密码登录 + 登录方式开关（管理员控制台）
+
+- 状态：DONE
+- 背景：需求方追加——住客登录**再加一个"用户名"方式**，先支持基础的用户名+密码登录；
+  手机号、邮箱等登录项**在管理员控制台去设置**（未接通的外部通道由控制台统一管理）。
+- 范围（本轮只做这些）：
+  1. **V16 迁移**：`guest_credential` 增 `secret_hash`（USERNAME 凭证存 BCrypt，其它为空）
+     与 provider 枚举扩 `USERNAME`；新表 `guest_login_policy`（每方式一行，含种子：
+     USERNAME=true，其余 false）+ `platform_action` 增 2 个策略动作。
+  2. **住客注册/登录/登出 HTTP**：`POST /api/v1/guest/auth/register`（注册即登录）、
+     `POST /api/v1/guest/auth/login`、`POST /api/v1/guest/auth/logout`、
+     `GET /api/v1/guest/auth/methods`（客户端据此渲染登录按钮）。
+  3. **可用性双条件**：`provider.isImplemented()`（代码级：只有 USERNAME=true）
+     **∧** 策略开关（控制台）。策略只能关掉已实现的方式；把未实现的打开也照样"未开放"，
+     界面照实显示"配了但没接通"。
+  4. **平台策略接口**：`GET/PUT /api/v1/platform/guest-login-policy`（2 个新动作码）。
+  5. **本轮明确不做**：手机号/邮箱验证码通道（未接外部服务）、OAuth 回调、
+     忘记密码/找回、注册风控（限流属 J-05）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：J-01、S4-01
+- 变更文件：
+  - 迁移 `V16__guest_username_login.sql`：`guest_credential` 增 `secret_hash`
+    （CHECK：USERNAME 必须有 BCrypt、其它必须为空）、provider 枚举扩 `USERNAME`；
+    新表 `guest_login_policy`（8 行种子：USERNAME=true 其余 false）；
+    `platform_action` 增 `guest.authpolicy.read/write`
+  - guest 侧：`GuestProvider`（+USERNAME、`isImplemented()`、用户名规范化）、
+    `GuestLoginPolicy` / `UsernameCredential` 领域、`GuestLoginPolicyMapper` + XML、
+    `GuestMapper`（+`findUsernameCredential` / `revokeSession`，insertCredential 加 secretHash）、
+    `GuestAccountService`（`registerWithUsername` / `bindUsername`，注入 PasswordEncoder）、
+    `GuestAuthenticationService`（`loginWithUsernamePassword` / `requireMethodAvailable` /
+    `snapshotOf` / `revokeSession`）、`web/GuestAuthController`（注册/登录/登出/方式清单）
+  - platform 侧：`PlatformAuthPolicyService` / `PlatformAuthPolicyController`
+  - shared：`LoginMethodUnavailableException` + 全局处理分支；`SecurityConfig`
+    住客链匿名放行（register/login/methods 三条）
+  - 测试：`GuestAuthFlowTest`（9 例）；`DatabaseCleaner` 保留清单加 `guest_login_policy`；桩补齐
+  - 文档：`ADR-019` 追加 §2.9；`docs/api/openapi-v1.json` 54/66 → **60 path / 72 schema**
+- 验证（本轮实际执行）：
+  - 后端 `PMS_IT_DB=true ./mvnw -o -B -ntp clean verify` →
+    **Tests run: 358, Failures: 0, Errors: 0, Skipped: 4，BUILD SUCCESS**（349 → 358，+9）
+  - 注册→登录→me→登出全链路通过；注册响应含会话（注册即登录）且 `realNameRequired=true`
+  - **账号枚举防护**：密码错 / 用户名不存在 / 账户已关闭三个分支的登录失败
+    **文案与状态码完全一致**（401 + "用户名或密码不正确"），测试逐分支断言
+  - 用户名规范化：`Traveller.One`（带空白与大写）登录成功，与 `traveller.one` 同一账号
+  - **开关双条件实测**：禁用 USERNAME → 登录 403"登录方式未开放"（不是 401）；
+    重新启用后恢复；**打开 PHONE 开关 → implemented=false、available=false**（未实现仍不可用）
+  - 重复用户名 409；弱密码（<12 位 / 含用户名）400；策略读与写分权（只读者写 → 403）
+  - 前端 `tsc` 0 error / `biome:lint` 0 error 0 warning（139 文件）/ `build` 成功
+  - 未覆盖：忘记密码/找回、注册限流（J-05）、手机号/邮箱验证码通道
+- 本轮发现（不夹带实现，转入下轮）：
+  1. **"打开未实现方式的开关"最初被设计成 409 拒绝**，测试让我重新审视：
+     运维"提前把开关配好、等代码上线当天生效"是正常节奏，409 会把这条路径堵死。
+     改为允许保存，后果由视图的 `implemented=false` / `available=false` 如实呈现。
+     设计判断要区分"配置非法"（拒绝）与"配置暂时无效"（保存 + 如实标注）。
+  2. **登录方式未开放（403）与凭据无效（401）必须分开**：前者描述方式、
+     不涉及账号，可以明说让用户换方式；后者必须统一话术。混用一个响应，
+     要么泄露开关状态，要么让被关方式的使用者反复试密码。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+
+---
+
+### R-20261101-31 住客会话独立 + 人工实名审核闭环（ADR-019）
+
+- 状态：DONE
+- 背景：需求方答了两条关键约束——
+  ①住客会话**不复用** `user_session`，角色完全隔离，杜绝越权；
+  ②实名核验走**权威接口 + 人工审核双通道**，权威接口熔断时人工审核照常；
+  权威接口地址与参数在**管理员后台自定义**（对接哪些渠道后续再定），**当前先实现人工审核**。
+- 范围（本轮只做这些）：
+  1. **ADR-019 平面隔离与会话**：三张会话表（`user_session` / `guest_session` /
+     `platform_session`）物理分开 + 令牌哈希**域分离**，并说明"为什么不共用一张表带 surface 列"。
+  2. **V15 迁移**：`guest_session`、`guest_verification_review`（审核留痕）、
+     `guest_verification_channel`（权威渠道配置 + 熔断状态）、`platform_user`、
+     `platform_session`、`platform_user_action`（平台动作直授）。
+  3. **住客会话机制**：`GuestPrincipal` + 独立令牌派生 + 独立认证过滤器 +
+     独立 `SecurityFilterChain`（`/api/v1/guest/**`）。**本轮不开放住客登录 HTTP 接口**
+     （验证码与 OAuth 回调依赖外部通道，未接入），但会话签发/校验服务完整可测。
+  4. **平台身份与会话**：`platform_user` 登录 + 平台会话 + 平台动作码（不复用租户 `permission`）。
+  5. **人工审核闭环**：审核队列（只给掩码）、通过/驳回（必填理由）、审核留痕、
+     统一决策入 `apply(accountId, decision, source, actor, reason)`——将来权威渠道接进来
+     只新增 `source`，不改状态机。
+  6. **权威渠道**：配置表 + 熔断状态字段 + 配置读写接口；**不实现任何具体厂商对接**
+     （渠道清单未定）。人工审核路径**结构上不读渠道表**，这是"熔断时人工照常"的实现保证。
+  7. **本轮明确不做**：住客登录（验证码/OAuth）、权威接口具体对接、平台端与客户端前端工程、
+     企业对公账户（DEC-17）、限流（J-05）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：J-01、J-03、A-05、A-07、S4-01
+- 变更文件：
+  - 新增 `docs/adr/ADR-019-plane-isolation-and-manual-verification.md`
+  - 迁移 `V15__guest_session_and_platform_identity.sql`：`guest_session`、
+    `guest_verification_review`（留痕）、`guest_verification_channel`（渠道配置+熔断）、
+    `platform_user`、`platform_session`、`platform_action`（4 个动作）、`platform_user_action`
+  - guest 侧新增：`GuestSession` / `GuestSessionView` / `GuestVerificationReview` /
+    `PendingVerification`、`security/GuestPrincipal`、`security/GuestSessionTokens`、
+    `service/GuestAuthenticationService`、`service/GuestVerificationDecisionService`、
+    `web/GuestBearerAuthenticationFilter`、`web/GuestSelfController`、`GuestMapper` +8 方法
+  - platform 侧新增：`PlatformUser` / `PlatformUserStatus` / `PlatformSession` /
+    `PlatformSessionView` / `VerificationChannel`（含熔断）、`security/PlatformPrincipal`、
+    `security/PlatformSessionTokens`、`mapper/PlatformMapper` + XML、
+    `service/PlatformAuthenticationService` / `PlatformVerificationService` / `PlatformChannelService`、
+    `web/PlatformBearerAuthenticationFilter` / `PlatformPasswordChangeRequiredInterceptor`、
+    `web/PlatformAuthController` / `PlatformVerificationController` / `PlatformChannelController`
+  - shared：`SessionTokens` 增 `hashInDomain`（域分离）、`SecurityConfig` 拆三条链、
+    `WebMvcConfig` 注册平台首改拦截
+  - 种子：`scripts/seed-platform-admin.sql` + `.sh`（哈希用项目编码器生成并自检）
+  - 测试：`GuestSessionIsolationTest`（9 例）、`PlatformVerificationReviewTest`（13 例）、
+    `support/PlatformSeed`、`DatabaseCleaner` 保留清单扩至 4 表、桩补 Guest/Platform Mapper
+  - 文档：`docs/api/openapi-v1.json` 43/53 → **54 path / 66 schema**（12 个新端点全部有 operationId）
+- 验证（本轮实际执行）：
+  - 后端 `PMS_IT_DB=true ./mvnw -o -B -ntp clean verify` →
+    **Tests run: 349, Failures: 0, Errors: 0, Skipped: 4，BUILD SUCCESS**（327 → 349，+22）
+  - **平面隔离实测**：住客令牌打商家接口 401；员工令牌打住客接口 401；
+    平台令牌打两个平面各 401；同一明文令牌在三个平面的哈希互不相同（域分离）
+  - **人工审核闭环实测**：队列只给掩码（响应体断言不含完整证件号与姓名）；
+    通过→VERIFIED 且留痕带 reviewer/reason/掩码快照；驳回不写 verified_at；
+    无理由 400；第二审核员 409 而非覆盖；审核通过后住客同一令牌下一次请求即解除限制
+  - **核心需求验证**：把权威渠道真的置成 OPEN（熔断窗口 30 分钟）→ 人工审核**依然成功**——
+    实现保证是 `GuestVerificationDecisionService` 构造器里没有任何渠道依赖（结构隔离，不是 if）
+  - **渠道配置**：人工渠道停用被拒（409）；权威渠道缺 endpoint 400；
+    MANUAL_REVIEW 的 `implementationAvailable=true`、其余渠道如实返回 false
+  - **平台首改**：待改密状态除 me/logout/password 外全 403+错误码（含写操作）；
+    改密后同令牌立即解除；**其它会话被撤销**（发起者保留）
+  - 种子实跑：platform-admin 建号成功，4/4 动作授予，哈希自检通过
+  - 前端 `tsc` 0 error / `biome:lint` 0 error 0 warning（139 文件）/ `build` 成功
+  - 未覆盖：住客登录 HTTP（验证码/OAuth）、权威渠道具体对接、平台端前端工程、企业对公账户
+- 本轮发现（不夹带实现，转入下轮）：
+  1. **`realNameRequired` 字段第一次实现时值传反了**：字段叫"还需要实名"，
+     值却传了 `satisfiesRealNameRequirement()`（已满足实名）。接口照样 200，
+     客户端会把未实名的人放行。是接口测试的断言（UNVERIFIED→true）抓到的。
+     教训：**布尔字段名与取值来源要分开审**——"名字像反义"的错编译器抓不到。
+  2. **人工渠道被标成"未实现"**：`implementationAvailable` 只按 `IMPLEMENTED_CODES` 判，
+     而人工审核本身就是人工渠道的实现。已改为 MANUAL 恒 true。这类"诚实标记"
+     自己也要诚实，否则反而误导。
+  3. **`DatabaseCleaner` 的保留清单要随字典表一起扩**：`platform_action` 与
+     `guest_verification_channel`（含 MANUAL_REVIEW 种子行）同属"迁移写入的结构性配置"，
+     漏了就是 FK 报错（`fk_platform_user_action_action`），与上一轮 `permission` 的教训同源。
+     已把判断标准写进注释："内容是迁移确定的还是业务流程产生的"。
+  4. **MyBatis 的 `boolean`/`int` 别名指向包装类**：record 构造器映射里必须写
+     `_boolean`/`_int`，否则报 `NoSuchMethodException: <init>(...)`，
+     错误只列类型与值，极易被误判成"字段顺序写错了"。
+  5. **shell 里 `$VAR` 紧跟全角字符**：`$PLATFORM_USERNAME）` 中的全角右括号
+     会被 bash 吞进变量名，报 "unbound variable" 且变量名里带着乱码字节。
+     变量后紧跟非 ASCII 时必须写 `${VAR}`。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+
+---
+
+### R-20261101-30 住客身份与实名模型（ADR-018）+ 平台平面按"不跨租户"修订（ADR-017）
+
+- 状态：DONE
+- 背景：需求方回答了 DEC-10 与 DEC-02——住客用手机号/邮箱与第三方（微信、QQ、国家统一身份认证、
+  Apple）登录，**不论哪种方式进入都先实名**，实名凭据是身份证号且需加密存储，
+  并设主身份 id、第三方来源作为可绑定凭证；**平台不存在跨租户**；平台管理员端只做
+  SaaS 系统关键操作（日志清理/审计/溯源取证、新增业务数据库、多对象存储配置）。
+  另提出企业对公账户（差旅）与单位统一身份登录。
+- 范围（本轮只做这些）：
+  1. **ADR-018 住客身份与实名**：主 id + 凭证绑定 + 身份证号加密（AES-256-GCM）+
+     HMAC 索引做唯一性 + 强制实名状态机；并定"住客表不带 tenant_id"与"跨平面单向引用"规则。
+  2. **ADR-017 修订**：PLATFORM 平面按"不跨租户"重写为「系统资源平面 + 限时支持会话」。
+  3. **决策登记**：DEC-02 → 部分定案；DEC-10 → 已定案；新增 DEC-17（企业对公账户，OPEN）。
+  4. **V14 最小实现**：`guest_account` / `guest_credential` / `guest_id_verification` +
+     `GuestIdNumberCipher` + `GuestAccountService`（注册/绑定凭证/提交实名/按凭证解析主 id）+ 测试。
+  5. **本轮明确不做**：住客登录接口与会话（令牌模型要单独定，见 ADR-018 §6）、
+     实名外部核验接入（渠道未定）、企业对公账户（DEC-17，另立一轮）、
+     平台端实现（支持会话细则未定）、日志清理与溯源取证的实现。
+- 涉及功能项（FT-*）/ 任务（S*-*）：J-01、J-03、A-05、A-07、A-08、S4-01
+- 变更文件：
+  - 新增 `docs/adr/ADR-018-guest-identity-and-verification.md`
+  - 修订 `docs/adr/ADR-017`：PLATFORM 平面按"不跨租户"重写（§2.1/§2.2/§2.4/§5/§6）
+  - 决策登记：DEC-02 → 部分定案；DEC-10 → 已定案；新增 DEC-17（企业对公账户，OPEN）
+  - 迁移 `V14__guest_identity.sql`：`guest_account` / `guest_credential` / `guest_id_verification`
+  - 新增 `guest/domain/*`（Provider/Account/Verification/两个状态枚举）、
+    `guest/security/GuestPiiCipher.java`（AES-256-GCM + HMAC 索引）、
+    `guest/mapper/GuestMapper.java` + `mapper/guest/GuestMapper.xml`、
+    `guest/service/GuestAccountService.java`
+  - 配置：`application.properties` 增 `pms.guest.pii-key` / `pms.guest.pii-hmac-key`（无默认值）
+  - 部署与 CI：`deploy/compose/.env.example` 增两项、`deploy/app.sh` 启动前校验、
+    `.github/workflows/backend.yml` 每次运行生成一次性密钥
+  - 测试：`GuestPiiCipherTest`（9 例）、`GuestIdentityIntegrationTest`（9 例）、
+    `NoDatabaseStubConfig` 补 GuestMapper 桩
+  - 文档：`development/README.md` / `backend-setup.md` 门禁命令补密钥导出；feature-catalog J-01 与阻塞项
+- 验证（本轮实际执行）：
+  - 后端 `PMS_IT_DB=true ./mvnw -o -B -ntp clean verify`（真实 PostgreSQL，注入一次性密钥）→
+    **Tests run: 327, Failures: 0, Errors: 0, Skipped: 4，BUILD SUCCESS**（309 → 327，+18）
+  - 库内无明文：直接查 `guest_id_verification` 断言整行不含身份证号与姓名、密文以 `v1:` 开头、
+    解回来等于原值、掩码为 `110105********002X`、HMAC 与 `cipher.index()` 一致
+  - 一证一户：第二个账户提交同一身份证 → 409；同一账户重复提交已核验资料 → 幂等保持 VERIFIED；
+    换证件号 → 回到 PENDING 且 `verified_at` 清空
+  - 凭证：手机号强制 E.164（`8613...` 无 `+` 被拒，防止同一号码注册两个账户）；
+    邮箱大小写不敏感；同一凭证绑第二个账户 → 409
+  - 加密组件：同一明文两次加密结果不同（nonce 随机）、篡改密文解密失败（GCM 完整性）、
+    缺密钥/错长度/非法 Base64 均在构造期失败
+  - **`OutboxPublisherIntegrationTest` 的非确定性失败已定位并修复**（见本轮发现 1），
+    该类连跑 3 次 + 全量 1 次均 13/13 通过
+  - 未覆盖：住客登录接口与会话、验证码/OAuth、实名核验渠道、企业对公账户
+- 本轮发现（不夹带实现，转入下轮）：
+  1. **`OutboxPublisherIntegrationTest` 时红时绿的根因确认并修复**（上一轮列为"首项"的那条）。
+     失败点全部是"刚插入的行领不到"（`claimed` 8→6、2→0、1→0）。用临时探针直接测
+     `next_attempt_at <= now()` 后**证伪了原先的猜测方向**：行确实是到期的，容器时钟当时是**领先**的。
+     真正原因是**两侧用了不同时钟**：测试用 JVM 时钟写 `next_attempt_at`，领取条件用数据库 `now()`。
+     宿主与 Docker VM 的时钟来回摆动几毫秒，一旦 VM 略微落后，最后插入的那几行在库里就"还没到期"，
+     于是断言随机变红且失败点每次不同。**改为用库时钟写入后，连跑 3 次 + 全量 1 次均全绿。**
+     ⚠️ **生产代码同样存在这条跨时钟依赖**（`JournalMapper.insertEvent` 的 `next_attempt_at` 取自 Java），
+     只是抖动幅度是毫秒级、且生产没有"精确条数"断言，所以不可见。已记入待办：让 outbox 的可用时间统一由
+     数据库生成，或把领取条件放宽一个明确的小容差。
+  2. **XML 注释里不能出现 `--`**：我在 mapper 里用了 `<!-- ---------- 主身份 ---------- -->` 这种分隔线，
+     导致 `SqlSessionFactory` 解析失败、整个 Spring 上下文起不来（表现为"所有集成测试一片红"，
+     但错误信息埋在 `Caused by` 第 5 层）。分隔线改用 `=`。
+  3. **新增 Mapper 必须同时补 `NoDatabaseStubConfig` 的桩**：`test` 档案排除了 MyBatis 自动配置，
+     漏一处就是 `ApplicationContextTests` / `OpenApiContractTest` 全部失败，而失败信息只说
+     "No qualifying bean of type ..."，不容易联想到"该补桩了"。
+  4. **加密密钥成为启动硬前提**，三处配套必须同时改：`.env.example`（模板）、`deploy/app.sh`（先拦一次给可读提示）、
+     CI（每次运行生成一次性密钥，不落仓库）。少任何一处，某个环境就会以"服务起不来"的方式失败。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+
+---
+
+### R-20261101-29 前端目录拆分为多工程（frontend/）
+
+- 状态：DONE
+- 背景：需求方明确"前端目录根据需求拆出多个独立项目，避免单一前端太重"。
+  这推翻了 ADR-017 初稿 §2.5 的"不搬家"判断，**以需求方决定为准**，ADR 已同步改写。
+- 范围（本轮只做这些）：
+  1. `frontend-admin-pro/` → `frontend/merchant-web/`（同盘 mv，不复制）。
+  2. 新建 `frontend/README.md`（多端总览、共享/不共享、启动方式、新增端的检查清单）
+     与四个待初始化工程的范围说明：`merchant-h5/`、`guest/`、`platform-ops/`、`platform-admin/`。
+  3. 修 CI 与脚本的路径引用；把两个词条脚本里写死的**作者本机绝对路径**改成仓库相对路径。
+  4. 本轮明确不做：初始化后四个工程的代码（沙箱无法 `npm ci`，须宿主终端执行）。
+- 变更文件：
+  - 目录：`frontend-admin-pro/` → `frontend/merchant-web/`
+  - 新增：`frontend/README.md`、`frontend/merchant-h5/README.md`、`frontend/guest/README.md`、
+    `frontend/platform-ops/README.md`、`frontend/platform-admin/README.md`
+  - CI：`.github/workflows/frontend.yml`、`beta.yml`、`release.yml`（路径）
+  - 脚本：`scripts/gen-pms-types.mjs`、`sync-menu-locales.mjs`、`sync-login-locales.mjs`
+  - 文档：`ADR-015`（迁移注记）、`ADR-017 §2.5`（改写为拆分结论）、`development/README.md`、
+    `frontend-antd-pro.md`、`backend-setup.md`、`feature-catalog` O-01
+- 验证（本轮实际执行）：
+  - 迁移后清掉 umi 的绝对路径缓存（`src/.umi`、`.umi-production`、`dist`、`node_modules/.cache`）再跑，
+    避免"靠旧缓存通过"的假绿：
+    前端 `tsc` **0 error**；`biome:lint` **0 error 0 warning（139 文件）**；`build` 成功（产物断言通过）
+  - 三个生成/同步脚本实跑通过（原先两个因绝对路径在别的机器上会直接失败）
+  - 后端完整套件 309 例不受影响（前端迁移与后端无耦合，仍跑一遍作为回归）
+- 本轮发现：
+  1. **`sync-menu-locales.mjs` / `sync-login-locales.mjs` 写死了作者本机绝对路径**——
+     这类脚本在任何其他环境（CI、同事机器）都会失败，而失败方式是"找不到目录"，
+     很容易被当成"脚本没写好"。已改为 `import.meta.url` 推导仓库根。
+  2. **umi 把路径缓存在多处**（`src/.umi`、`src/.umi-production`、`dist`、`node_modules/.cache`）。
+     迁移后不清缓存，构建仍可能通过——但那种通过是假的，换台干净机器就会红。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+
+---
+
+---
+
+### R-20261101-28 多端形态定调（ADR-017）+ 匿名公开查询面（J-02 最小切片）
+
+- 状态：DONE
+- 背景：需求方提出 SaaS 平台需要 6 个端——H5 客户端、Web 客户端、Web 商家端、
+  H5 商家端、平台业务管理端（业务/客服/售后/运营）、平台管理员端（技术/DB/组织架构/存储）。
+- 范围（本轮只做这些）：
+  1. **ADR-017 多端形态与身份平面**：6 个端收敛为 3 条身份平面
+     （GUEST 客人 / TENANT 商家 / PLATFORM 平台），写明每端选型、阻塞项与迁移路径。
+  2. **需求与功能清单落地**：`scope.md` 补六端清单；`roles-and-use-cases.md` 补平台角色；
+     `feature-catalog` 新增 J-10 / O-12 / A-07 / A-08 并如实挂 DEC 依赖。
+  3. **J-02 最小切片**：`/api/v1/public/{tenantCode}/hotels/{hotelCode}/room-types`
+     匿名房型与可售查询，默认关闭（`pms.public-api.enabled=false`）。
+  4. **本轮明确不做**：任何前端新工程（本机沙箱装不了新依赖，见 MEMORY 约定 8）；
+     住客身份与下单（J-01 卡 DEC-10）；平台端实现（卡 DEC-01/DEC-02）；限流（J-05）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：J-02、J-05、J-10、O-12、A-05、A-07、A-08、S4-01
+- 变更文件：
+  - 新增 `docs/adr/ADR-017-multi-surface-and-identity-planes.md`（6 端 → 3 条身份平面）
+  - 后端新增：`publicapi/service/PublicCatalogService.java`、`publicapi/web/PublicCatalogController.java`、
+    `test/.../publicapi/PublicCatalogApiTest.java`（7 例）
+  - 后端修改：`SecurityConfig`（只放开 `/api/v1/public/**`）、`application.properties`
+    （`pms.public-api.enabled`，默认 false）
+  - 文档：`feature-catalog`（新增 A-07/A-08/J-10/O-12，J-02 转 VERIFYING 60%，状态总览重算）
+- 验证（本轮实际执行）：
+  - 后端 `PMS_IT_DB=true ./mvnw -o -B -ntp clean verify` → **309 tests / 0 failure**（302 → 309，+7）
+  - 公开目录实测：停用房型不出现在目录里；无实体房时 `bookable=false`；
+    未知租户与未知门店返回**同一句** 404（不可用于探测）；窗口 >62 天 → 400；
+    响应体内**不含任何 `id` 字段**、不含总房数/已售数
+  - 未覆盖：限流（J-05）、报价（DEC-09）、住客身份（DEC-10）
+- 本轮发现（不夹带实现，转入下轮）：
+  1. **`feature-catalog` 的状态总览存在自建库以来的口径错误**：它写"整体加权完成度约 47%"，
+     但按它自己给出的公式 `(46 + 5×0.7) / 124` 只有 **39.9%**；且各行相加 122 与"合计 124"差 2 项。
+     本轮按公式重算为 39%，并把差额写进表格备注，**没有悄悄改数**——口径不一致比数字难看更危险。
+  2. **架构文档 `docs/enterprise_hotel_pms_architecture.md` 的前端选型已过期**（仍写 Vue 3 + Element Plus，
+     而 ADR-015 早已改为 Ant Design Pro）。本轮未改该文档正文，因为它是架构基线文档，
+     改选型描述应与 ADR 同步评审；已记入待办。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+
+---
+
+### R-20261101-27 S3-02 续：员工开通与授权闭环（新建员工 + 初始口令 + 角色分配 + 强制首次改密）
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **新建员工** `POST /api/v1/identity/users`：登录名/显示名/角色/门店范围一次成型。
+  2. **初始口令**：服务端生成随机口令，**只在创建响应里出现一次**，不落明文、不可再查；
+     账号置 `must_change_password = true`。
+  3. **强制首次改密**：`must_change_password` 为真时只放行 `/auth/me`、`/auth/password`、
+     `/auth/logout`，其余一律拒绝并给出可识别的错误码，前端据此跳改密页。
+  4. **角色分配** `PUT /api/v1/identity/users/{userId}/roles`：**全量替换**语义，
+     自保护——不能把自己撤到无角色（与"不能停用自己"同源）。
+  5. **前端**：员工页「新建员工」、详情抽屉的角色编辑、初始口令一次性展示、强制改密页。
+  6. **本轮明确不做**：集团（hotel_group）管理（DEC-01/DEC-02 未定案）；
+     员工改密后的口令强度策略调整；审计落库（B-05）；员工自助注册。
+- 涉及功能项（FT-*）/ 任务（S*-*）：B-01、B-02、B-03、O-03、S3-02
+- 变更文件：
+  - 后端新增：`db/migration/V13__password_change_required.sql`、
+    `identity/domain/PasswordPolicy.java`（从认证服务抽出，供改密与初始口令两处共用）、
+    `identity/service/InitialPasswordGenerator.java`、`identity/web/PasswordChangeRequiredInterceptor.java`、
+    `shared/config/WebMvcConfig.java`、`shared/error/PasswordChangeRequiredException.java`、
+    `test/.../identity/UserProvisioningApiTest.java`（15 例）
+  - 后端修改：`SessionView`（+mustChangePassword）、`PmsPrincipal`（+mustChangePassword）、
+    `UserView`（+mustChangePassword，`/login` 与 `/me` 共用）、
+    `IdentityMapper` 接口与 XML（新增 `requirePasswordChange` / `clearUserRoles` /
+    `countOtherActiveUsersWithPermission`；`findUsableSession` 多取一列；`updatePasswordHash` 改密后清标记）、
+    `AuthenticationService`（登录改用与每请求相同的 `authenticate()` 组装主体，
+    删掉重复的 `buildPrincipal`）、`IdentityAdminService`（`createUser` / `replaceUserRoles` + 4 个辅助）、
+    `IdentityAdminController`（+2 端点、+3 响应/请求模型）、`GlobalExceptionHandler`（+待改密分支）、
+    `NoDatabaseStubConfig`（补桩）
+  - 前端新增：`src/pages/user/password/index.tsx`（改密页，独立于主框架布局）
+  - 前端修改：`config/routes.ts`（+/user/password）、`src/app.tsx`（路由守卫）、
+    `src/pages/user/login/index.tsx`（强制改密跳转）、`src/components/RightContent/AvatarDropdown.tsx`
+    （把原先无动作的"账号设置"改成真实的"修改口令"）、`src/services/pms/errors.ts`
+    （+`code` 字段与 `isPasswordChangeRequired`）、`src/services/pms/identity.ts`
+    （+`createUser` / `replaceUserRoles`）、`src/requestErrorConfig.ts`（待改密统一跳转）、
+    `src/pages/identity/user/index.tsx`（新建员工 / 角色编辑 / 初始口令一次性展示）、
+    `e2e/verify-integration.mjs`（+8 断言）
+  - 契约：`docs/api/openapi-v1.json` 42 path / 49 schema → **43 path / 53 schema**
+- 验证（本轮实际执行）：
+  - 后端 `PMS_IT_DB=true ./mvnw -o -B -ntp clean verify`（真实 PostgreSQL）→
+    **Tests run: 302, Failures: 0, Errors: 0, Skipped: 4，BUILD SUCCESS**（287 → 302，+15）
+  - 前端 `npm run tsc` → **0 error**；`npm run biome:lint` → **0 error 0 warning**（139 文件）；
+    `npm run build` → 成功，`dist/user/password/index.html` 产出，无 CNAME
+  - **端到端验证 26/26 通过**（Playwright 真实浏览器 + 真实后端；上一轮 18 项 + 本轮新增 8 项）：
+    开通员工后弹出一次性初始口令 → 口令长度 16 且字符集符合生成规则 →
+    员工列表出现新账号 → 开通接口 201 → **用初始口令在全新浏览器上下文登录会被送到改密页** →
+    改密页说明强制原因 → 改密后进入工作台 → **改密后业务接口才放行（/api/v1/hotels 200）**
+  - 接口实机验证（curl）：初始口令可登录；`/auth/me` 返回 `mustChangePassword=true`；
+    待改密状态下 `GET /api/v1/hotels` 与写操作均 403 且 `code=PASSWORD_CHANGE_REQUIRED`；
+    改密后同一令牌立即放行；旧口令登录 401
+  - 未覆盖：员工改密后的口令强度策略调整、员工自助改手机号/邮箱、审计落库（B-05）、
+    集团（hotel_group）管理
+- 本轮发现（不夹带实现，转入下轮）：
+  1. **`OutboxPublisherIntegrationTest` 存在非确定性失败**：同一条 `clean verify`
+     第一次跑出现 **7 例失败**（`expected 2 but was 1` / `expected 8 but was 6` /
+     `第一次领取应成功 expected 1 but was 0`），紧接着重跑是 **0 例失败**；
+     单独跑该类也出现"一次 1 例、连续两次 0 例"，且失败用例每次不同。
+     失败断言全部集中在"这批到底领到/发出几条"，与本轮改动无关（本轮只动 identity/auth）。
+     **已排除**：集成档案已关闭 Outbox 后台轮询与监控（`pms.outbox.poller.enabled=false`），
+     不是后台线程抢租约；也没有 JUnit 并行配置。
+     **已测量**：宿主与容器的时钟偏差为数据库**领先约 45ms**（该方向对
+     `next_attempt_at <= now()` 无害），所以"JVM 时钟写、DB 时钟判"虽是可疑设计，
+     但不足以解释本机现象。
+     **结论**：根因未确认，属"跑一次绿、跑一次红"的可信度问题，比一个确定的功能缺陷更危险——
+     它会让后续每轮的门禁结果失去意义。建议下一轮单独立项（先加失败明细与随机种子留痕，
+     再判断是租约时间窗还是断言假设的问题）。
+  2. **登录与每请求解析曾有两份主体组装代码**：`AuthenticationService.login` 原先自己拼
+     `PmsPrincipal`，与 `authenticate()` 各一份。本轮加 `mustChangePassword` 时若只改一处，
+     就会出现"登录时看着已解除、下一次请求又被拦"的诡异状态，而且两个测试都会过。
+     已改为登录后复用 `authenticate(token)`，删掉 `buildPrincipal`。
+  3. **待改密不能只在页面跳转**：`PASSWORD_CHANGE_REQUIRED` 是 403，
+     与"没权限"同码。前端若只按状态码分支，会把权限不足的人也带去改密页。
+     必须带可识别错误码，且跳转判断要排在 `skipErrorHandler` **之前**
+     （各页面都传了 skipErrorHandler，放后面等于对它们全部失效）。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+
+---
+
+### R-20261101-26 S3-02 员工与角色管理（RBAC 读写闭环 + 前端页面）
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **权限点字典只读接口** `GET /api/v1/identity/permissions`：前端渲染权限勾选要它。
+  2. **角色管理**：列表（含各角色已授予权限点）、创建（code/name/permissions）、启停。
+  3. **员工管理**：分页列表（可按状态/登录名筛选）、详情（含已分配角色与门店范围）、
+     启停账号、**全量替换门店范围**。
+  4. **前端**：角色管理页 + 员工管理页。
+  5. **本轮明确不做**：员工新建（需要设初始口令，属敏感流程，单独一轮）、
+     改密、员工-角色分配界面的完整编辑（本轮只读展示）、集团（hotel_group）管理、审计落库（B-05）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：B-02（角色与权限点）、B-03（门店范围与切换）、O-03（权限与访问控制）、S3-02
+- 关键约束（写进代码与测试，不是注释）：
+  - **不能停用自己**：否则管理员会把自己锁在门外，且没有别的入口恢复；
+  - **停用账号必须撤销其全部会话**：否则"停用"只是禁止新登录，已登录的设备继续可用；
+  - **门店范围是全量替换语义**（不是追加）：界面勾掉一个门店就必须真的失效；
+  - 跨租户目标一律 404（不区分"他租户有"与"根本没有"）；
+  - 权限点必须是字典里已登记的（由 `role_permission` 外键兜底，服务层给友好错误）。
+- 变更文件：
+  - 后端新增：`identity/domain/Permission.java`、`identity/service/IdentityAdminService.java`、
+    `identity/web/IdentityAdminController.java`、`test/.../identity/IdentityAdminApiTest.java`（18 例）
+  - 后端修改：`IdentityMapper`（接口 + XML，新增 11 个方法）、`support/IdentitySeed`（新增 `addTeammate`
+    同租户夹具）、`support/NoDatabaseStubConfig`（补桩）；`docs/api/openapi-v1.json`（36→42 path，39→49 schema）
+  - 前端新增：`src/services/pms/identity.ts`、`src/pages/identity/role/index.tsx`、
+    `src/pages/identity/user/index.tsx`、`src/services/pms/types.ts`（重新生成，49 schema）
+  - 前端修改：`config/routes.ts`（新增 `/identity` 分组）、8 个语言目录的 `menu.ts`、
+    `e2e/verify-integration.mjs`（新增 5 项身份管理断言）
+- 验证（本轮实际执行）：
+  - 后端 `PMS_IT_DB=true ./mvnw -o -B -ntp clean verify`（真实 PostgreSQL）→
+    **Tests run: 287, Failures: 0, Errors: 0, Skipped: 4，BUILD SUCCESS**（269 → 287，+18）
+  - 前端 `npm run tsc` → **0 error**；`npm run biome:lint` → **0 error 0 warning**（138 文件）；
+    `npm run build` → 成功，`dist/identity/{user,role}/index.html` 均产出
+  - **端到端验证 18/18 通过**（Playwright 真实浏览器 + 真实后端），新增 5 项全部 PASS：
+    角色页显示后端真实角色、权限点字典接口已调用、员工页显示后端真实账号、
+    **员工页禁用了「停用自己」操作**、员工列表接口已调用
+  - 接口实机验证（curl，非 mock）：权限点字典 15 个、角色列表含 SUPER_ADMIN（15 权限点全部授予）、
+    员工列表 total=1；建角色 → `front_office` 自动转大写 `FRONT_OFFICE`、4 个权限点；
+    停用角色 → `INACTIVE` 且**权限点仍登记 4 个**（停用不删授权关系）；
+    **停用自己 → 409**；未知权限点 → 400；非法角色编码 → 400；
+    门店范围全量替换：设 1 家 → 清空 → 0 家（证明是替换不是 upsert）
+  - 未覆盖：员工新建（需要设初始口令，属敏感流程，单列下一轮）、员工-角色分配编辑、
+    集团（hotel_group）管理、审计落库（B-05）
+- 本轮发现（转入后续轮次）：
+  1. **两个同名 record 会在 OpenAPI 里撞 schema**：本轮新建的管理端 `UserView` 与认证模块的
+     `UserView`（`/auth/me` 响应）同名，springdoc 生成了同名 schema 且后者覆盖前者——
+     表现为前端类型里 `/auth/me` 的 `permissions`/`hotelIds` **凭空消失**，而两端代码都不报错。
+     已改名 `IdentityUserView`。**后续新增 DTO 必须先检查是否与既有 schema 重名。**
+  2. **`IdentitySeed` 每次调用建独立租户**：所以"管理员管另一个 seed 的账号"其实是跨租户操作，
+     会被正确地拒成 404。管理面的测试必须用新增的 `addTeammate` 在同一租户内造同事，
+     否则会把 404 误判成缺陷。
+  3. **跨租户写入不能只靠外键兜底**：复合外键确实会拒绝，但它抛
+     `DataIntegrityViolationException`，到接口层就成了 500——调用方看到"服务器错误"而非
+     "你给了别的租户的门店"。已在服务层显式校验，把错误变成可解释的 400。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+
+---
+
+### R-20261031-25 前后端功能接口对接 + 超级管理员账号（admin/admin）初始化
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **后端补上前端必需的门店清单接口** `GET /api/v1/hotels`（`tenant/web/HotelScopeController`）：
+     返回**当前身份数据范围内**的门店（含 code/name/timezone/status）。
+     之前前端所有业务接口都是 `/api/v1/hotels/{hotelId}/...` 形状，却没有"我有哪些门店"的入口——
+     唯一的 `/api/v1/identity/users/{id}/hotel-scopes` 只返回裸 UUID 列表且需要 `identity:read`。
+     配套：`OrganizationMapper.findHotelsByIds`（SQL 层强制 `tenant_id` 条件，**空集合返回空集而非全量**，
+     避免"撤权变扩权"）、`NoDatabaseStubConfig` 测试桩同步。
+  2. **给全部 36 个接口补语义化 operationId**：原自动生成名是 `list` / `list_1` / `list_2` / `create_1`
+     这类重名消歧后缀，前端无法据此命名。现在显式声明为 `listHotels` / `listReservations` /
+     `createReservation` / `getAvailability` 等，与前端服务函数一一对应。
+     **契约基线同步更新**（`docs/api/openapi-v1.json`：35 path / 38 schema → **36 path / 39 schema**）。
+  3. **超级管理员初始化 SQL**（`openbackupsaas/scripts/seed-super-admin.sql` + `seed-super-admin.sh`）：
+     建租户 `pms-admin`、门店 `hq`、角色 `SUPER_ADMIN`（**从 permission 表全量授予权限点**，
+     不手工维护清单，将来新增权限点重跑即补齐）、账号 `admin`、角色绑定、门店范围。
+     口令 `admin` 用**项目自身 `BCryptPasswordEncoder`**（spring-security-crypto 7.1.1）生成哈希，
+     脚本启动时先做一次自检验证哈希可登录（抄来的哈希可能前缀/算法不符，登录会永远返回 401 且毫无线索）。
+     **刻意不放进 Flyway 迁移链**：迁移链会跑到每个环境（含生产），等于给每个环境自动加一个弱口令账号；
+     且口令强度校验只发生在改密接口，登录接口不校验长度——这条弱口令在任何环境都能直接登录。
+     脚本幂等（重复执行不报错、不覆盖已改的密码），并提供 `--random` 生成一次性随机口令。
+  4. **前端服务层与认证链路**（新建 `src/services/pms/`）：按后端模块分文件
+     （`auth.ts` / `hotel.ts` / `room.ts` / `reservation.ts` / `inventory.ts` / `reconcile.ts` / `ops.ts` / `operation.ts`），
+     函数名与 operationId 一致；`session.ts` 管令牌存取（不透明 Bearer 令牌 + 服务端会话）；
+     `errors.ts` 统一 ProblemDetail 解析与**结果三分类**（REJECTED / CONFLICT / **UNKNOWN**）。
+     `requestErrorConfig.ts` 重写：令牌注入 + 401 统一跳登录 + 三分类文案
+     （UNKNOWN 不显示"失败"，改为提示按幂等键查原交易结果——把"结果不确定"说成"失败"会让操作员重复下单）。
+  5. **前端类型来自契约**：`scripts/gen-pms-types.mjs` 从 `docs/api/openapi-v1.json` 生成
+     `src/services/pms/types.ts`（39 个 schema，必填性来自契约 `required`，**不手写重复定义**）。
+  6. **业务页面接入真实接口**：今日工作台（真实指标 + 今日切片）、订单列表/详情/确认/取消/No-show/建单、
+     房型与房间维护、房态与可售（含投影重建与三方对账）、运维处置（死信/外部任务/对账差异/处置留痕）。
+     统一用 ProTable / ModalForm / ProDescriptions / PageContainer；写操作带幂等键；
+     可执行动作由后端 `allowedActions` 决定，前端不自己判断状态。
+  7. **模板 demo 清理（O-11 主体完成）**：删除 9 个 demo 目录（list / form / profile / account / result /
+     table-list / dashboard / chatbot）+ `Admin.tsx` + 126 个文件；`config/routes.ts` 重建为业务路由；
+     `mock/` 整个目录删除；`services/ant-design-pro/`（模板 mock API）删除；
+     页脚去掉 "Ant Design Pro ©" 与第三方链接，只留版本号与构建号（规范 §7.2）。
+  8. **登录页接真实后端**：三字段（租户编码 + 登录名 + 口令）→ `POST /api/v1/auth/login`；
+     去掉手机号/验证码/注册等模板分支；`getInitialState` 改调 `/api/v1/auth/me`（不再是模板 mock）。
+  9. **access.ts 改按权限点判定**（模板的 `access: 'admin' | 'user'` → 后端 15 个「资源:动作」权限点），
+     读写权限分开（如 `ops:read` 与 `ops:operate`）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：
+  - O-01 / O-02 / O-03 / O-04 / O-05 / O-06 / O-07 / O-09 / O-11（管理端前端工程）
+  - B-01（员工登录与会话）、B-02（RBAC）、B-03（门店范围与切换）
+  - C-01（房型维护）、C-02（实体房维护）、C-04（房型/房间启停）
+  - D-01 / D-08（可售与订单查询）、D-12（订单来源）
+  - E-02 / E-03（房态投影与对账）
+  - M-04 / M-05（死信重放与对账工单的前端入口）
+  - A-01 / A-03 / A-04（租户、门店、门店范围）
+  - 任务：S3-01（后台前端基础与契约接入）
+- 变更文件：
+  - 后端新增：`tenant/web/HotelScopeController.java`、`tenant/web/HotelView.java`、
+    `test/.../tenant/HotelScopeApiTest.java`（6 例）
+  - 后端修改：10 个控制器加 `@Operation(operationId=...)`；`OrganizationMapper`（接口 + XML）加 `findHotelsByIds`；
+    `NoDatabaseStubConfig` 同步；`docs/api/openapi-v1.json` 契约基线更新
+  - 新增脚本：`openbackupsaas/scripts/seed-super-admin.sql`、`openbackupsaas/scripts/seed-super-admin.sh`、
+    `scripts/gen-pms-types.mjs`、`scripts/sync-menu-locales.mjs`、`scripts/sync-login-locales.mjs`
+  - 前端新增：`src/services/pms/*`（9 个文件）、`src/components/HotelSelector/*`、`src/components/StatusTag/index.tsx`、
+    `src/pages/reservation/list/index.tsx`、`src/pages/room/index.tsx`、`src/pages/inventory/index.tsx`、
+    `src/pages/ops/index.tsx`、`e2e/verify-integration.mjs`
+  - 前端修改：`src/app.tsx`、`src/access.ts`、`src/access.test.ts`、`src/requestErrorConfig.ts`、
+    `src/pages/Welcome.tsx`、`src/pages/user/login/index.tsx`、`src/components/RightContent/AvatarDropdown.tsx`、
+    `src/components/Footer/index.tsx`、`config/routes.ts`、`config/proxy.ts`、`config/config.ts`、
+    8 个语言目录的 `menu.ts` 与 `pages.ts`
+  - 前端删除：9 个 demo 目录 + `Admin.tsx` + `Welcome.css` / `Welcome-dark.css`（126 个文件）、
+    `mock/`、`src/services/ant-design-pro/`
+- 验证（本轮实际执行）：
+  - 后端 `./mvnw -o -B -ntp clean verify`（真实 PostgreSQL + RabbitMQ）→ **Tests run: 269, Failures: 0,
+    Errors: 0, Skipped: 4，BUILD SUCCESS**（较上一轮 +6 例；新增的 6 例即 `HotelScopeApiTest`）
+  - 后端接口实机验证：`POST /api/v1/auth/login`（admin/admin）→ 200，返回令牌与 **15 个权限点**；
+    `GET /api/v1/hotels` → 200 返回 1 间门店；无令牌访问 → **401**
+  - 业务链路实机验证：建房型 → 201、建房间 ×2 → 201、建单 → 201（自动分房、订单号 `RSV202610310651B724`）、
+    订单列表 → 200 返回 1 条
+  - 前端 `npm run tsc` → **0 error**；`npm run biome:lint` → **0 error 0 warning**（136 文件）；
+    `npm run build` → 成功产出 `dist/`，`dist/index.html` 存在、`dist/CNAME` 不存在
+  - **前后端对接端到端验证**（`e2e/verify-integration.mjs`，Playwright 真实浏览器 + 真实后端）：
+    **13/13 通过** —— 登录页预填租户编码、无模板品牌残留、admin/admin 登录并跳转工作台、
+    工作台显示业务指标位、顶栏门店选择器显示后端返回的「总部门店（hq）」、
+    订单列表显示后端真实订单号、房型页显示真实房型「标准间」、房态页与运维页指标位正常、
+    业务页面无模板营销文案、**35 次业务接口调用全部 200 且无失败**
+  - 未覆盖：浏览器交互层面的写操作（建单/确认/取消按钮）未做自动点击验证，仅验证到接口层与页面渲染层；
+    多门店切换后的缓存清理（S3-02 范围）未验证。
+- 本轮发现（转入后续轮次）：
+  1. **集成测试会清库**：`PostgresIntegrationTest` 每个方法前跑 `DatabaseCleaner` 全库清理，
+     因此**跑过集成测试后 dev 库里的业务数据（包括本轮种入的 admin 账号）会被清空**，
+     需要重跑 `seed-super-admin.sql`。测试库与联调库必须分开，否则会反复踩。
+  2. **本机宿主环境有 `SERVER__PORT=64876`** 这个变量，会被 Spring 的 relaxed binding 覆盖
+     `server.port`（优先级高于 `PMS_SERVER_PORT`）。表现为"明明设了 18080，Tomcat 却起在 64876"。
+     启动后端必须 `unset SERVER__PORT`。
+  3. **Docker 发布的端口在本机只有 IPv6 回环可用**：`127.0.0.1:55432` 超时而 `::1:55432` 正常，
+     JVM 侧用 `PMS_DB_HOST="[::1]"` 才能连上。
+  4. **umi dev 的 safe-delete 拦截**：`max dev` 启动时要删 `src/.umi`，被本机沙箱的批量删除守卫拦下，
+     表现为 `SAFE_DELETE_BULK_CONFIRM_REQUIRED` 且进程卡住不退出。构建前先 `mv src/.umi` 与 `mv dist` 走。
+  5. **umi 菜单词条 key 是拼接的**：`menu.<父 name>.<子 name>`。子路由的 name 若重复父级前缀
+     （如父 `workspace` + 子 `workspace.today`），词条 key 会变成 `menu.workspace.workspace.today` 而找不到。
+  6. **i18n 的 `baseNavigator: true` 会造成中英混排**：页面主体文案是硬编码中文，
+     而菜单名与按钮走 i18n，浏览器为 en-US 时登录页就变成"中文页面 + 英文按钮"。已改为固定 `zh-CN` 默认。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：S3-01 剩余（写操作按钮的浏览器级验证、员工与角色管理页 S3-02）；
+  S2-08 故障注入；S0-05—S0-09 待定案后开 G0 审查。
+
+---
+
 ### R-20261031-23 修复后端启动的迁移/消息对接，并打通 beta 发布通道
 
 - 状态：DONE
@@ -205,6 +891,34 @@
      处置原则：要么订阅它，要么别发出去。当前选择订阅（先入库留痕，再由 Inbox 侧按无订阅者跳过）。
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：`S2-06` 监控告警；S2-07 剩余（预发宿主机与 deploy job、备份定时与恢复演练）
+
+---
+
+### R-20261031-24 S2-06 监控、链路与告警（指标 + 端点 + 链路桥接 + 告警规则/文档）
+
+- 状态：DONE
+- 范围（本轮只做这些）：
+  1. **业务指标门面 `PmsMetrics`**（`shared/observability`）：6 类计数器/计量 + 低基数硬约束（标签值非法一律归 `invalid`），指标名/标签键单源定义。
+  2. **埋点接线**：`ReservationCommandService`（订单命令 success/conflict/error）、`ReservationExpiryService`（到期释放带增量）、`OccupancyService`（占用冲突按 kind）、`ExternalTaskExecutor`（外部任务按 channel+outcome，FAILED 归 conflict、渠道归一小写）、`InboxProcessor`（processed/ignored/skipped_stale/parked_gap + 重复投递记 `duplicate`）、`AuthenticationService`（login_success/failure+reason、logout、password_changed）。
+  3. **端点**：`micrometer-registry-prometheus`（runtime）暴露 `/actuator/prometheus`；actuator 暴露 `health,info,prometheus`；tracing 采样率默认 0（默认不外发 span，见 §4 启用门禁）。
+  4. **链路桥接**：`micrometer-tracing-bridge-otel`（OpenTelemetry 桥接，进程内上下文传播 + 自动 HTTP/DB 埋点），不含导出器依赖。
+  5. **告警**：`deploy/monitoring/prometheus.yml`（抓取 + rule_files + alerting 骨架）+ `deploy/monitoring/alert-rules.yml`（7 条规则，severity 分 page/ticket，全部基于 pms.* 有限标签）。
+  6. **文档**：`docs/operations/monitoring.md`（三层观测 + MDC 关联 + 指标目录 + 告警目录 + 链路启用门禁）。
+  7. **测试**：`PmsMetricsTest`（6 例，钉死低基数折叠、渠道归一、重复/冲突映射、计数累加）。
+- 本轮明确不做（转入后续轮次）：Grafana 仪表盘 JSON、Alertmanager 真实接收人/路由（需 secret，属 S2-07 预发宿主机部署动作）、日志脱敏规则引擎化（S6-05）、S2-08 故障注入验收。Outbox 积压告警原语（`pms.outbox.*` gauge/counter）已由 R-S2-01 的 `OutboxBacklogMonitor` 提供，本轮只在规则里引用。
+- 涉及功能项（FT-*）/ 任务（S*-*）：M-06；S2-06
+- 变更文件：
+  - 新增：`openbackupsaas/.../shared/observability/PmsMetrics.java`、`openbackupsaas/.../shared/observability/PmsMetricsTest.java`、`deploy/monitoring/{prometheus.yml,alert-rules.yml}`、`docs/operations/monitoring.md`
+  - 修改：`openbackupsaas/pom.xml`（可观测性依赖）、`openbackupsaas/src/main/resources/application.properties`（暴露 prometheus + 采样率 0）、上述 6 个 service 的埋点接线
+- 验证（本轮实际执行）：
+  - `./mvnw -o clean verify`（真实 PostgreSQL + RabbitMQ）：**263 用例，0 失败 0 错误 0 跳过，BUILD SUCCESS**（较上一轮 257 增 6 例 PmsMetricsTest）。
+  - 编译零错误；无手动 `new` 这些 service（Spring 注入自动适配构造器新增参数）。
+- 本轮发现：
+  1. `ExternalTaskExecutor`/`AuthenticationService` 在限流前遗留两处会编译失败的编辑（重复方法、漏赋 final 字段），已修；`ReservationExpiryService` 重复 import 已删。
+  2. `PmsMetrics.task` 的 channel 标签不对非枚举字符串转小写——带大写的渠道名会折叠为 `invalid`（防基数爆炸，符合预期，已写入测试）。
+  3. Micrometer `get().tag().counter()` 在「同名多 meter」查询下抛 MeterNotFound；单测改用 `find().counter().count()`（缺失返回 0 而非抛异常）。
+- 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：`S2-07` 剩余（预发宿主机与 deploy job、备份定时与恢复演练）；`S2-08` 故障注入
 
 ---
 

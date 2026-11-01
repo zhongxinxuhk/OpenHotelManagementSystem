@@ -13,6 +13,7 @@ import cn.sec.hn.openbackupsaas.journal.service.JournalService;
 import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationMapper;
 import cn.sec.hn.openbackupsaas.shared.error.NotFoundException;
 import cn.sec.hn.openbackupsaas.shared.error.ConflictException;
+import cn.sec.hn.openbackupsaas.shared.observability.PmsMetrics;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,13 +46,15 @@ public class OccupancyService {
     private final ReservationMapper reservationMapper;
     private final JournalService journalService;
     private final IdempotencyService idempotencyService;
+    private final PmsMetrics metrics;
     private final Clock clock;
 
     public OccupancyService(ReservationMapper reservationMapper, JournalService journalService,
-                            IdempotencyService idempotencyService, Clock clock) {
+                            IdempotencyService idempotencyService, PmsMetrics metrics, Clock clock) {
         this.reservationMapper = reservationMapper;
         this.journalService = journalService;
         this.idempotencyService = idempotencyService;
+        this.metrics = metrics;
         this.clock = clock;
     }
 
@@ -274,6 +277,8 @@ public class OccupancyService {
         try {
             reservationMapper.insertOccupancy(occupancy);
         } catch (DataIntegrityViolationException ex) {
+            // EXCLUDE 约束兜底的冲突：按占用种类记一条，便于发现"高冲突率"房型/门店。
+            metrics.conflict(occupancy.kind().name().toLowerCase());
             throw OccupancyConflictTranslator.translate(ex);
         }
         return requireOccupancy(occupancy.tenantId(), occupancy.hotelId(), occupancy.id());

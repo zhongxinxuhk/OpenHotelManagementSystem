@@ -2,7 +2,8 @@
 
 > 版本：1.0；建立日期：2026-10-29（AEST）；决策依据：[ADR-015](../adr/ADR-015-frontend-ant-design-pro.md)。
 >
-> 适用范围：`frontend-admin-pro/`（集团端 / 门店端 / 前台端 / 运维端统一后台）。
+> 适用范围：`frontend/merchant-web/`（Web 商家端：集团 / 门店 / 前台 / 运维的统一后台）。
+> 客户端与平台端不适用本规范：它们是独立工程、不同身份平面（见 [ADR-017](../adr/ADR-017-multi-surface-and-identity-planes.md) 与 `frontend/README.md`）。
 > 不适用：住客 H5、微信小程序（技术栈另定）。
 >
 > 实时进度见 [progress.md](./progress.md)；功能项 O-01—O-11 见 [feature-catalog.md](./feature-catalog.md) §O。
@@ -41,7 +42,7 @@ npm run build           # 生产构建（必跑）
 模板自带的 demo 目录（`pages/Welcome*`、`pages/list`、`pages/form`、`pages/profile`、`pages/account`、`pages/result`、`pages/table-list`、`pages/dashboard`、`pages/chatbot`、`pages/Admin.tsx`）在 O-11 中整体清理；业务代码按下表归位。
 
 ```text
-frontend-admin-pro/
+frontend/merchant-web/
   config/
     config.ts            # 构建、代理、布局插件（只做加法，保持模板结构）
     defaultSettings.ts   # ProLayout 主题：title/logo/colorPrimary/token

@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  平台身份与核验渠道配置 SQL（ADR-019）。
+
+  纪律：
+  1. 本文件**没有任何 tenant_id 条件**：平台没有租户，只有系统资源（DEC-02「平台不跨租户」）；
+  2. 不得在这里出现租户业务表 —— 平台账号不该有读订单/房态的路径，
+     需要协助商家时走限时支持会话（A-05），那是另一套机制；
+  3. 不得返回口令哈希以外的凭据，也不能把 credential_ref 当凭据本身用。
+
+  注意：record 的构造器映射里，primitive 字段必须写 `_boolean` / `_int`。
+  写 `boolean` / `int` 会被 MyBatis 解析成包装类 Boolean / Integer，
+  与 record 的构造器签名不匹配，报错是
+  "NoSuchMethodException: <init>(...)" 且只列出类型与值，很容易被当成"字段顺序错了"。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.platform.mapper.PlatformMapper">
+
+    <resultMap id="platformUserMap" type="cn.sec.hn.openbackupsaas.platform.domain.PlatformUser">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.platform.domain.PlatformUserStatus"/>
+            <arg column="must_change_password" javaType="_boolean"/>
+            <arg column="last_login_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findUserByUsername" resultMap="platformUserMap">
+        SELECT id, username, display_name, password_hash, status, must_change_password,
+               last_login_at, version, created_at, updated_at
+        FROM platform_user
+        WHERE username = #{username}
+    </select>
+
+    <select id="findActions" resultType="java.lang.String">
+        SELECT action_code
+        FROM platform_user_action
+        WHERE platform_user_id = #{userId}
+        ORDER BY action_code
+    </select>
+
+    <update id="updateLastLogin">
+        UPDATE platform_user SET last_login_at = #{at} WHERE id = #{userId}
+    </update>
+
+    <update id="updatePasswordHash">
+        UPDATE platform_user
+        SET password_hash = #{passwordHash},
+            must_change_password = false,
+            updated_at = #{at},
+            version = version + 1
+        WHERE id = #{userId}
+    </update>
+
+    <!-- ===== 会话 ===== -->
+
+    <resultMap id="platformSessionViewMap"
+               type="cn.sec.hn.openbackupsaas.platform.domain.PlatformSessionView">
+        <constructor>
+            <arg column="session_id" javaType="java.util.UUID"/>
+            <arg column="user_id" javaType="java.util.UUID"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="must_change_password" javaType="_boolean"/>
+            <arg column="expires_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insertSession">
+        INSERT INTO platform_session (id, user_id, token_hash, issued_at, expires_at, version)
+        VALUES (#{id}, #{userId}, #{tokenHash}, #{issuedAt}, #{expiresAt}, 0)
+    </insert>
+
+    <select id="findUsableSession" resultMap="platformSessionViewMap">
+        SELECT s.id           AS session_id,
+               s.user_id      AS user_id,
+               u.username     AS username,
+               u.display_name AS display_name,
+               u.must_change_password AS must_change_password,
+               s.expires_at   AS expires_at
+        FROM platform_session s
+        JOIN platform_user u ON u.id = s.user_id
+        WHERE s.token_hash = #{tokenHash}
+          AND s.revoked_at IS NULL
+          AND s.expires_at > now()
+          AND u.status = 'ACTIVE'
+    </select>
+
+    <update id="revokeSession">
+        UPDATE platform_session
+        SET revoked_at = #{at}, revoke_reason = #{reason}, version = version + 1
+        WHERE id = #{sessionId} AND revoked_at IS NULL
+    </update>
+
+    <update id="revokeOtherSessions">
+        UPDATE platform_session
+        SET revoked_at = #{at}, revoke_reason = #{reason}, version = version + 1
+        WHERE user_id = #{userId}
+          AND id &lt;&gt; #{keepSessionId}
+          AND revoked_at IS NULL
+          AND expires_at &gt; #{at}
+    </update>
+
+    <!-- ===== 核验渠道配置 ===== -->
+
+    <resultMap id="verificationChannelMap"
+               type="cn.sec.hn.openbackupsaas.guest.domain.VerificationChannel">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="kind" javaType="cn.sec.hn.openbackupsaas.guest.domain.VerificationChannel$ChannelKind"/>
+            <arg column="endpoint" javaType="java.lang.String"/>
+            <arg column="credential_ref" javaType="java.lang.String"/>
+            <arg column="timeout_ms" javaType="_int"/>
+            <arg column="priority" javaType="_int"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.guest.domain.VerificationChannel$ChannelStatus"/>
+            <arg column="circuit_state" javaType="cn.sec.hn.openbackupsaas.guest.domain.VerificationChannel$CircuitState"/>
+            <arg column="consecutive_failures" javaType="_int"/>
+            <arg column="opened_until" javaType="java.time.OffsetDateTime"/>
+            <arg column="last_failure_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="last_failure_reason" javaType="java.lang.String"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="channelColumns">
+        id, code, name, kind, endpoint, credential_ref, timeout_ms, priority, status,
+        circuit_state, consecutive_failures, opened_until, last_failure_at, last_failure_reason,
+        version, created_at, updated_at
+    </sql>
+
+    <select id="findChannels" resultMap="verificationChannelMap">
+        SELECT <include refid="channelColumns"/>
+        FROM guest_verification_channel
+        ORDER BY priority, code
+    </select>
+
+    <select id="findChannelByCode" resultMap="verificationChannelMap">
+        SELECT <include refid="channelColumns"/>
+        FROM guest_verification_channel
+        WHERE code = #{code}
+    </select>
+
+    <insert id="insertChannel">
+        INSERT INTO guest_verification_channel
+            (id, code, name, kind, endpoint, credential_ref, timeout_ms, priority, status, version)
+        VALUES (#{id}, #{code}, #{name}, #{kind}, #{endpoint}, #{credentialRef},
+                #{timeoutMs}, #{priority}, #{status}, 0)
+    </insert>
+
+    <!--
+      只改配置，不碰熔断状态：把熔断塞进同一个更新里，
+      会出现"保存了一下配置，熔断状态被顺手清零"这种没人预期的副作用。
+    -->
+    <update id="updateChannelConfig">
+        UPDATE guest_verification_channel
+        SET name = #{name},
+            endpoint = #{endpoint},
+            credential_ref = #{credentialRef},
+            timeout_ms = #{timeoutMs},
+            priority = #{priority},
+            status = #{status},
+            updated_at = #{at},
+            version = version + 1
+        WHERE code = #{code}
+    </update>
+
+    <!--
+      手动复位。原因写进 last_failure_reason 而不另开一列：
+      这一列的语义是"最近一次与异常相关的说明"，人工复位也属于这一类；
+      而"谁在何时复位"的留痕应由平台审计承担（A-08），不在这张配置表里。
+    -->
+    <update id="resetCircuit">
+        UPDATE guest_verification_channel
+        SET circuit_state = 'CLOSED',
+            consecutive_failures = 0,
+            opened_until = NULL,
+            last_failure_reason = #{reason},
+            updated_at = #{at},
+            version = version + 1
+        WHERE code = #{code}
+    </update>
+
+</mapper>

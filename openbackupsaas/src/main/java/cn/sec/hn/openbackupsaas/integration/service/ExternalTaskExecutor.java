@@ -5,10 +5,14 @@ import cn.sec.hn.openbackupsaas.integration.domain.ExternalTask;
 import cn.sec.hn.openbackupsaas.integration.domain.QueryOutcome;
 import cn.sec.hn.openbackupsaas.integration.domain.TaskOutcome;
 import cn.sec.hn.openbackupsaas.integration.mapper.ExternalTaskMapper;
+import cn.sec.hn.openbackupsaas.shared.observability.PmsMetrics;
+import cn.sec.hn.openbackupsaas.shared.observability.PmsMetrics.Outcome;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import java.util.Locale;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -58,6 +62,7 @@ public class ExternalTaskExecutor {
     private final Map<String, ExternalTaskHandler> handlers = new HashMap<>();
     private final ChannelPolicyRegistry policies;
     private final ChannelGate gate;
+    private final PmsMetrics metrics;
     private final Clock clock;
     private final Backoff backoff;
     private final int batchSize;
@@ -67,6 +72,7 @@ public class ExternalTaskExecutor {
                                 List<ExternalTaskHandler> handlerList,
                                 ChannelPolicyRegistry policies,
                                 ChannelGate gate,
+                                PmsMetrics metrics,
                                 Clock clock,
                                 @Value("${pms.integration.task.batch-size:20}") int batchSize,
                                 @Value("${pms.integration.task.lease-duration:PT2M}") Duration leaseDuration,
@@ -82,6 +88,7 @@ public class ExternalTaskExecutor {
         this.mapper = mapper;
         this.policies = policies;
         this.gate = gate;
+        this.metrics = metrics;
         this.clock = clock;
         this.backoff = new Backoff(baseBackoff, maxBackoff);
         this.batchSize = batchSize;
@@ -116,7 +123,10 @@ public class ExternalTaskExecutor {
         int skipped = 0;
         for (ExternalTask task : claimed) {
             try {
-                switch (dispatch(task, leaseToken)) {
+                Step step = dispatch(task, leaseToken);
+                // 渠道是运维自定义的配置键前缀，可能带大写；归一化避免 "WeChat"/"wechat" 各算一条。
+                metrics.task(task.channel().toLowerCase(Locale.ROOT), outcomeOf(step));
+                switch (step) {
                     case SUCCEEDED -> succeeded++;
                     case RETRY -> retried++;
                     case FAILED -> failed++;
@@ -279,6 +289,24 @@ public class ExternalTaskExecutor {
 
     private static Duration maxOf(Duration left, Duration right) {
         return left.compareTo(right) >= 0 ? left : right;
+    }
+
+    /**
+     * 处置结论 → 指标结果标签。
+     *
+     * <p>把 {@code FAILED} 归到 {@link Outcome#CONFLICT} 而不是 ERROR：渠道明确拒绝是
+     * <b>业务结论</b>，重试一万次也一样；把它和"超时 / 未知"混成一类，
+     * 告警要么吵得没人看，要么钝到真出事时没反应。
+     */
+    private static Outcome outcomeOf(Step step) {
+        return switch (step) {
+            case SUCCEEDED -> Outcome.SUCCESS;
+            case RETRY -> Outcome.RETRY;
+            case FAILED -> Outcome.CONFLICT;
+            case MANUAL -> Outcome.MANUAL;
+            case DEAD -> Outcome.DEAD;
+            case SKIPPED -> Outcome.SKIPPED;
+        };
     }
 
     private static java.time.OffsetDateTime at(Instant instant) {

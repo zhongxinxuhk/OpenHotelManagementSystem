@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.support;
 
 import cn.sec.hn.openbackupsaas.command.domain.IdempotencyRecord;
+import cn.sec.hn.openbackupsaas.identity.domain.Permission;
 import cn.sec.hn.openbackupsaas.command.domain.IdempotencyStatus;
 import cn.sec.hn.openbackupsaas.command.mapper.IdempotencyMapper;
 import cn.sec.hn.openbackupsaas.identity.domain.AppUser;
@@ -122,6 +123,21 @@ public class NoDatabaseStubConfig {
     @Bean
     cn.sec.hn.openbackupsaas.inventory.mapper.InventoryMapper inventoryMapper() {
         return new InventoryMapperStub();
+    }
+
+    @Bean
+    cn.sec.hn.openbackupsaas.guest.mapper.GuestMapper guestMapper() {
+        return new GuestMapperStub();
+    }
+
+    @Bean
+    cn.sec.hn.openbackupsaas.guest.mapper.GuestLoginPolicyMapper guestLoginPolicyMapper() {
+        return new GuestLoginPolicyMapperStub();
+    }
+
+    @Bean
+    cn.sec.hn.openbackupsaas.platform.mapper.PlatformMapper platformMapper() {
+        return new PlatformMapperStub();
     }
 
     static final class JournalMapperStub implements JournalMapper {
@@ -259,6 +275,11 @@ public class NoDatabaseStubConfig {
         public List<Hotel> findHotels(UUID tenantId) {
             throw new UnsupportedOperationException(MESSAGE);
         }
+
+        @Override
+        public List<Hotel> findHotelsByIds(UUID tenantId, List<UUID> ids) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
     }
 
     static final class IdentityMapperStub implements IdentityMapper {
@@ -322,6 +343,77 @@ public class NoDatabaseStubConfig {
         public List<UUID> findHotelScopeIds(UUID tenantId, UUID userId) {
             throw new UnsupportedOperationException(MESSAGE);
         }
+        @Override
+        public int clearHotelScopes(UUID tenantId, UUID userId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int clearUserRoles(UUID tenantId, UUID userId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countOtherActiveUsersWithPermission(UUID tenantId, String permissionCode,
+                                                       UUID excludedUserId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int requirePasswordChange(UUID tenantId, UUID userId, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<AppUser> findUsers(UUID tenantId, String status, String keyword, int limit, int offset) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countUsers(UUID tenantId, String status, String keyword) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateUserStatus(UUID tenantId, UUID userId, String status, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<Role> findRole(UUID tenantId, UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<Role> findRoles(UUID tenantId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateRoleStatus(UUID tenantId, UUID roleId, String status, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<String> findRolePermissionCodes(UUID tenantId, UUID roleId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int revokeRolePermission(UUID tenantId, UUID roleId, String permissionCode) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<Permission> findAllPermissions() {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public List<Role> findRolesByUser(UUID tenantId, UUID userId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
 
         @Override
         public int insertSession(UserSession session) {
@@ -934,4 +1026,264 @@ public class NoDatabaseStubConfig {
             throw new UnsupportedOperationException(MESSAGE);
         }
     }
+    /**
+     * 住客 Mapper 桩。
+     *
+     * <p>住客表是全库唯一没有 tenant_id 的业务表（ADR-018 §2.6），
+     * 所以这里的方法也都不带租户参数——与生产接口保持一致，
+     * 避免桩与真实签名漂移导致"测试档案能过、集成档案编译不过"。
+     */
+    static final class GuestMapperStub implements cn.sec.hn.openbackupsaas.guest.mapper.GuestMapper {
+
+        @Override
+        public int insertAccount(cn.sec.hn.openbackupsaas.guest.domain.GuestAccount account) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.guest.domain.GuestAccount> findAccount(UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertCredential(UUID id, UUID accountId, String provider, String subject,
+                                    String secretHash, OffsetDateTime verifiedAt,
+                                    OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.guest.domain.UsernameCredential> findUsernameCredential(
+                String subject) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<UUID> findAccountIdByCredential(String provider, String subject) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int markCredentialVerified(UUID accountId, String provider, String subject,
+                                          OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertVerification(UUID accountId, String idNumberEnc, String idNumberHmac,
+                                      String idNumberMask, String realNameEnc, String realNameMask,
+                                      OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateVerification(UUID accountId, String idNumberEnc, String idNumberHmac,
+                                      String idNumberMask, String realNameEnc, String realNameMask,
+                                      OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.guest.domain.GuestVerification> findVerification(
+                UUID accountId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<UUID> findAccountIdByIdNumberHmac(String idNumberHmac) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertSession(cn.sec.hn.openbackupsaas.guest.domain.GuestSession session) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.guest.domain.GuestSessionView> findUsableSession(
+                String tokenHash) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int revokeSession(UUID sessionId, String reason, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int revokeAllSessionsOfAccount(UUID accountId, String reason,
+                                              OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.guest.domain.PendingVerification>
+                findPendingVerifications(int limit, int offset) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countPendingVerifications() {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int applyVerificationDecision(UUID accountId, String decision,
+                                             OffsetDateTime verifiedAt, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertReview(cn.sec.hn.openbackupsaas.guest.domain.GuestVerificationReview review) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.guest.domain.GuestVerificationReview>
+                findReviews(UUID accountId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertChallenge(UUID id, UUID accountId, String provider, String subject,
+                                   String codeHash, OffsetDateTime expiresAt, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.guest.domain.OwnershipChallenge> findChallenge(
+                UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int bumpChallengeAttempts(UUID id, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int consumeChallenge(UUID id, int maxAttempts, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.guest.domain.GuestCredentialView>
+                findCredentialsOfAccount(UUID accountId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public long countCredentials(UUID accountId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int deleteCredential(UUID accountId, String provider, String subject) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    /**
+     * 平台 Mapper 桩（ADR-019）。
+     *
+     * <p>与其它桩一样：`test` 档案不连库，所以方法体一律抛。存在的意义只是
+     * 让 Spring 上下文能起来——漏了它，`ApplicationContextTests` 与
+     * `OpenApiContractTest` 会以 "No qualifying bean of type ..." 失败，
+     * 而那条报错很难让人联想到"该补桩了"。
+     */
+    static final class PlatformMapperStub
+            implements cn.sec.hn.openbackupsaas.platform.mapper.PlatformMapper {
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.platform.domain.PlatformUser> findUserByUsername(
+                String username) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<String> findActions(UUID userId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateLastLogin(UUID userId, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updatePasswordHash(UUID userId, String passwordHash, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertSession(cn.sec.hn.openbackupsaas.platform.domain.PlatformSession session) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.platform.domain.PlatformSessionView> findUsableSession(
+                String tokenHash) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int revokeSession(UUID sessionId, String reason, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int revokeOtherSessions(UUID userId, UUID keepSessionId, String reason,
+                                       OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.guest.domain.VerificationChannel> findChannels() {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.guest.domain.VerificationChannel> findChannelByCode(
+                String code) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertChannel(cn.sec.hn.openbackupsaas.guest.domain.VerificationChannel channel) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateChannelConfig(String code, String name, String endpoint,
+                                       String credentialRef, int timeoutMs, int priority,
+                                       String status, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int resetCircuit(String code, String reason, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
+    /** 住客登录方式开关桩（ADR-019 §2.9）。 */
+    static final class GuestLoginPolicyMapperStub
+            implements cn.sec.hn.openbackupsaas.guest.mapper.GuestLoginPolicyMapper {
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.guest.domain.GuestLoginPolicy> find(String provider) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public java.util.List<cn.sec.hn.openbackupsaas.guest.domain.GuestLoginPolicy> findAll() {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int upsert(String provider, boolean enabled, String updatedBy, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+    }
+
 }

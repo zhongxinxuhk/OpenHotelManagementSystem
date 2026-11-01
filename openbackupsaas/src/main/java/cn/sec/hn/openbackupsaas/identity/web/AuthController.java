@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.identity.web;
 
 import cn.sec.hn.openbackupsaas.identity.service.AuthenticationService;
+import io.swagger.v3.oas.annotations.Operation;
 import cn.sec.hn.openbackupsaas.shared.security.PmsPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -34,6 +35,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @Operation(operationId = "authLogin")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         AuthenticationService.LoginResult result =
                 authenticationService.login(request.tenantCode(), request.username(), request.password());
@@ -41,17 +43,20 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @Operation(operationId = "authLogout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(@AuthenticationPrincipal PmsPrincipal principal) {
         authenticationService.logout(principal);
     }
 
     @GetMapping("/me")
+    @Operation(operationId = "authMe")
     public UserView me(@AuthenticationPrincipal PmsPrincipal principal) {
         return UserView.of(principal);
     }
 
     @PostMapping("/password")
+    @Operation(operationId = "authChangePassword")
     public ResponseEntity<Void> changePassword(@AuthenticationPrincipal PmsPrincipal principal,
                                                @Valid @RequestBody ChangePasswordRequest request) {
         authenticationService.changePassword(principal, request.currentPassword(), request.newPassword());

@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.identity.web;
 
 import cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper;
+import io.swagger.v3.oas.annotations.Operation;
 import cn.sec.hn.openbackupsaas.shared.error.NotFoundException;
 import cn.sec.hn.openbackupsaas.shared.security.Authz;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,6 +38,7 @@ public class IdentityController {
     }
 
     @GetMapping("/users/{userId}/hotel-scopes")
+    @Operation(operationId = "identityHotelScopes")
     @PreAuthorize("hasAuthority('identity:read')")
     public List<UUID> hotelScopes(@PathVariable UUID userId) {
         // 租户来自可信身份上下文；此处不接受任何 tenantId 参数，也就无从伪造

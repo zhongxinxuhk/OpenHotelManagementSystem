@@ -63,6 +63,49 @@ public final class IdentitySeed {
         return new Seed(tenant, hotel, second, user, username);
     }
 
+    /**
+     * 在**同一个租户内**再加一个员工（S3-02）。
+     *
+     * <p>为什么需要它：{@link #seed} 每次都建**独立租户**，所以"管理员管理另一个 seed 的账号"
+     * 实际上是跨租户操作，会被正确地拒成 404。而管理面的真实场景是
+     * "同租户的管理员管同租户的员工"，夹具必须能表达这一点，否则要么测不到，
+     * 要么把 404 误当成缺陷去改代码。
+     *
+     * <p>角色 code 用 {@code ROLE<suffix>}：同租户内角色 code 唯一，
+     * 复用 {@code ADMIN} 会与 {@link #seed} 建的角色冲突。
+     */
+    public static Teammate addTeammate(OrganizationService organizations,
+                                       IdentityMapper identity,
+                                       PasswordEncoder encoder,
+                                       Seed host,
+                                       String suffix,
+                                       String[] permissionCodes,
+                                       boolean grantFirstHotel) {
+        String username = "tm" + suffix;
+        AppUser user = AppUser.create(UUID.randomUUID(), host.tenantId(), username,
+                "同事 " + suffix, encoder.encode(RAW_PASSWORD), OffsetDateTime.now());
+        identity.insertUser(user);
+
+        if (permissionCodes.length > 0) {
+            String roleCode = "ROLE_" + suffix.toUpperCase(java.util.Locale.ROOT);
+            Role role = Role.create(UUID.randomUUID(), host.tenantId(), roleCode,
+                    "角色 " + suffix, OffsetDateTime.now());
+            identity.insertRole(role);
+            for (String code : permissionCodes) {
+                identity.grantPermission(host.tenantId(), role.id(), code);
+            }
+            identity.assignRole(host.tenantId(), user.id(), role.id());
+        }
+        if (grantFirstHotel) {
+            identity.addHotelScope(host.tenantId(), user.id(), host.hotelId());
+        }
+        return new Teammate(user.id(), username, host.tenantCode());
+    }
+
+    /** 同租户内的另一个员工。 */
+    public record Teammate(UUID userId, String username, String tenantCode) {
+    }
+
     /** 夹具结果；{@code secondHotel} 故意不加入数据范围，用于越权用例。 */
     public record Seed(Tenant tenant, Hotel hotel, Hotel secondHotel, AppUser user, String username) {
 

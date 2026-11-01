@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.reconcile.web;
 
 import cn.sec.hn.openbackupsaas.inventory.domain.InventoryWindow;
+import io.swagger.v3.oas.annotations.Operation;
 import cn.sec.hn.openbackupsaas.reconcile.domain.FindingSeverity;
 import cn.sec.hn.openbackupsaas.reconcile.domain.FindingView;
 import cn.sec.hn.openbackupsaas.reconcile.domain.ReconcileRunReport;
@@ -58,6 +59,7 @@ public class ReconcileController {
      * 界面必须显示"未对账"而不是"0 条差异"——后者会被当成"一切正常"。
      */
     @GetMapping("/summary")
+    @Operation(operationId = "getReconcileSummary")
     @PreAuthorize("hasAuthority('reconcile:read')")
     public SummaryView summary(@PathVariable UUID hotelId) {
         UUID tenantId = hotelAccess.requireAccess(hotelId);
@@ -73,6 +75,7 @@ public class ReconcileController {
      * @param status OPEN（默认，未结）或 SETTLED（已修复/已忽略/已退场，供复盘）
      */
     @GetMapping("/findings")
+    @Operation(operationId = "listReconcileFindings")
     @PreAuthorize("hasAuthority('reconcile:read')")
     public List<FindingView> findings(@PathVariable UUID hotelId,
                                       @RequestParam(defaultValue = "OPEN") String status,
@@ -86,6 +89,7 @@ public class ReconcileController {
 
     /** 最近的批次，最新在前。 */
     @GetMapping("/runs")
+    @Operation(operationId = "listReconcileRuns")
     @PreAuthorize("hasAuthority('reconcile:read')")
     public List<ReconcileRunView> runs(@PathVariable UUID hotelId,
                                        @RequestParam(defaultValue = "20") int limit) {
@@ -102,6 +106,7 @@ public class ReconcileController {
      * @param autoRepair 是否顺带修复派生差异；默认 true（只可能修派生类）
      */
     @PostMapping("/run")
+    @Operation(operationId = "runReconcile")
     @PreAuthorize("hasAuthority('reconcile:operate')")
     public ReconcileRunReport run(
             @PathVariable UUID hotelId,
@@ -121,6 +126,7 @@ public class ReconcileController {
      * 假装修好只会把矛盾藏起来。
      */
     @PostMapping("/findings/{findingId}/repair")
+    @Operation(operationId = "repairReconcileFinding")
     @PreAuthorize("hasAuthority('reconcile:operate')")
     public RepairResult repair(@PathVariable UUID hotelId, @PathVariable UUID findingId) {
         UUID tenantId = hotelAccess.requireAccess(hotelId);
@@ -130,6 +136,7 @@ public class ReconcileController {
 
     /** 忽略一条差异（必须给原因）。 */
     @PostMapping("/findings/{findingId}/ignore")
+    @Operation(operationId = "ignoreReconcileFinding")
     @PreAuthorize("hasAuthority('reconcile:operate')")
     public RepairResult ignore(@PathVariable UUID hotelId, @PathVariable UUID findingId,
                                @RequestParam String reason) {

@@ -4,6 +4,7 @@ import cn.sec.hn.openbackupsaas.inbox.domain.InboxMessage;
 import cn.sec.hn.openbackupsaas.inbox.domain.InboxOutcome;
 import cn.sec.hn.openbackupsaas.inbox.domain.InboxPosition;
 import cn.sec.hn.openbackupsaas.inbox.mapper.InboxMapper;
+import cn.sec.hn.openbackupsaas.shared.observability.PmsMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -50,9 +51,11 @@ public class InboxProcessor {
     private static final Logger log = LoggerFactory.getLogger(InboxProcessor.class);
 
     private final InboxMapper mapper;
+    private final PmsMetrics metrics;
 
-    public InboxProcessor(InboxMapper mapper) {
+    public InboxProcessor(InboxMapper mapper, PmsMetrics metrics) {
         this.mapper = mapper;
+        this.metrics = metrics;
     }
 
     /**
@@ -74,11 +77,14 @@ public class InboxProcessor {
         if (claimed == 0) {
             String existing = mapper.findOutcome(consumer.name(), message.eventId());
             InboxOutcome first = existing == null ? decision : InboxOutcome.valueOf(existing);
+            // 重复投递是 at-least-once 的正常副产物，单独记一条，便于发现"重投风暴"。
+            metrics.inbox("duplicate");
             log.debug("事件 {} 已由消费者 {} 处理过（结论 {}），本次跳过",
                     message.eventId(), consumer.name(), first);
             return new InboxResult(first, true);
         }
 
+        metrics.inbox(decision.name().toLowerCase());
         if (decision == InboxOutcome.PROCESSED) {
             consumer.apply(message);
             mapper.advancePosition(consumer.name(), message.tenantId(), message.aggregateType(),
@@ -110,6 +116,7 @@ public class InboxProcessor {
             return new InboxResult(InboxOutcome.PARKED_GAP, false);
         }
 
+        metrics.inbox(decision.name().toLowerCase());
         String detail = describe(decision, parked, lastVersion, lastOrdinal);
         if (decision == InboxOutcome.PROCESSED) {
             consumer.apply(parked);

@@ -19,6 +19,8 @@ import cn.sec.hn.openbackupsaas.reservation.web.ReservationView;
 import cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom;
 import cn.sec.hn.openbackupsaas.shared.error.ConflictException;
 import cn.sec.hn.openbackupsaas.shared.error.NotFoundException;
+import cn.sec.hn.openbackupsaas.shared.observability.PmsMetrics;
+import cn.sec.hn.openbackupsaas.shared.observability.PmsMetrics.Outcome;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,15 +71,17 @@ public class ReservationCommandService {
     private final OccupancyService occupancyService;
     private final IdempotencyService idempotencyService;
     private final JournalService journalService;
+    private final PmsMetrics metrics;
     private final Clock clock;
 
     public ReservationCommandService(ReservationMapper reservationMapper, OccupancyService occupancyService,
                                     IdempotencyService idempotencyService, JournalService journalService,
-                                    Clock clock) {
+                                    PmsMetrics metrics, Clock clock) {
         this.reservationMapper = reservationMapper;
         this.occupancyService = occupancyService;
         this.idempotencyService = idempotencyService;
         this.journalService = journalService;
+        this.metrics = metrics;
         this.clock = clock;
     }
 
@@ -100,15 +104,25 @@ public class ReservationCommandService {
      */
     @Transactional
     public ReservationView createReservation(UUID tenantId, CreateCommand command) {
-        IdempotencyService.CommandRequest request = new IdempotencyService.CommandRequest(
-                tenantId, command.hotelId(), command.callerNamespace(), RESERVATION_CREATE_COMMAND,
-                command.idempotencyKey(), command);
-        IdempotencyService.CommandResult<ReservationView> result =
-                idempotencyService.execute(request, opId -> doCreate(opId, tenantId, command));
-        // 重放时不跑业务，view 为 null；用 resultRef（订单 id）补一个轻量视图
-        return result.replayed()
-                ? ReservationView.ofId(result.resultRef())
-                : result.value();
+        try {
+            IdempotencyService.CommandRequest request = new IdempotencyService.CommandRequest(
+                            tenantId, command.hotelId(), command.callerNamespace(), RESERVATION_CREATE_COMMAND,
+                            command.idempotencyKey(), command);
+            IdempotencyService.CommandResult<ReservationView> result =
+                    idempotencyService.execute(request, opId -> doCreate(opId, tenantId, command));
+            metrics.command(RESERVATION_CREATE_COMMAND, Outcome.SUCCESS);
+            // 重放时不跑业务，view 为 null；用 resultRef（订单 id）补一个轻量视图
+            return result.replayed()
+                    ? ReservationView.ofId(result.resultRef())
+                    : result.value();
+        } catch (ReservationConflictException ex) {
+            // 建单冲突是"业务结论"，不是故障：记 CONFLICT 而不是 ERROR。
+            metrics.command(RESERVATION_CREATE_COMMAND, Outcome.CONFLICT);
+            throw ex;
+        } catch (RuntimeException ex) {
+            metrics.command(RESERVATION_CREATE_COMMAND, Outcome.ERROR);
+            throw ex;
+        }
     }
 
     private IdempotencyService.CommandOutcome<ReservationView> doCreate(UUID operationId, UUID tenantId,
@@ -234,13 +248,23 @@ public class ReservationCommandService {
 
     private ReservationView runLifecycle(UUID tenantId, UUID reservationId, LifecycleCommand command,
                                         String commandName, LifecycleKind kind) {
-        IdempotencyService.CommandRequest request = new IdempotencyService.CommandRequest(
-                tenantId, command.hotelId(), command.callerNamespace(), commandName,
-                command.idempotencyKey(), command);
-        IdempotencyService.CommandResult<ReservationView> result =
-                idempotencyService.execute(request, opId -> doLifecycle(opId, tenantId, reservationId, command, kind));
-        // 重放时不跑业务，view 为 null；用库内最新状态补一个视图
-        return result.replayed() ? buildView(tenantId, command.hotelId(), reservationId) : result.value();
+        try {
+            IdempotencyService.CommandRequest request = new IdempotencyService.CommandRequest(
+                    tenantId, command.hotelId(), command.callerNamespace(), commandName,
+                    command.idempotencyKey(), command);
+            IdempotencyService.CommandResult<ReservationView> result =
+                    idempotencyService.execute(request, opId -> doLifecycle(opId, tenantId, reservationId, command, kind));
+            metrics.command(commandName, Outcome.SUCCESS);
+            // 重放时不跑业务，view 为 null；用库内最新状态补一个视图
+            return result.replayed() ? buildView(tenantId, command.hotelId(), reservationId) : result.value();
+        } catch (ConflictException ex) {
+            // 生命周期冲突（终态已迁移 / 版本过期 / 已入住不可释放）：409，属业务结论。
+            metrics.command(commandName, Outcome.CONFLICT);
+            throw ex;
+        } catch (RuntimeException ex) {
+            metrics.command(commandName, Outcome.ERROR);
+            throw ex;
+        }
     }
 
     private IdempotencyService.CommandOutcome<ReservationView> doLifecycle(UUID operationId, UUID tenantId,

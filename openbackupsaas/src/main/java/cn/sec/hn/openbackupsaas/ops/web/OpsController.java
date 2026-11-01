@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.ops.web;
 
 import cn.sec.hn.openbackupsaas.integration.domain.ExternalTask;
+import io.swagger.v3.oas.annotations.Operation;
 import cn.sec.hn.openbackupsaas.ops.domain.DeadLetter;
 import cn.sec.hn.openbackupsaas.ops.domain.OpsIntervention;
 import cn.sec.hn.openbackupsaas.ops.service.OpsService;
@@ -46,18 +47,21 @@ public class OpsController {
     }
 
     @GetMapping("/pending")
+    @Operation(operationId = "getOpsPending")
     @PreAuthorize("hasAuthority('ops:read')")
     public OpsService.PendingSummary pending() {
         return opsService.pending();
     }
 
     @GetMapping("/dead-letters")
+    @Operation(operationId = "listDeadLetters")
     @PreAuthorize("hasAuthority('ops:read')")
     public List<DeadLetter> deadLetters(@RequestParam(defaultValue = "50") int limit) {
         return opsService.pendingDeadLetters(limit);
     }
 
     @GetMapping("/external-tasks")
+    @Operation(operationId = "listExternalTasks")
     @PreAuthorize("hasAuthority('ops:read')")
     public List<ExternalTask> stuckTasks(@RequestParam(defaultValue = "DEAD") String status,
                                          @RequestParam(defaultValue = "50") int limit) {
@@ -65,12 +69,14 @@ public class OpsController {
     }
 
     @GetMapping("/interventions")
+    @Operation(operationId = "listOpsInterventions")
     @PreAuthorize("hasAuthority('ops:read')")
     public List<OpsIntervention> interventions(@RequestParam(defaultValue = "50") int limit) {
         return opsService.recentInterventions(limit);
     }
 
     @PostMapping("/dead-letters/{deadLetterId}/replay")
+    @Operation(operationId = "replayDeadLetter")
     @PreAuthorize("hasAuthority('ops:operate')")
     public ResponseEntity<OpsService.ReplayResult> replayDeadLetter(@PathVariable UUID deadLetterId,
                                                                     @RequestParam String reason) {
@@ -79,6 +85,7 @@ public class OpsController {
     }
 
     @PostMapping("/dead-letters/{deadLetterId}/dismiss")
+    @Operation(operationId = "dismissDeadLetter")
     @PreAuthorize("hasAuthority('ops:operate')")
     public ResponseEntity<OpsService.ReplayResult> dismissDeadLetter(@PathVariable UUID deadLetterId,
                                                                      @RequestParam String reason) {
@@ -87,6 +94,7 @@ public class OpsController {
     }
 
     @PostMapping("/external-tasks/{taskId}/replay")
+    @Operation(operationId = "replayExternalTask")
     @PreAuthorize("hasAuthority('ops:operate')")
     public ResponseEntity<OpsService.ReplayResult> replayExternalTask(
             @PathVariable UUID taskId,
@@ -98,6 +106,7 @@ public class OpsController {
     }
 
     @PostMapping("/external-tasks/{taskId}/resolve")
+    @Operation(operationId = "resolveExternalTask")
     @PreAuthorize("hasAuthority('ops:operate')")
     public ResponseEntity<OpsService.ReplayResult> resolveExternalTask(
             @PathVariable UUID taskId,

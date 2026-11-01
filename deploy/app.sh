@@ -69,6 +69,13 @@ start_one() {
     echo "!! .env 缺少口令（PMS_DB_PASSWORD / PMS_DB_MIGRATOR_PASSWORD / PMS_RABBIT_PASSWORD）" >&2
     exit 1
   fi
+  # 住客实名密钥（ADR-018 §2.4）。缺了应用也会启动失败（GuestPiiCipher 构造即校验），
+  # 但在这里先拦一次，给出的提示比 JVM 堆栈清楚得多。
+  if [[ -z "${PMS_GUEST_PII_KEY:-}" || -z "${PMS_GUEST_PII_HMAC_KEY:-}" ]]; then
+    echo "!! .env 缺少住客实名密钥（PMS_GUEST_PII_KEY / PMS_GUEST_PII_HMAC_KEY）" >&2
+    echo "   生成：openssl rand -base64 32 | 分别写入这两个变量（两者必须不同）" >&2
+    exit 1
+  fi
 
   # macOS 自带 bash 3.2 在 set -u 下展开空数组会报 unbound，这里用简单变量代替数组
   local extra_args=""

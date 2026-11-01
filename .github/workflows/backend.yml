@@ -84,6 +84,15 @@ jobs:
           cache: maven
           cache-dependency-path: openbackupsaas/pom.xml
 
+      # 住客实名密钥（ADR-018 §2.4）：GuestPiiCipher 缺密钥**启动即失败**，这是有意的设计
+      # ——宁可起不来，也不要"没配就跑、悄悄存明文"。
+      # CI 每次运行生成一次性密钥，不写入仓库：测试数据用完即弃，
+      # 这里要证明的是"加密代码路径被真实执行过"，不是"这份密文以后还能解开"。
+      - name: Generate throwaway guest PII keys
+        run: |
+          echo "PMS_GUEST_PII_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          echo "PMS_GUEST_PII_HMAC_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Start middleware (same compose file as local and staging)
         working-directory: deploy/compose
         env:

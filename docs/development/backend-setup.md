@@ -150,7 +150,10 @@ cn.sec.hn.openbackupsaas
 ```bash
 cd openbackupsaas
 ./mvnw -B -ntp test        # 无库：20 run / 12 skipped / 0 failure → BUILD SUCCESS
-PMS_IT_DB=true ./mvnw -B -ntp test   # 连真实库：20/20 通过
+# 住客实名密钥是启动硬前提（ADR-018 §2.4），缺了上下文起不来
+export PMS_GUEST_PII_KEY="$(openssl rand -base64 32)"
+export PMS_GUEST_PII_HMAC_KEY="$(openssl rand -base64 32)"
+PMS_IT_DB=true ./mvnw -B -ntp test   # 连真实库
 ./mvnw -B -ntp verify      # 含打包
 ```
 
@@ -166,7 +169,7 @@ PMS_IT_DB=true ./mvnw -B -ntp test   # 连真实库：20/20 通过
 6. **默认 401 是正确的**：除健康检查、文档路径与 `/api/v1/auth/login` 外，任何业务路径都返回 401 + `application/problem+json`，不要为了"能调通"就把 `anyRequest` 改成 `permitAll`。
 7. **`@PreAuthorize` 拒绝会变成 500，除非显式处理**：`GlobalExceptionHandler` 有 `@ExceptionHandler(Exception.class)` 兜底，会先吃掉 `AccessDeniedException`。S1-03 已补 403/401/404 三个处理器，**新增异常类型时要检查是否会掉进兜底 500**。
 8. **安全过滤器不要标 `@Component`**：Boot 会把容器里的每个 `Filter` Bean 自动注册到 Servlet 容器，与 `addFilterBefore` 叠加后同一请求跑两遍（症状是每请求两条会话查询日志）。本项目在 `SecurityConfig` 里手动 `new`。
-9. **前端联调不做 CORS**：`frontend-admin-pro/config/proxy.ts` 已把 `/api` 代理到后端；跨域配置一旦打开就等于放宽浏览器侧边界，需单独评审。
+9. **前端联调不做 CORS**：`frontend/merchant-web/config/proxy.ts` 已把 `/api` 代理到后端；跨域配置一旦打开就等于放宽浏览器侧边界，需单独评审。
 10. **CSRF 当前关闭**（Bearer 头，无 Cookie 会话，见 ADR-016）。若改用 Cookie 会话，必须同步开启 CSRF 并补同步令牌。
 11. **造测试账号别手写 BCrypt 哈希**：网上流传的固定哈希未必对应你以为的明文。用 `new BCryptPasswordEncoder().encode("...")` 现算；`ck_app_user_password_hash` 会检查 `$2` 前缀与 60 位长度。
 12. **别用 `UUID.compareTo` 断言数据库排序**：它按 `mostSigBits` 有符号比较，PostgreSQL 的 `uuid` 按字节排序，两者在高位为 1 的 uuid 上结论相反（本轮测试就踩到）。跨层排序（锁序、分页游标）用十六进制文本比。

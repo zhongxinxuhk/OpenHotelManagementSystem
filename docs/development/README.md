@@ -61,7 +61,18 @@
 | 3 验证 | 跑下列门禁命令并把**实际输出摘要**写进本轮条目；失败即回 `DOING` 并记录根因 | progress.md |
 | 4 收口 | 更新功能行状态与完成度 → 更新 progress.md 顶部快照 → 在开发规划 §1.3 追加一行 → 需要留存证据时写 `docs/verification/<阶段>/<日期>-<主题>.md` | 三处同步 |
 
+> **启动硬前提（2026-11-01 起）**：`GuestPiiCipher` 在构造时校验 `PMS_GUEST_PII_KEY` /
+> `PMS_GUEST_PII_HMAC_KEY`，缺任何一个就**启动失败**。这是有意为之：宁可起不来，
+> 也不要"没配就跑、悄悄存明文"。本地起后端前先 `source deploy/compose/.env`
+> （`deploy/app.sh` 也会校验并给出可读提示）。
+
 **收口一致性规则**：同一轮次的最终状态必须同时出现在 (a) feature-catalog 行、(b) progress.md 快照与轮次条目、(c) 规划文档 §1.3 执行进度表。三者不一致时，以 (c) 为历史事实、(a) 为当前口径，并立即修正 (b)。
+
+> **本地被限流挡住时（2026-11-01 起，J-05）**：`application-local.properties` 已把登录/注册档位
+> 放大到 100–200 次/5 分钟（联调与端到端会在几分钟内反复登录几十次），
+> 但仍然只适用于真人节奏。跑自动化脚本被 429 时用 `PMS_RATE_LIMIT_ENABLED=false` 关掉，
+> **不要改生产档位**。档位表与处置流程见 [限流运维说明](../operations/rate-limiting.md)，
+> 设计决策见 [ADR-020](../adr/ADR-020-rate-limiting-and-anti-abuse.md)。
 
 ### 3.1 门禁命令（每轮至少跑与本次改动相关的那几项）
 
@@ -70,6 +81,10 @@
 cd openbackupsaas && ./mvnw -q -B verify
 
 # 后端：与 CI 完全等价（连真实 PostgreSQL；CI 还会断言零跳过，见 .github/workflows/backend.yml）
+# 住客实名密钥是**启动硬前提**（ADR-018 §2.4）：缺了 Spring 上下文起不来，所有集成测试一片红。
+# 本地可以每次用一次性值；不要把它们写进任何被跟踪的文件。
+export PMS_GUEST_PII_KEY="$(openssl rand -base64 32)"
+export PMS_GUEST_PII_HMAC_KEY="$(openssl rand -base64 32)"
 cd openbackupsaas && PMS_IT_DB=true ./mvnw -B -ntp -Dstyle.color=never clean verify
 
 # 中间件编排（与 CI/预发同一份 compose）：起库与 MQ，应用零配置即可连
@@ -84,11 +99,11 @@ PMS_IT_RABBIT=true PMS_RABBIT_PORT=55672 ./mvnw -o -B test -Dtest=RabbitEventPub
 cd openbackupsaas && ./mvnw -q -B -DskipTests compile
 
 # 前端：类型检查 + 静态检查 + 生产构建（Ant Design Pro / Umi Max），与 CI 完全等价
-cd frontend-admin-pro && npm run tsc && npm run biome:lint && npm run build
+cd frontend/merchant-web && npm run tsc && npm run biome:lint && npm run build
 
 # 前端：本地起服务（端口 8000）
-cd frontend-admin-pro && npm start             # 带 mock 数据，仅用于纯 UI 走查
-cd frontend-admin-pro && npm run start:no-mock # MOCK=none 直连后端，联调/验收只用这个
+cd frontend/merchant-web && npm start             # 带 mock 数据，仅用于纯 UI 走查
+cd frontend/merchant-web && npm run start:no-mock # MOCK=none 直连后端，联调/验收只用这个
 ```
 
 记录格式固定为：`命令 → 结果（通过/失败 + 关键行）→ 未覆盖项`。**不允许只写「构建通过」而不留命令与关键输出。**
@@ -129,7 +144,8 @@ PMS_IT_DB=true ./mvnw -B test -Dtest=OpenApiContractTest
 
 ```text
 openbackupsaas/            # Spring Boot 4.1.1 / Java 21 / MyBatis / Flyway（后端）
-frontend-admin-pro/        # Ant Design Pro 6 (Umi Max 4 + React 19 + antd 6)（管理端）
+frontend/                  # 多端工程根目录（见 frontend/README.md）
+  merchant-web/            # Web 商家端：Ant Design Pro 6（Umi Max 4 + React 19 + antd 6）
 frontend-engineering-vue/  # 已冻结的 Vue 骨架，按 ADR-015 停用，待确认后归档删除
 docs/                      # 需求、领域、架构、ADR、验证证据、本目录
 ```

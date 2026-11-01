@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.room.web;
 
 import cn.sec.hn.openbackupsaas.room.domain.RoomType;
+import io.swagger.v3.oas.annotations.Operation;
 import cn.sec.hn.openbackupsaas.room.service.RoomService;
 import cn.sec.hn.openbackupsaas.shared.security.HotelAccess;
 import jakarta.validation.Valid;
@@ -38,6 +39,7 @@ public class RoomTypeController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(operationId = "createRoomType")
     @PreAuthorize("hasAuthority('room:write')")
     public RoomTypeView create(@PathVariable UUID hotelId, @Valid @RequestBody CreateRoomTypeRequest request) {
         UUID tenantId = hotelAccess.requireAccess(hotelId);
@@ -48,12 +50,14 @@ public class RoomTypeController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('room:read')")
+    @Operation(operationId = "listRoomTypes")
     public List<RoomTypeView> list(@PathVariable UUID hotelId) {
         UUID tenantId = hotelAccess.requireAccess(hotelId);
         return roomService.listRoomTypes(tenantId, hotelId).stream().map(RoomTypeView::of).toList();
     }
 
     @GetMapping("/{roomTypeId}")
+    @Operation(operationId = "getRoomType")
     @PreAuthorize("hasAuthority('room:read')")
     public RoomTypeView get(@PathVariable UUID hotelId, @PathVariable UUID roomTypeId) {
         UUID tenantId = hotelAccess.requireAccess(hotelId);
@@ -62,6 +66,7 @@ public class RoomTypeController {
 
     /** 启停用 POST + 子资源，而不是 PATCH 打整个对象：状态变更是独立业务动作，需要一个显式动作名。 */
     @PostMapping("/{roomTypeId}/status")
+    @Operation(operationId = "changeRoomTypeStatus")
     @PreAuthorize("hasAuthority('room:write')")
     public RoomTypeView changeStatus(@PathVariable UUID hotelId,
                                      @PathVariable UUID roomTypeId,

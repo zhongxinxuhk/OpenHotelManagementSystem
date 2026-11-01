@@ -427,12 +427,23 @@ class OutboxPublisherIntegrationTest extends PostgresIntegrationTest {
     private UUID insertEvent(UUID tenantId, UUID aggregateId, long aggregateVersion, int ordinal,
                              String eventType, OffsetDateTime occurredAt) {
         UUID eventId = UUID.randomUUID();
+        /*
+         * next_attempt_at 用数据库的 now()，**不用** JVM 的 occurredAt。
+         *
+         * 起因是一个只在"跑得快"时才出现的失败：领取条件是 `next_attempt_at <= now()`（库时钟），
+         * 而这里原先写入的是 JVM 时钟。宿主与 Docker VM 的时钟会来回摆动几毫秒，
+         * 一旦 VM 时钟略微落后，最后插入的那几行在库里就"还没到期"，
+         * 于是 8 条只领到 6 条、2 条只领到 0 条——断言随机变红，且失败点每次不同。
+         *
+         * 用库时钟写入，两侧比较就落在同一个时间源上，这类抖动从根上消失。
+         * （occurred_at 仍用调用方给的时间：它表达的是"业务发生时刻"，允许与库时钟有偏差。）
+         */
         jdbcTemplate.update("INSERT INTO outbox_event (event_id, tenant_id, hotel_id, aggregate_type, "
                         + "aggregate_id, aggregate_version, event_ordinal, event_type, schema_version, payload, "
                         + "occurred_at, attempt_count, next_attempt_at) "
-                        + "VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 1, ?::jsonb, ?, 0, ?)",
+                        + "VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 1, ?::jsonb, ?, 0, now())",
                 eventId, tenantId, AGGREGATE_TYPE, aggregateId, aggregateVersion, ordinal, eventType,
-                "{\"reservationNo\":\"R-1\"}", occurredAt, occurredAt);
+                "{\"reservationNo\":\"R-1\"}", occurredAt);
         return eventId;
     }
 

@@ -13,6 +13,10 @@ import java.util.UUID;
  *
  * <p>刻意**不含**密码哈希、会话 id 与令牌：这些字段一旦进了 DTO，
  * 任何一次接口调整都可能把它们带出去。列表字段排序后输出，便于前端与断言稳定。
+ *
+ * <p>{@code mustChangePassword} 为真表示这个账号还在用管理员发的初始口令，
+ * 前端应直接跳到改密页而不是继续渲染业务界面——服务端也会拒绝其它接口，
+ * 前端跳转只是为了不让用户对着报错猜。
  */
 public record UserView(
         UUID userId,
@@ -21,7 +25,8 @@ public record UserView(
         String displayName,
         OffsetDateTime sessionExpiresAt,
         List<UUID> hotelIds,
-        List<String> permissions
+        List<String> permissions,
+        boolean mustChangePassword
 ) {
 
     public static UserView of(PmsPrincipal principal) {
@@ -30,6 +35,7 @@ public record UserView(
         List<String> permissions = new ArrayList<>(principal.permissions());
         Collections.sort(permissions);
         return new UserView(principal.userId(), principal.tenantId(), principal.username(),
-                principal.displayName(), principal.sessionExpiresAt(), List.copyOf(hotels), List.copyOf(permissions));
+                principal.displayName(), principal.sessionExpiresAt(), List.copyOf(hotels),
+                List.copyOf(permissions), principal.mustChangePassword());
     }
 }

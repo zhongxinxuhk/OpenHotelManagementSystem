@@ -1,6 +1,7 @@
 package cn.sec.hn.openbackupsaas.command.web;
 
 import cn.sec.hn.openbackupsaas.command.service.IdempotencyService;
+import io.swagger.v3.oas.annotations.Operation;
 import cn.sec.hn.openbackupsaas.shared.security.Authz;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,6 +35,7 @@ public class OperationController {
     }
 
     @GetMapping("/{operationId}")
+    @Operation(operationId = "getOperationById")
     @PreAuthorize("hasAuthority('operation:read')")
     public OperationView byOperation(@PathVariable UUID operationId) {
         UUID tenantId = authz.tenantId();
@@ -41,6 +43,7 @@ public class OperationController {
     }
 
     @GetMapping("/lookup")
+    @Operation(operationId = "getOperationByKey")
     @PreAuthorize("hasAuthority('operation:read')")
     public OperationView byKey(@RequestParam UUID hotelId,
                                @RequestParam String namespace,

@@ -14,6 +14,7 @@ import cn.sec.hn.openbackupsaas.reservation.domain.ReservationStatus;
 import cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy;
 import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationExpiryMapper;
 import cn.sec.hn.openbackupsaas.reservation.mapper.ReservationMapper;
+import cn.sec.hn.openbackupsaas.shared.observability.PmsMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -63,16 +64,19 @@ public class ReservationExpiryService {
     private final OccupancyService occupancyService;
     private final IdempotencyService idempotencyService;
     private final JournalService journalService;
+    private final PmsMetrics metrics;
     private final Clock clock;
 
     public ReservationExpiryService(ReservationExpiryMapper expiryMapper, ReservationMapper reservationMapper,
                                     OccupancyService occupancyService, IdempotencyService idempotencyService,
-                                    JournalService journalService, Clock clock) {
+                                    JournalService journalService, PmsMetrics metrics, Clock clock) {
+
         this.expiryMapper = expiryMapper;
         this.reservationMapper = reservationMapper;
         this.occupancyService = occupancyService;
         this.idempotencyService = idempotencyService;
         this.journalService = journalService;
+        this.metrics = metrics;
         this.clock = clock;
     }
 
@@ -98,6 +102,7 @@ public class ReservationExpiryService {
             }
         }
         if (!due.isEmpty()) {
+            metrics.expired(expired);
             log.info("到期承接扫描：领取 {} 单，释放 {} 单，跳过 {} 单", due.size(), expired, skipped);
         }
         return new ExpiryReport(due.size(), expired, skipped);

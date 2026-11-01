@@ -32,7 +32,7 @@ on:
       - main
     paths:
       - 'openbackupsaas/**'
-      - 'frontend-admin-pro/**'
+      - 'frontend/merchant-web/**'
       - 'deploy/app.sh'
       - 'deploy/nginx/**'
       - '.github/workflows/beta.yml'
@@ -95,16 +95,16 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: frontend-admin-pro/package-lock.json
+          cache-dependency-path: frontend/merchant-web/package-lock.json
 
       - name: Build frontend dist
-        working-directory: frontend-admin-pro
+        working-directory: frontend/merchant-web
         run: |
           npm ci --no-audit --no-fund
           npm run build
 
       - name: Assert build output is deployable
-        working-directory: frontend-admin-pro
+        working-directory: frontend/merchant-web
         run: |
           test -f dist/index.html || { echo '::error::dist/index.html 缺失，构建不完整'; exit 1; }
           if [ -f dist/CNAME ]; then
@@ -150,7 +150,7 @@ jobs:
           # ---------- 前端 ----------
           web_dir="${staged}/pms-frontend-${short}"
           mkdir -p "${web_dir}/dist" "${web_dir}/nginx"
-          cp -r frontend-admin-pro/dist/. "${web_dir}/dist/"
+          cp -r frontend/merchant-web/dist/. "${web_dir}/dist/"
           cp deploy/nginx/pms-web.conf "${web_dir}/nginx/"
           printf '%s\n' \
             "PMS 管理端前端发行包" \

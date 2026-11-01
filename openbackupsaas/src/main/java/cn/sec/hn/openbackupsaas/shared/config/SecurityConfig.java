@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -28,16 +29,29 @@ import java.io.IOException;
 import java.net.URI;
 
 /**
- * 安全链（S1-01 基线，S1-03 接入会话认证）。
+ * 安全链（S1-01 基线，S1-03 接入会话认证，R-20261101-31 拆成三条平面）。
  *
- * <p>当前形态：
- * <ul>
- *   <li>无状态：服务端会话表 + {@code Authorization: Bearer} 头，**不使用 Cookie**，
- *       因此不存在"浏览器自动携带凭据"的跨站请求伪造面，CSRF 保持关闭。
- *       一旦改回 Cookie 会话，**必须先打开 CSRF 并补同步令牌**，不能沿用本配置。</li>
- *   <li>默认拒绝：只有健康检查、API 文档与登录接口匿名，其余全部要求已认证。</li>
- *   <li>权限点在方法层用 {@code @PreAuthorize} 表达；菜单隐藏与前端路由守卫不构成授权（BL-07）。</li>
- * </ul>
+ * <p><b>三条独立的安全链，按路径前缀划分</b>（ADR-019 §2.4）：
+ * <table border="1">
+ *   <caption>平面与链</caption>
+ *   <tr><th>链</th><th>路径</th><th>认的令牌</th></tr>
+ *   <tr><td>{@code guestChain}（Order 1）</td><td>{@code /api/v1/guest/**}</td>
+ *       <td>只认 {@code guest_session}</td></tr>
+ *   <tr><td>{@code platformChain}（Order 2）</td><td>{@code /api/v1/platform/**}</td>
+ *       <td>只认 {@code platform_session}</td></tr>
+ *   <tr><td>{@code apiChain}（Order 3）</td><td>其余</td>
+ *       <td>只认 {@code user_session}</td></tr>
+ * </table>
+ *
+ * <p>为什么用三条链而不是一条链里判断"这个令牌属于哪个平面"：
+ * 单链方案下，认证过滤器必须依次尝试三张表，任何一次"顺手兜底"都会让
+ * 一个平面的令牌在另一个平面被认出来——而这正是"角色完全隔离、杜绝越权"
+ * 要防的事。分链之后，住客令牌在商家链上根本不会被解析，结果就是 401，
+ * 不依赖任何 `if`。
+ *
+ * <p>其余形态：无状态（服务端会话表 + {@code Authorization: Bearer}，**不用 Cookie**，
+ * 因此没有浏览器自动携带凭据的 CSRF 面）；默认拒绝；权限点在方法层用
+ * {@code @PreAuthorize} 表达，菜单隐藏与前端路由守卫不构成授权（BL-07）。
  */
 @Configuration
 @EnableWebSecurity
@@ -50,7 +64,75 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * 住客链。只认住客令牌。
+     *
+     * <p>匿名放行只限**认证入口四件套**（注册/登录/登出方式清单）：
+     * 登出虽要求已认证，但方式清单必须匿名——登录页还没登录就要读它。
+     * 不要放宽整个前缀，"这个平面里哪些接口匿名"必须只看这一条规则。
+     */
     @Bean
+    @Order(1)
+    SecurityFilterChain guestFilterChain(HttpSecurity http,
+                                         ObjectMapper objectMapper,
+                                         AuthenticationEntryPoint authenticationEntryPoint,
+                                         AccessDeniedHandler accessDeniedHandler,
+                                         cn.sec.hn.openbackupsaas.guest.service.GuestAuthenticationService
+                                                 guestAuthenticationService) throws Exception {
+        var guestFilter = new cn.sec.hn.openbackupsaas.guest.web.GuestBearerAuthenticationFilter(
+                guestAuthenticationService);
+        http
+                .securityMatcher("/api/v1/guest/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.POST, "/api/v1/guest/auth/register").permitAll()
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.POST, "/api/v1/guest/auth/login").permitAll()
+                        .requestMatchers("/api/v1/guest/auth/methods").permitAll()
+                        .anyRequest().authenticated())
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .addFilterBefore(guestFilter, UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+
+    /** 平台链。只认平台令牌；登录接口是这条链上唯一的匿名入口。 */
+    @Bean
+    @Order(2)
+    SecurityFilterChain platformFilterChain(HttpSecurity http,
+                                            ObjectMapper objectMapper,
+                                            AuthenticationEntryPoint authenticationEntryPoint,
+                                            AccessDeniedHandler accessDeniedHandler,
+                                            cn.sec.hn.openbackupsaas.platform.service.PlatformAuthenticationService
+                                                    platformAuthenticationService) throws Exception {
+        var platformFilter = new cn.sec.hn.openbackupsaas.platform.web.PlatformBearerAuthenticationFilter(
+                platformAuthenticationService);
+        http
+                .securityMatcher("/api/v1/platform/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, "/api/v1/platform/auth/login").permitAll()
+                        .anyRequest().authenticated())
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .addFilterBefore(platformFilter, UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+
+    /** 商家（员工）链：其余全部路径。这条是原有行为，未做改动。 */
+    @Bean
+    @Order(3)
     SecurityFilterChain apiFilterChain(HttpSecurity http,
                                        ObjectMapper objectMapper,
                                        AuthenticationEntryPoint authenticationEntryPoint,
@@ -74,6 +156,11 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // 登录是唯一匿名的业务接口：此时还没有身份，只能用租户编码定位账号
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+                        // 匿名公开面（ADR-017 §2.6）：全系统只有这一个匿名前缀。
+                        // 它由 pms.public-api.enabled 控制，关闭时没有映射 → 404（看起来就是不存在）。
+                        // 放开整个前缀是有意的：新增匿名接口必须落在这里，
+                        // 这样"哪些路径不需要身份"只需要看一条规则，而不是逐个接口去记。
+                        .requestMatchers("/api/v1/public/**").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(authenticationEntryPoint)
