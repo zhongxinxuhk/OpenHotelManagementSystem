@@ -20,7 +20,8 @@
 | --- | --- | --- | --- | --- | --- |
 | `merchant-web/` | Web 商家端 | TENANT | 前台、客房、店长、财务 | Ant Design Pro 6（Umi Max + React 19） | **已可运行** |
 | `merchant-h5/` | H5 商家端 | TENANT | 员工（移动：查房态、办入住、接通知） | Vite + React + antd-mobile | 待初始化（H5 暂缓，需求方 2026-11-02） |
-| `guest/` | Web 客户端 | GUEST | 住客 | Ant Design Pro 6（原定 Vite，需求方 2026-11-02 改为统一 AntD Pro） | 待初始化（下一轮） |
+| `guest/` | Web 客户端 | GUEST | 住客 | Ant Design Pro 6（需求方 2026-11-02 定栈，推翻原 Vite 方案） | **已可运行**（R-20261102-05：注册/登录/邮箱绑定真实接口 + 骨架空态页） |
+| `guest-h5/` | H5 客户端 + 小程序 | GUEST | 住客（移动） | Vite + React + antd-mobile（预案） | **暂缓**（需求方指示：只建目录放规划 README） |
 | `platform-ops/` | 平台业务管理端 | PLATFORM | 客服、售后、运营 | Ant Design Pro 6 | **已可运行**（R-20261102-03：实名审核工作台真实接口 + 骨架空态页） |
 | `platform-admin/` | 平台管理员端 | PLATFORM | 技术、组织架构、存储 | Ant Design Pro 6 | **已可运行**（R-20261102-02：登录/策略/渠道真实接口 + 骨架空态页） |
 | `corp-portal/` | 企业商旅控制台 | TENANT/独立 | 企业对公账户（DEC-17 OPEN） | Ant Design Pro 6 | 待初始化（纯骨架，无身份平面） |
@@ -60,7 +61,8 @@ PMS_API_TARGET="http://[::1]:18080" npm run start:no-mock
 
 **五控制台计划（需求方 2026-11-02 指示）**：按优先级创建 ①管理员 ②平台业务员 ③商家扩展
 ④C 端 Web ⑤企业商旅；Web 端统一 Ant Design Pro；H5 与小程序暂不做（只建目录放 README）。
-`platform-admin`（R-20261102-02）与 `platform-ops`（R-20261102-03，从 platform-admin 克隆）已交付。
+`platform-admin`（R-02）、`platform-ops`（R-03）、merchant-web 扩展（R-04）、
+`guest`（R-05，重建为 AntD Pro）已交付；`guest-h5/`（R-05）为规划目录。
 
 **其余各端尚未初始化**，原因有两条：
 
