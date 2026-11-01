@@ -62,6 +62,18 @@ curl -si localhost:8080/v3/api-docs | head -1   # 200（仅 local 档案）
 
 Flyway 在启动时用 `pms_migrator` 执行迁移，应用连接用 `pms_app`（只有 DML）。
 
+**验证码邮件通道（R-20261102-01 起）**：默认关闭。本地联调想真发邮件：
+
+```bash
+cd deploy/compose && docker compose up -d --wait   # 三件套：PG + Rabbit + MailPit
+cd openbackupsaas
+PMS_GUEST_OWNERSHIP_MAIL_ENABLED=true ./mvnw spring-boot:run
+# 收信看码：浏览器打开 http://127.0.0.1:8025（MailPit 收件箱）
+```
+
+EMAIL 挑战走真实 SMTP 投递（宿主 55025）；PHONE 仍无实现——若同时开
+`pms.guest.ownership.dev-mailbox=true` 则 PHONE 落进程内信箱（路由：真实通道优先）。
+
 ### 3.3 只跑单元测试（不需要数据库）
 
 ```bash
@@ -179,3 +191,15 @@ PMS_IT_DB=true ./mvnw -B -ntp test   # 连真实库
 16. **不要靠捕获唯一键异常判断"已存在"**：PostgreSQL 报错后整个事务被标记中止，后面的语句全挂。用 `INSERT ... ON CONFLICT DO NOTHING` 看影响行数。
 17. **给已有表加外键前先确认存量数据**：本地集群残留的旧数据会让迁移失败，症状却是 Spring 上下文加载失败，极难定位。
 18. **本地集群是一次性的**：`/tmp/pms-pgdata` 重启机器后丢失，跑 `./scripts/dev-db.sh start` 重建；不要把本地数据当证据，证据以 `docs/verification/` 下的记录为准。
+19. **宿主终端的 `SERVER_PORT` 会覆盖应用端口（R-20261102-01 踩到）**：某些环境（含
+    TeleAgent 宿主）给 shell 注入了 `SERVER_PORT=4397`，Spring Boot 宽松绑定把它当
+    `server.port`，优先级高于 `application.properties` 的 `${PMS_SERVER_PORT:8080}`——
+    症状是"改了 PMS_SERVER_PORT 没反应、报 4397 被占"。显式 `export SERVER_PORT=18080`
+    （或直接用 18080，前端联调文档用的就是它）。
+20. **MailPit 的健康端点是 `/readyz` 不是 `/api/v1/health`（v1.20 实测 404）**：compose 的
+    healthcheck 已用 `/readyz`；升级 MailPit 时留意探针路径。
+21. **Spring 7 的 `JavaMailSenderImpl` 移除了 `setConnectTimeout` 等便捷 setter**：超时必须经
+    `setJavaMailProperties` 传 jakarta.mail 属性（`mail.smtp.connectiontimeout` 等）。
+    换成便捷 setter 会在编译期才暴露（R-20261102-01 踩到）。
+
+> AI生成

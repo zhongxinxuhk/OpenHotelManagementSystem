@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-01（R-20261101-34）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-02（R-20261102-01）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,13 +10,13 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261101-34`（J-05 限流与防刷：令牌桶内核 + 可信代理解析 + 匿名入口 9 条档位 + 429 契约 + 30 例测试；ADR-020，DONE） |
+| 当前轮次 | `R-20261102-01`（邮件验证码通道：SMTP 实发送器 + 路由器 + MailPit compose + 全链路/冒烟测试 + CI；ADR-019 §2.10 补写，DONE） |
 | 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-06 DONE，S2-07 大半完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 用同一份 compose 起中间件、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V17 共 42 张表）；**396 个测试通过（需真实 PostgreSQL、4 需真实 RabbitMQ）**；接口契约 **64 path / 77 schema**（R-20261101-33 新增绑定挑战/确认/用户名绑定/列表/解绑 5 个）（R-20261101-27 新增开通员工与角色替换 2 个接口）；（`OutboxPublisherIntegrationTest` 的非确定性失败已在 R-20261101-30 定位并修复：两侧时钟不同源；生产侧同类跨时钟依赖仍记在待办）；**部署形态定调：中间件 compose + 后端裸机（deploy/app.sh），统一 .env 单源口令**；**可观测性已落地**：业务指标门面 `PmsMetrics`（低基数约束）、`/actuator/prometheus` 暴露、OTel 链路桥接（默认关）、Outbox 积压 gauge/告警原语、Prometheus 抓取+告警规则+运维手册；备份闭环与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权）；**超级管理员初始化脚本已交付**（`scripts/seed-super-admin.sql`，admin/admin，刻意不进 Flyway 迁移链）；**员工开通闭环已交付**：服务端生成一次性初始口令 + `must_change_password` 强制首改（V13）；**匿名公开面已建**：`/api/v1/public/**` 是唯一匿名前缀，`pms.public-api.enabled` 默认 false（限流 J-05 前不对外）；**住客与平台身份平面已建**：guest 三表 + platform 三表 + 会话两张 + 渠道配置（全库无 `tenant_id` 的一族表）；**三条安全链按路径前缀隔离**（`/api/v1/guest/**`、`/api/v1/platform/**`、其余），令牌哈希域分离，跨平面令牌在库层不可互换；**人工实名审核闭环已交付**（权威渠道熔断时人工照常——结构保证而非 if）；**住客用户名+密码登录已交付**（注册即登录、账号枚举防护、登录方式开关=实现∧控制台开关）；**凭证绑定已交付**（挑战-响应、防爆破三件套、一次性消费、解绑自保护；发送器为 SPI 桩）；**匿名入口限流已交付**（J-05：令牌桶 + 可信代理解析 + 9 条档位 + 429/`Retry-After` 契约 + `pms.security.rate_limited` 指标；默认只信 TCP 对端，防 `X-Forwarded-For` 伪造；ADR-020） |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ + mail starter；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V17 共 42 张表）；**411 个测试通过（需真实 PostgreSQL、4 需真实 RabbitMQ、3 需真实 SMTP/MailPit）**；接口契约 64 path / 77 schema（本轮无变更）；（`OutboxPublisherIntegrationTest` 的非确定性失败已在 R-20261101-30 定位并修复：两侧时钟不同源；生产侧同类跨时钟依赖仍记在待办）；**部署形态定调：中间件 compose（PG+Rabbit+MailPit）+ 后端裸机（deploy/app.sh），统一 .env 单源口令**；**可观测性已落地**：业务指标门面 `PmsMetrics`（低基数约束）、`/actuator/prometheus` 暴露、OTel 链路桥接（默认关）、Outbox 积压 gauge/告警原语、Prometheus 抓取+告警规则+运维手册；备份闭环与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权）；**超级管理员初始化脚本已交付**（`scripts/seed-super-admin.sql`，admin/admin，刻意不进 Flyway 迁移链）；**员工开通闭环已交付**：服务端生成一次性初始口令 + `must_change_password` 强制首改（V13）；**匿名公开面已建**：`/api/v1/public/**` 是唯一匿名前缀，`pms.public-api.enabled` 默认 false（限流 J-05 前不对外）；**住客与平台身份平面已建**：guest 三表 + platform 三表 + 会话两张 + 渠道配置（全库无 `tenant_id` 的一族表）；**三条安全链按路径前缀隔离**（`/api/v1/guest/**`、`/api/v1/platform/**`、其余），令牌哈希域分离，跨平面令牌在库层不可互换；**人工实名审核闭环已交付**（权威渠道熔断时人工照常——结构保证而非 if）；**住客用户名+密码登录已交付**（注册即登录、账号枚举防护、登录方式开关=实现∧控制台开关）；**凭证绑定已交付**（挑战-响应、防爆破三件套、一次性消费、解绑自保护）；**EMAIL 验证码通道已接通**（R-20261102-01：SMTP 实发送器 + 路由器集中分发 + MailPit compose + 全链路验证；默认关、显式开；PHONE 待供应商；验证码登录下一轮）；**匿名入口限流已交付**（J-05：令牌桶 + 可信代理解析 + 9 条档位 + 429/`Retry-After` 契约 + `pms.security.rate_limited` 指标；默认只信 TCP 对端，防 `X-Forwarded-For` 伪造；ADR-020） |
 | 前端工程状态 | **已拆为多工程结构 `frontend/`**（R-20261101-29，见 `frontend/README.md`）：`merchant-web/`（Web 商家端，唯一可运行）、`merchant-h5/`、`guest/`、`platform-ops/`、`platform-admin/`（后四者只有范围说明，未初始化）；`merchant-web` 的 `tsc` ✓ 0 error / `biome:lint` ✓ 0 error 0 warning（139 文件）/ `build` ✓（产物断言通过，迁移后已清缓存重跑）；**前后端已真实对接**：登录→工作台→订单/房型房间/房态可售/运维处置全部走真实接口；**端到端验证 26/26 通过**（真实浏览器 + 真实后端；覆盖登录/工作台/订单/房型/房态/运维/角色/员工八类页面，以及开通员工→一次性口令→强制改密→权限生效全链路）；**改密页 `/user/password` 独立于主框架布局**（主框架顶栏会拉业务接口，待改密状态下必然报错）；**模板 demo 已整体清理**（9 个 demo 目录 + mock + 旧 mock 服务，共 126 个文件），路由重建为业务路由；类型由契约脚本生成（`scripts/gen-pms-types.mjs`） |
-| 功能项完成度 | **约 40%**（129 项，DONE 46 / VERIFYING 8，见 feature-catalog §1；J-05 本轮由 TODO 转 VERIFYING 75%） |
-| 下一轮目标 | ①**验证码通道**（实现 `OwnershipChallengeSender`，一次接通 PHONE/EMAIL 绑定与后续验证码登录——这是 J-01 与 J-03 的共同前置）；②**忘记密码/找回**；③**公开面开启 checklist**（按门店配额 + WAF 规则 + 被刷降级流程）后开 `PMS_PUBLIC_API_ENABLED`；④权威核验渠道对接（等渠道清单）；⑤企业对公账户（DEC-17）；⑥待办：把 vitest 纳入前端门禁并修掉模板遗留的 `errorThrower` 用例 |
+| 功能项完成度 | **约 40%**（129 项，DONE 46 / VERIFYING 8，见 feature-catalog §1；J-01 本轮 95% → 98%：EMAIL 通道接通，剩验证码登录与忘记密码） |
+| 下一轮目标 | ①**验证码登录**（EMAIL+码登录入口：发起挑战→确认→发会话，`isImplemented()` 届时标 EMAIL——通道已就绪，只差消费侧）；②**忘记密码/找回**（复用同一通道）；③**公开面开启 checklist**（按门店配额 + WAF 规则 + 被刷降级流程）后开 `PMS_PUBLIC_API_ENABLED`；④权威核验渠道对接（等渠道清单）；⑤PHONE 短信（等供应商授权）；⑥待办：把 vitest 纳入前端门禁并修掉模板遗留的 `errorThrower` 用例 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -159,6 +159,85 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261102-01 邮件验证码通道（J-01：`OwnershipChallengeSender` 的 EMAIL 实现）
+
+- 状态：DONE（J-01 → **VERIFYING 98%**：EMAIL 通道已接通并全链路验证；剩余=验证码登录入口 + 忘记密码 + PHONE 短信）
+- 背景：progress 上一轮"下一步①"。绑定挑战的发送器至今是 SPI 桩（dev 信箱）+ Noop 503 占位，
+  EMAIL 归属验证在预发无法真实验证。PHONE 短信需企业资质签约（外部授权，同 S5-01 性质，
+  继续等供应商）；EMAIL 走 SMTP 零授权即可真实接通——本轮只做 EMAIL。
+- 范围（本轮只做这些）：
+  1. `MailOwnershipChallengeSender`（SMTP 实现，仅 `supports(EMAIL)`）；
+     发送失败包装为 503（`ChallengeDeliveryUnavailableException`），绝不静默；
+     验证码不进日志/异常 message。
+  2. 发送器路由 `ChallengeSenderRouter`：注入 `List<OwnershipChallengeSender>` 按 `@Order`
+     路由（真实通道优先、dev 信箱兜底未接通的方式）；无实现 → 503。
+     **删除 `NoopOwnershipChallengeSender`**——"未接通默认失败"由路由器集中保证
+     （Noop 存在的动机是防散落判空，路由器达到同一保证且无双重兜底）。
+  3. compose 增加 MailPit（SMTP 1025 → 宿主 55025；UI 8025），`.env.example` 增加
+     `PMS_SMTP_*`；`pms.guest.ownership.mail.enabled` **默认 false**（显式接通）。
+  4. 冒烟 `MailChallengeSenderSmokeTest`（`PMS_IT_SMTP=true`）+ 全链路
+     `GuestBindingMailFlowTest`（HTTP→路由→SMTP→MailPit 取码→confirm→库）。
+  5. CI backend.yml 增加 `PMS_IT_SMTP=true`（同一份 compose 起 MailPit，零跳过断言咬合）。
+  6. **本轮明确不做**：验证码登录（消费侧接口，下一轮——`isImplemented()` 仍只标 USERNAME）、
+     忘记密码、PHONE 短信实现、TLS/认证 SMTP（内网中继与 MailPit 都不需要）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：J-01（VERIFYING 95% → 98%）、S4-01
+- 变更文件：
+  - 新增 `guest/ownership/`：`ChallengeSenderRouter`（方式→实现集中分发）、
+    `MailOwnershipChallengeSender`（SMTP；Spring 7 无便捷超时 setter，走 javaMailProperties）
+  - 修改：`OwnershipChallengeSender`（+`default supports(provider)`，接口形状补"分发契约"）、
+    `DevChallengeMailbox`（删 Noop；Dev 加 `@Order(100)` 兜底语义）、
+    `GuestBindingService`（`ObjectProvider` → 路由器——多实现下 `getIfAvailable()` 必抛
+    `NoUniqueBeanDefinitionException`，这是引入路由器的直接原因）、
+    `ChallengeDeliveryUnavailableException`（+带 cause 构造器：投递失败与未接通同语义 503）
+  - 依赖：pom + `spring-boot-starter-mail`（不用其自动配置，host/port/from 全在域内）
+  - 配置：`application.properties`（`pms.guest.ownership.mail.*` 4 项，默认关）
+  - 编排：`deploy/compose/docker-compose.yml`（mailpit 服务 + `/readyz` healthcheck）、
+    `.env.example`（MailPit 端口 + SMTP 通道段）、`.github/workflows/backend.yml`
+    （`PMS_IT_SMTP=true` + job env 三项）
+  - 测试：`ChallengeSenderRouterTest`（5）、`MailOwnershipChallengeSenderTest`（6，含死端口
+    真实 Socket 路径）、`MailChallengeSenderWiringTest`（2，test 档案装配：双实现共存 + 顺序）、
+    `MailChallengeSenderSmokeTest`（2，真实 SMTP）、`GuestBindingMailFlowTest`（1，全链路）；
+    删 `GuestBindingFlowTest.noopSenderNeverPretendsToSend`（断言语义迁至路由器测试）
+  - 文档：ADR-019 **补写 §2.10**（代码引用的节号此前从未写入 ADR，本轮补齐并记录落地决策）、
+    §3 增两条否决项、§5 遗留表更新；backend-setup.md（§3.2 通道开启方法 + 已知坑 19—21）；
+    compose README（三服务表 + MailPit 无数据卷的理由）
+- 验证（本轮实际执行）：
+  - 新增测试单跑：`./mvnw test -Dtest='ChallengeSenderRouterTest,MailOwnershipChallengeSenderTest,MailChallengeSenderWiringTest'`
+    → **13/13 通过**（编译期修了 2 处：Spring 7 无 `setConnectTimeout`；双构造器需 `@Autowired` 指定）
+  - SMTP 冒烟：`PMS_IT_SMTP=true ./mvnw test -Dtest=MailChallengeSenderSmokeTest` → **2/2 通过**
+    （真实 SMTP 会话 + MailPit API 取信断言码在正文）
+  - 全链路：`PMS_IT_DB=true PMS_IT_SMTP=true ... test -Dtest=GuestBindingMailFlowTest` → **1/1 通过**
+    （注册→登录→EMAIL 挑战→MailPit 取码→confirm→凭证列表；同时证明 mail.enabled+dev-mailbox
+    共存时 EMAIL 走真实通道而非信箱）
+  - **全量门禁（与 CI 等价）**：`source deploy/compose/.env` 后
+    `PMS_IT_DB=true PMS_IT_RABBIT=true PMS_IT_SMTP=true ./mvnw -B -ntp -Dstyle.color=never clean verify`
+    → **Tests run: 411, Failures: 0, Errors: 0, Skipped: 0, BUILD SUCCESS**（396 → 411，+16 新 −1 迁移；3:53min）
+  - **运行态冒烟（真实 Tomcat + local 档案 + 环境变量驱动，端口 18080）**：
+    `SERVER_PORT=18080 PMS_GUEST_OWNERSHIP_MAIL_ENABLED=true ./mvnw spring-boot:run` 后——
+    注册 `201` → 登录 OK → EMAIL 挑战 `200`（响应 `subjectMasked:"r***@pms.test"`，**不含码**）→
+    MailPit 收到邮件、提取码 `265414` → confirm `200` → 凭证列表含
+    `{provider:EMAIL, subject:runtime-…@pms.test, verifiedAt:…}`。部署形态（.env 单源 + env 开关）验证通过
+  - 未覆盖：TLS/认证中继（内网中继就位后再扩配置面）、PHONE 短信（等供应商）、
+    验证码登录（消费侧下一轮）、429×邮件的组合场景（限流默认档位下未专项测）
+- 本轮发现（重要，已回写 backend-setup.md 已知坑 19—21）：
+  1. **宿主环境注入的 `SERVER_PORT` 会覆盖应用端口**：本机 TeleAgent 宿主注入
+     `SERVER_PORT=4397`，Spring 宽松绑定优先级高于 properties 里的
+     `${PMS_SERVER_PORT:8080}`——症状是"改了 PMS_SERVER_PORT 没反应、4397 被占"。
+     显式 `export SERVER_PORT=18080` 解决；前端联调文档用 18080 正是绕开它。
+  2. **MailPit v1.20 没有 `/api/v1/health`**（404），健康探针是 `/readyz`/`/livez`——
+     compose healthcheck 首版写错实测踩到，`--wait` 永远等不到 healthy。
+  3. **Spring 7 的 `JavaMailSenderImpl` 删了 `setConnectTimeout/setDefaultTimeout`**：
+     超时必须经 `setJavaMailProperties`（`mail.smtp.connectiontimeout` 等），编译期才暴露。
+  4. **代码引用的「ADR-019 §2.10」从未写入 ADR**：R-33 的 javadoc 一直在引用一个不存在的节，
+     本轮补写该节并同步遗留表——文档引用失配这类问题会在"补节"时一次性暴露。
+  5. **双构造器（主 + 测试包私有）会让 Spring 无法选择**：报"no default constructor"，
+     主构造器加 `@Autowired` 指定。可测性与装配不能想当然两全。
+- 回写确认：feature-catalog ✓（J-01 → VERIFYING 98%，剩余项重述）/ §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步：①**验证码登录**（EMAIL+码登录入口：发起挑战→确认→发会话；`isImplemented()` 届时标 EMAIL）；
+  ②忘记密码/找回（复用同一通道）；③PHONE 短信（等供应商授权）。
 
 ---
 
@@ -1653,3 +1732,5 @@
 - 任务数 66 = 规划 65 项 + 变更追加 S3-01a（不重算原 200–342 人日总量，S3-01a 的 2–3 人日单列）。
 - 「完成度」只用于趋势判断；对外排期仍以规划文档 §6 的人日区间和门禁为准。
 - 阶段 0 的 VERIFYING 任务不计入 G0 通过；G0 仍需 S0-05—S0-09 完成并经 S0-09 审查。
+
+> AI生成

@@ -3,7 +3,6 @@ package cn.sec.hn.openbackupsaas.guest;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestAccount;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestProvider;
 import cn.sec.hn.openbackupsaas.guest.ownership.DevChallengeMailbox;
-import cn.sec.hn.openbackupsaas.guest.ownership.OwnershipChallengeSender;
 import cn.sec.hn.openbackupsaas.guest.service.GuestAccountService;
 import cn.sec.hn.openbackupsaas.guest.service.GuestAuthenticationService;
 import cn.sec.hn.openbackupsaas.support.PostgresIntegrationTest;
@@ -237,16 +236,8 @@ class GuestBindingFlowTest extends PostgresIntegrationTest {
                 .andExpect(status().isOk());
     }
 
-    @Test
-    void noopSenderNeverPretendsToSend() {
-        // 生产默认的发送器：显式抛错，绝不静默"发送成功"。
-        // 静默成功比失败糟得多——用户收不到码还会一直重试。
-        OwnershipChallengeSender noop = new cn.sec.hn.openbackupsaas.guest.ownership.DevChallengeMailbox.NoopOwnershipChallengeSender();
-        Assertions.assertThrows(UnsupportedOperationException.class,
-                () -> noop.send(new OwnershipChallengeSender.ChallengeDelivery(
-                        "PHONE", "+8613800138000", "123456",
-                        java.time.OffsetDateTime.now().plusMinutes(10))));
-    }
+    // 「未接通 → 显式失败」的归属地在 ChallengeSenderRouterTest（空实现列表 → 503）：
+    // 本类只测 HTTP 流程与数据库行为。
 
     // ==================== 夹具 ====================
 

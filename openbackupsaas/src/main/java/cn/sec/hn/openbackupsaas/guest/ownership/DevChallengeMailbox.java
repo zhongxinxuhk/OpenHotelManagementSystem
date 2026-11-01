@@ -1,7 +1,7 @@
 package cn.sec.hn.openbackupsaas.guest.ownership;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -17,8 +17,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p><b>为什么码不能直接放进 HTTP 响应</b>：挑战响应发给的是"发起绑定的那个人"，
  * 而归属验证要确认的是"目标手机号的主人"。把码放进响应等于宣告
  * "任何登录用户都可以绑定任何手机号"——账户接管只需要一个会话。
- * 信箱方案下，码只在**服务进程内**流转；生产环境这个 Bean 不存在，
- * 发起挑战会得到明确的"发送通道未接通"（503），没有任何静默降级。
+ * 信箱方案下，码只在**服务进程内**流转。
+ *
+ * <p>「未接通」的 503 行为由 {@link ChallengeSenderRouter} 集中保证（R-20261102-01 起）：
+ * 本类不再提供 Noop 占位实现——路由器对"没有任何实现支持该方式"的处理就是抛
+ * {@code ChallengeDeliveryUnavailableException}，保证仍然集中且唯一。
  */
 @Component
 @ConditionalOnProperty(name = "pms.guest.ownership.dev-mailbox", havingValue = "true")
@@ -48,9 +51,17 @@ public class DevChallengeMailbox {
         return provider + ":" + subject;
     }
 
-    /** dev 发送器：把验证码投进信箱。与信箱同生共死（同一个条件属性）。 */
+    /**
+     * dev 发送器：把验证码投进信箱。与信箱同生共死（同一个条件属性）。
+     *
+     * <p>{@code @Order(100)}：在路由顺序上排在真实通道（{@code @Order(0)}）之后，
+     * 作为「真实通道没覆盖的方式」的兜底。典型组合：EMAIL 走 SMTP 真投递、
+     * PHONE 落信箱——两个都开时互不抢活。supports 用默认实现（全部方式）：
+     * 信箱本来就是"什么都能收"的开发替代品。
+     */
     @Component
     @ConditionalOnProperty(name = "pms.guest.ownership.dev-mailbox", havingValue = "true")
+    @Order(100)
     public static class DevOwnershipChallengeSender implements OwnershipChallengeSender {
 
         private final DevChallengeMailbox mailbox;
@@ -62,24 +73,6 @@ public class DevChallengeMailbox {
         @Override
         public void send(ChallengeDelivery delivery) {
             mailbox.put(delivery.provider(), delivery.subject(), delivery.code());
-        }
-    }
-
-    /**
-     * 生产环境的"无实现"占位：任何发起挑战的请求都会得到 503。
-     *
-     * <p>为什么不是"不注册任何 Bean 然后用 ObjectProvider 判空"：
-     * 判空逻辑散在服务层，有一天有人把空判断删了，挑战会静默"发送成功"——
-     * 用户收不到码，重试若干次后过期。显式的抛错 Bean 让"未接通"是**默认且唯一**的行为。
-     */
-    @Component
-    @ConditionalOnProperty(name = "pms.guest.ownership.dev-mailbox", havingValue = "false", matchIfMissing = true)
-    public static class NoopOwnershipChallengeSender implements OwnershipChallengeSender {
-
-        @Override
-        public void send(ChallengeDelivery delivery) {
-            throw new UnsupportedOperationException(
-                    "验证码发送通道未接通（短信/邮件服务商未配置），无法完成归属验证");
         }
     }
 }

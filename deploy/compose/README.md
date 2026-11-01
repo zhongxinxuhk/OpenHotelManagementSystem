@@ -18,8 +18,8 @@
 cd deploy/compose
 
 cp .env.example .env          # 然后编辑 .env，至少设置三个密码
-docker compose up -d --wait   # --wait 会等两个服务都 healthy 才返回
-docker compose ps             # 两个服务 STATUS 应为 Up (healthy)
+docker compose up -d --wait   # --wait 会等三个服务都 healthy 才返回
+docker compose ps             # 三个服务 STATUS 应为 Up (healthy)
 ```
 
 应用侧**零配置**即可连接（默认值全部对齐）：
@@ -27,6 +27,8 @@ docker compose ps             # 两个服务 STATUS 应为 Up (healthy)
 ```bash
 cd ../../openbackupsaas
 ./mvnw spring-boot:run        # PMS_DB_PORT 默认 55432，RabbitMQ 默认 55672
+# 验证码邮件：PMS_GUEST_OWNERSHIP_MAIL_ENABLED=true 开启后走 MailPit（55025），
+# 人用浏览器打开 http://127.0.0.1:8025 看信取码
 ```
 
 ### 后端裸机部署（api / worker）
@@ -61,8 +63,16 @@ PID 与日志在 `deploy/app-run/`（已 gitignore）。停机先 SIGTERM 等 30
 | `postgres` | `postgres:17` | `55432`（`PMS_DB_PORT`） | 5432 | `pms-pgdata` |
 | `rabbitmq` | `rabbitmq:3.13-management-alpine` | `55672`（`PMS_RABBIT_PORT`） | 5672 | `pms-rabbit` |
 | ↳ 管理界面 | — | `15672`（`PMS_RABBIT_MANAGEMENT_PORT`） | 15672 | — |
+| `mailpit` | `axllent/mailpit:v1.20` | `55025`（`PMS_SMTP_PORT`） | 1025 | **无**（重启即清空，见下） |
+| ↳ Web 收件箱 | — | `8025`（`PMS_MAILPIT_UI_PORT`） | 8025 | — |
 
 所有端口、库名、凭据都在 `.env` 里改，不需要动 compose 文件本体。
+
+**MailPit 是验证码邮件通道的收信端**（ADR-019 §2.10，R-20261102-01）：后端
+`PMS_GUEST_OWNERSHIP_MAIL_ENABLED=true` 后把验证码邮件投到 55025，人在 8025 看信。
+它刻意**没有数据卷**：验证码是一次性材料，重启清空反而是正确的生命周期；
+`MP_MAX_MESSAGES=5000` 上限防长跑内存增长。生产不用它（后端改指真实 SMTP 中继，
+`.env` 的 `PMS_SMTP_HOST/PORT/FROM`）。
 
 ### 数据库账号（分权，与本地/CI 一致）
 
@@ -178,3 +188,5 @@ docker compose exec -T postgres pg_restore -U pms_migrator -d pms --clean --if-e
 
 **Q：这是生产方案吗？**
 不是。单机 Compose 没有 HA 与 RPO=0 能力，见 §1 边界声明。
+
+> AI生成

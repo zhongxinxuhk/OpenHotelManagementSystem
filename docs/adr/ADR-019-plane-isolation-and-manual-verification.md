@@ -177,6 +177,38 @@ timeout / priority）与熔断状态（circuit_state / consecutive_failures / op
 
 **登录方式清单是匿名接口**（`/guest/auth/methods`）：登录页在登录前就要读它来渲染按钮。
 
+### 2.10 归属挑战的发送通道：SPI + 路由，EMAIL 先行（R-20261101-33 建立，R-20261102-01 接通）
+
+绑定 PHONE/EMAIL 的归属证明是**挑战-响应**：向目标发 6 位验证码，提交正确的码才允许绑定。
+码的存储与校验（哈希落库、5 次尝试上限、10 分钟过期、一次性消费）与通道无关，
+所以通道做成 SPI（`OwnershipChallengeSender`），接通新方式不改机制。
+
+**方式 → 实现的分发由路由器集中完成**（`ChallengeSenderRouter`）：按
+`supports(provider)` 与 `@Order`（真实通道 0 优先、dev 信箱 100 兕底）选第一个
+支持该方式的实现；**没有任何实现支持时抛 503**（`ChallengeDeliveryUnavailableException`），
+绝不静默跳过——静默成功等于声称"验证码已发出"，用户收不到码会反复重试直到挑战过期。
+曾经存在的 `NoopOwnershipChallengeSender` 占位已删除：路由器对空列表的处理
+就是同一语义，且保证集中在一处而不是散在实现里。
+
+**EMAIL 用 SMTP 接通**（`MailOwnershipChallengeSender`，默认关闭，`mail.enabled` 显式开）：
+
+- 不启用 `spring.mail.*` 自动配置——host/port/from 属于"归属验证"这一个用途，
+  不是全局邮件能力；将来别的功能要发信应另立通道，不共用发件人声誉。
+- 发送失败包装为 503（与"未接通"同一处置），绝不裸抛 `MailException` 变 500；
+  验证码不进日志、不进异常 message（那是给排障者看的）。
+- 本地/CI/预发的收信端是 compose 里的 **MailPit**（SMTP 宿主 55025、Web UI 8025），
+  与 PostgreSQL、RabbitMQ 同一份编排；预发/生产改指真实内网中继即可，代码零改动。
+- `mail.enabled` 与 `dev-mailbox` 可同时开：EMAIL 走真实 SMTP、PHONE 落信箱——
+  真实通道优先的路由顺序保证这个组合不互相遮蔽。
+
+**PHONE（短信）继续等待服务商签约**：企业资质与账号是外部授权（与 S5-01 渠道授权
+同性质），本地伪造不出有意义的"真实验证"。接通时只需新增一个
+`supports("PHONE")` 的实现，机制与路由零改动。
+
+**验证码登录是消费侧，不在本节**：本轮接通的是"绑定"的投递能力；
+用 EMAIL+验证码**登录**需要新的登录入口（发起挑战 → 确认 → 发会话），
+是独立的后续工作，`isImplemented()` 在那之前仍只标 USERNAME。
+
 ## 3. 被否决的替代方案
 
 - **一张会话表 + surface 列**：隔离依赖每个查询写对条件。否决，理由见 §2.1。
@@ -186,6 +218,12 @@ timeout / priority）与熔断状态（circuit_state / consecutive_failures / op
 - **人工审核路径里读渠道状态**（"跳过熔断的渠道"）：看似更灵活，实则把两条通道
   耦合在了一起——渠道表出问题（误清空、误配置）会连带人工审核不可用。否决，
   改为结构隔离（§2.5）。
+- **发送器继续用"唯一实现"注入（`ObjectProvider#getIfAvailable`）**：EMAIL 接通后
+  同一进程必然出现"真实通道 + dev 信箱"两个实现，多候选直接抛
+  `NoUniqueBeanDefinitionException`。否决，改为 §2.10 的路由器集中分发。
+- **把验证码放进挑战响应体**：挑战响应发给的是"发起绑定的人"，而归属验证要
+  确认的是"目标邮箱/手机号的主人"——放进响应等于允许任何登录用户绑定任何
+  目标（账户接管只需一个会话）。否决，见 `DevChallengeMailbox` 的注释。
 
 ## 4. 后果
 
@@ -205,8 +243,11 @@ timeout / priority）与熔断状态（circuit_state / consecutive_failures / op
 
 | 事项 | 状态 |
 | --- | --- |
-| 住客登录（短信/邮箱验证码、OAuth 回调） | 未开始；接通后在"凭证 verified"之后调 `issueSession` |
+| 住客登录（验证码、OAuth 回调） | 未开始；**EMAIL 验证码投递已接通（§2.10）**，登录入口待建；接通后在"凭证 verified"之后调 `issueSession` |
+| PHONE 短信通道 | 待服务商签约（外部授权）；`supports("PHONE")` 实现就位后路由零改动 |
 | 权威核验渠道的具体对接 | 待需求方给出渠道清单；配置与熔断已就绪 |
 | `AUTHORITY:<code>` 渠道实现的注册 | 届时在 `PlatformChannelController.IMPLEMENTED_CODES` 登记 |
 | 平台端前端工程 | `frontend/platform-ops/` 待初始化（沙箱无法 `npm ci`） |
 | 企业对公账户（DEC-17） | OPEN；需先定"企业≠租户" |
+
+> AI生成

@@ -4,13 +4,12 @@ import cn.sec.hn.openbackupsaas.guest.domain.GuestCredentialView;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestProvider;
 import cn.sec.hn.openbackupsaas.guest.domain.OwnershipChallenge;
 import cn.sec.hn.openbackupsaas.guest.mapper.GuestMapper;
+import cn.sec.hn.openbackupsaas.guest.ownership.ChallengeSenderRouter;
 import cn.sec.hn.openbackupsaas.guest.ownership.OwnershipChallengeSender;
-import cn.sec.hn.openbackupsaas.shared.error.ChallengeDeliveryUnavailableException;
 import cn.sec.hn.openbackupsaas.shared.error.ConflictException;
 import cn.sec.hn.openbackupsaas.shared.error.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,18 +50,18 @@ public class GuestBindingService {
     private final GuestMapper guestMapper;
     private final GuestAccountService accountService;
     private final ChallengeAttemptRecorder attemptRecorder;
-    private final ObjectProvider<OwnershipChallengeSender> senderProvider;
+    private final ChallengeSenderRouter senderRouter;
     private final Clock clock;
 
     public GuestBindingService(GuestMapper guestMapper,
                                GuestAccountService accountService,
                                ChallengeAttemptRecorder attemptRecorder,
-                               ObjectProvider<OwnershipChallengeSender> senderProvider,
+                               ChallengeSenderRouter senderRouter,
                                Clock clock) {
         this.guestMapper = guestMapper;
         this.accountService = accountService;
         this.attemptRecorder = attemptRecorder;
-        this.senderProvider = senderProvider;
+        this.senderRouter = senderRouter;
         this.clock = clock;
     }
 
@@ -71,6 +70,8 @@ public class GuestBindingService {
      *
      * <p>发送通道未接通时 503——**绝不静默跳过**。静默跳过等于声称
      * "验证码已发出"，用户收不到码还会反复重试，直到挑战过期。
+     * 分发（方式→实现）由 {@link ChallengeSenderRouter} 集中负责：
+     * EMAIL 走 SMTP（mail.enabled=true 时）、PHONE 短信服务商未定、dev 信箱兜底。
      *
      * @throws LoginMethodUnavailableException 方式未开放（实现 ∧ 开关双条件）
      * @throws ConflictException 目标已被其它账户占用（提前失败，不浪费一次发送）
@@ -104,12 +105,9 @@ public class GuestBindingService {
         guestMapper.insertChallenge(challengeId, accountId, provider.name(), subject,
                 sha256(code), expiresAt, now);
 
-        OwnershipChallengeSender sender = senderProvider.getIfAvailable();
-        if (sender == null) {
-            throw new ChallengeDeliveryUnavailableException(
-                    "验证码发送通道未接通（短信/邮件服务商未配置），无法完成归属验证");
-        }
-        sender.send(new OwnershipChallengeSender.ChallengeDelivery(
+        // 路由器负责“方式→实现”的分发与“未接通→503”的兜底；
+        // 发送抛异常时本事务回滚，挑战不会留下“未投递”的孤儿记录。
+        senderRouter.send(new OwnershipChallengeSender.ChallengeDelivery(
                 provider.name(), subject, code, expiresAt));
 
         log.info("guest ownership challenge issued accountId={} provider={} subject={} challengeId={}",

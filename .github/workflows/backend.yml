@@ -14,6 +14,9 @@ name: backend
 #   4. RabbitMQ 是必需的，不是可选的：Outbox 的"确认后才算发布""持久化投递"
 #      "不可路由即失败"只能在真实 Broker 上验证，桩无法证明。因此也打开 PMS_IT_RABBIT，
 #      与"零跳过"断言相互咬合——Broker 起不来就红，而不是静默跳过。
+#   5. SMTP 同理（R-20261102-01）：验证码邮件通道的"码真的离开了进程并出现在
+#      真实邮件正文里"只能在真实 SMTP 服务器上证明，因此 PMS_IT_SMTP=true。
+#      收信端是同一份 compose 的 MailPit；中继不可达必须包装为 503 也在这里验。
 #
 # 为什么用 compose 而不是 GitHub Actions service containers（v2，R-20261030-21）：
 #   本地、CI、预发跑**同一份** deploy/compose/docker-compose.yml——环境的可执行定义只有一份，
@@ -53,6 +56,7 @@ concurrency:
 env:
   PMS_IT_DB: 'true'
   PMS_IT_RABBIT: 'true'
+  PMS_IT_SMTP: 'true'
 
 jobs:
   verify:
@@ -72,6 +76,11 @@ jobs:
       PMS_RABBIT_PORT: '55672'
       PMS_RABBIT_USER: pms_mq
       PMS_RABBIT_PASSWORD: ci_mq_only
+      # 与 compose 的 mailpit 宿主端口默认值一致；冒烟测试从 MailPit 的
+      # 查询 API（8025）取信，断言验证码在真实邮件正文里。
+      PMS_SMTP_HOST: 127.0.0.1
+      PMS_SMTP_PORT: '55025'
+      PMS_MAILPIT_UI_PORT: '8025'
 
     steps:
       - uses: actions/checkout@v5
@@ -107,7 +116,7 @@ jobs:
           docker compose up -d --wait --wait-timeout 120
           docker compose ps
 
-      - name: Verify (compile + unit + postgres + rabbit integration tests)
+      - name: Verify (compile + unit + postgres + rabbit + smtp integration tests)
         working-directory: openbackupsaas
         # clean 不是为了"干净好看"：下面的断言统计 target/surefire-reports 下所有报告，
         # 残留的旧报告会让计数与本次运行对不上（本地复跑时实测出现 134 ≠ 132）。

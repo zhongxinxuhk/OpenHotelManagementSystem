@@ -18,7 +18,7 @@
 # 快速开始：
 #   cp .env.example .env    # 并至少设置三个密码
 #   docker compose up -d --wait
-#   docker compose ps       # 两个服务都应为 healthy
+#   docker compose ps       # 三个服务都应为 healthy（postgres / rabbitmq / mailpit）
 # =====================================================================
 
 name: pms
@@ -87,6 +87,33 @@ services:
       timeout: 10s
       retries: 20
       start_period: 20s
+
+  # 验证码邮件通道的收信端（ADR-019 §2.10 的 EMAIL 实现，R-20261102-01）。
+  # MailPit = SMTP 服务器 + Web 收件箱：应用经宿主 55025 投信，人在 8025 看信。
+  # 与 PostgreSQL、RabbitMQ 同属一份编排——本地、CI、预发的"可发验证码邮件"环境
+  # 不需要任何额外搭建。生产不用这个服务（指向真实中继），所以它没有数据卷：
+  # 重启即清空，对"验证码"这种一次性材料反而是正确的生命周期。
+  # MP_MAX_MESSAGES 有界：防长跑环境内存无限增长（冒烟与联调的量级远低于上限）。
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: pms-mailpit
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "5000"
+      TZ: ${TZ:-Australia/Brisbane}
+    ports:
+      # SMTP：与应用配置默认值（PMS_SMTP_PORT:55025）一致，起好后零配置可连。
+      - "${PMS_SMTP_PORT:-55025}:1025"
+      # Web 收件箱：本地联调肉眼看码用。预发不应对外暴露（与 Rabbit 管理界面同一条边界）。
+      - "${PMS_MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      # /readyz 是 MailPit 的就绪探针端点（/api/v1/health 在 v1.20 不存在，实测 404）；
+      # busybox wget 存在于其 alpine 基底。
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8025/readyz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
 volumes:
   pms-pgdata:
