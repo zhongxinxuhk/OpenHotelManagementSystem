@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-02（R-20261102-05）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-02（R-20261102-06，五控制台计划完成）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,14 +10,14 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261102-05`（C 端用户控制台 guest：注册/登录/**邮箱绑定挑战-确认真实 SMTP 全链路**/我的 + 房型与订单骨架；浏览器冒烟 10/10；五控制台第 4/5 轮，DONE） |
-| 五控制台计划 | 需求方指示（2026-11-02）：按优先级创建 ①管理员 ②平台业务员 ③商家扩展 ④C 端 Web ⑤企业商旅 共五个控制台；Web 统一 AntD Pro，H5/小程序只建目录放 README。进度：①②③④ DONE，⑤ + CI 收尾待做 |
+| 当前轮次 | `R-20261102-06`（企业商旅控制台 corp-portal 纯骨架（DEC-17 未定案不提供假登录）+ CI frontend 五工程矩阵 + 残留清理；五控制台计划全部落地，DONE） |
+| 五控制台计划 | 需求方指示（2026-11-02）：①管理员②平台业务员③商家扩展④C 端 Web⑤企业商旅，Web 统一 AntD Pro，H5/小程序只建目录放 README。**全部 DONE**：R-02 admin（冒烟 17/17）、R-03 ops（10/10）、R-04 merchant 扩展（6/6）、R-05 guest（10/10，邮箱绑定真实 SMTP 全链路）、R-06 corp（7/7 静态骨架）；CI 矩阵五端同链 |
 | 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-06 DONE，S2-07 大半完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 用同一份 compose 起中间件、frontend） |
 | 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ + mail starter；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V17 共 42 张表）；**411 个测试通过（需真实 PostgreSQL、4 需真实 RabbitMQ、3 需真实 SMTP/MailPit）**；接口契约 64 path / 77 schema（本轮无变更）；（`OutboxPublisherIntegrationTest` 的非确定性失败已在 R-20261101-30 定位并修复：两侧时钟不同源；生产侧同类跨时钟依赖仍记在待办）；**部署形态定调：中间件 compose（PG+Rabbit+MailPit）+ 后端裸机（deploy/app.sh），统一 .env 单源口令**；**可观测性已落地**：业务指标门面 `PmsMetrics`（低基数约束）、`/actuator/prometheus` 暴露、OTel 链路桥接（默认关）、Outbox 积压 gauge/告警原语、Prometheus 抓取+告警规则+运维手册；备份闭环与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权）；**超级管理员初始化脚本已交付**（`scripts/seed-super-admin.sql`，admin/admin，刻意不进 Flyway 迁移链）；**员工开通闭环已交付**：服务端生成一次性初始口令 + `must_change_password` 强制首改（V13）；**匿名公开面已建**：`/api/v1/public/**` 是唯一匿名前缀，`pms.public-api.enabled` 默认 false（限流 J-05 前不对外）；**住客与平台身份平面已建**：guest 三表 + platform 三表 + 会话两张 + 渠道配置（全库无 `tenant_id` 的一族表）；**三条安全链按路径前缀隔离**（`/api/v1/guest/**`、`/api/v1/platform/**`、其余），令牌哈希域分离，跨平面令牌在库层不可互换；**人工实名审核闭环已交付**（权威渠道熔断时人工照常——结构保证而非 if）；**住客用户名+密码登录已交付**（注册即登录、账号枚举防护、登录方式开关=实现∧控制台开关）；**凭证绑定已交付**（挑战-响应、防爆破三件套、一次性消费、解绑自保护）；**EMAIL 验证码通道已接通**（R-20261102-01：SMTP 实发送器 + 路由器集中分发 + MailPit compose + 全链路验证；默认关、显式开；PHONE 待供应商；验证码登录下一轮）；**匿名入口限流已交付**（J-05：令牌桶 + 可信代理解析 + 9 条档位 + 429/`Retry-After` 契约 + `pms.security.rate_limited` 指标；默认只信 TCP 对端，防 `X-Forwarded-For` 伪造；ADR-020） |
-| 前端工程状态 | **多工程结构 `frontend/`**：`merchant-web/`（商家端：三件套绿 + e2e 26/26 + R-04 排房/创建门店/OTA 三页）；`platform-admin/`（冒烟 17/17）；`platform-ops/`（实名审核冒烟 10/10）；**`guest/`（C 端 Web，R-20261102-05 重建为 AntD Pro）**：注册即登录/登录登出/我的/**邮箱绑定挑战-确认真实 SMTP 全链路**/解绑自保护，tsc ✓ 0 / biome ✓ 0（112 文件）/ build ✓ 6 路由，**浏览器冒烟 10/10**（含 MailPit 真实取码）；`guest-h5/`（新目录，H5+小程序规划 README，暂缓）；`corp-portal/` 待最后一轮；**npm 依赖安装已可行**；**Agent 环境坑：`APP_ROOT` 与 Umi 撞名需 `env -u APP_ROOT`；运行态冒烟前须重跑种子（compose DB 会被集成测试清空）** |
+| 前端工程状态 | **六个前端工程全部落地**（五控制台 + H5 规划目录）：`merchant-web/`（商家端，e2e 26/26 + R-04 三新页）；`platform-admin/`（8001，冒烟 17/17）；`platform-ops/`（8002，实名审核冒烟 10/10）；`guest/`（8003，注册/登录/邮箱绑定真实 SMTP 冒烟 10/10）；`corp-portal/`（8004，纯骨架冒烟 7/7，无后端依赖）；`merchant-h5/`+`guest-h5/`（规划 README，暂缓）。**五端三件套全绿**（各自 tsc 0/biome 0/build ✓）；**CI frontend.yml 五工程矩阵**（逐端同链：ci→tsc→biome→build→产物断言）；类型由契约生成（gen-pms-types 支持指定工程）；**坑已记：Agent 环境 `APP_ROOT` 撞名需 `env -u APP_ROOT`；运行态冒烟前须重跑种子（compose DB 被集成测试清空）** |
 | 功能项完成度 | **约 40%**（129 项，DONE 46 / VERIFYING 8，见 feature-catalog §1；J-01 本轮 95% → 98%：EMAIL 通道接通，剩验证码登录与忘记密码） |
-| 下一轮目标 | **五控制台收尾**：⑤企业商旅 corp-portal（纯骨架，DEC-17 OPEN）+ CI frontend 矩阵接入四个新工程 + 文档收口（R-20261102-06）。之后回到：验证码登录（EMAIL 消费侧入口）、忘记密码、公开面开启 checklist、权威核验渠道对接、PHONE 短信；待办：vitest 纳入前端门禁 |
+| 下一轮目标 | 五控制台完成，回到主线：①**验证码登录**（EMAIL 消费侧入口：guest 登录页加邮箱验证码登录——通道已就绪）；②忘记密码；③公开面开启 checklist（门店配额 + WAF）；④权威核验渠道对接（等渠道清单）；⑤PHONE 短信（等供应商）；⑥待办：vitest 纳入前端门禁 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -160,6 +160,50 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261102-06 企业商旅控制台 corp-portal + CI 五工程矩阵（五控制台第 5/5 轮，收尾）
+
+- 状态：DONE（五控制台计划全部落地）
+- 背景：五控制台最后一轮。企业对公账户未定案（DEC-17 OPEN：需先定「企业 ≠ 租户」
+  与身份归属平面），corp-portal 做**纯骨架**：把功能分区立起来，不提供假登录、
+  不渲染假数据。同时把 CI 前端门禁升级为五工程矩阵，五端并跑同一门禁链。
+- 范围（本轮只做这些）：
+  1. **corp-portal 纯骨架**（从 platform-admin 克隆，端口 8004）：登录页为
+     「未开放」占位（DEC-17 说明）；四个骨架页——差旅工作台/差旅政策/员工出行/
+     账单与对账（列定义 + 真实空态）。**app.tsx 骨架化**：无 fetchUserInfo、
+     无登录重定向、无头像菜单（没有身份平面就没有这些）。
+  2. **CI frontend.yml 五工程矩阵**：merchant-web / platform-admin / platform-ops /
+     guest / corp-portal 逐端 `npm ci → tsc → biome → build → 产物断言 → dist 上传`；
+     触发路径改 `frontend/**`；beta.yml 路径同步（gate 调用矩阵后全端过门禁）。
+  3. **清理克隆残留**：guest 的 services/pms/platform.ts（未用）、
+     corp 的 services/pms/auth.ts 与 AvatarDropdown/RightContent（无身份不渲染），
+     删后两工程 tsc 复验 0 error。
+  4. frontend/README 重写「本地启动」段：五端端口表（8000-8004）+ Electron 宿主
+     `APP_ROOT` 坑说明。
+- 涉及功能项（FT-*）/ 任务（S*-*）：无 FT 项对应（企业商旅域未立项，DEC-17 OPEN）
+- 变更文件：`frontend/corp-portal/**`（新建）、`.github/workflows/frontend.yml`（矩阵）、
+  `beta.yml`（路径）、`frontend/README.md`、guest/corp 残留清理
+- 验证（本轮实际执行）：
+  - corp 三件套：`tsc` ✓ 0 error / `biome lint` ✓ 0 error 0 warning（112 文件）/
+    `build` ✓（6 个页面路由）
+  - **corp 冒烟 7/7**（静态骨架，无需后端）：首页渲染 + DEC-17 如实说明 +
+    菜单四项 + 三个业务页真实空态 + 登录页如实占位（不假装可登录）
+  - guest/corp 残留删除后 tsc 复验 0 error（无破坏）
+  - 未覆盖：CI 实跑（矩阵在推送后首跑——本地已按同一条链逐端验证：
+    五端 tsc 0 / biome 0 / build ✓ 全部通过）
+- 本轮发现：
+  1. **骨架工程的登录重定向会形成死循环**：无身份平面时 `onPageChange` 的
+     未登录跳转没有出口——骨架版 app.tsx 必须整体去掉认证逻辑，
+     而不是"先留着以后再接"。
+  2. CI 矩阵 `fail-fast: false` 让五端互不拖累：一个端红不会取消其余端的
+     证据收集（排查"哪个端挂了"时其余端的报告仍在）。
+- 回写确认：feature-catalog 无行变化（corp 无 FT 项）✓ / §1 快照 ✓ / 规划 §1.3 ✓
+- 下一步（五控制台完成，回到主线）：①**验证码登录**（EMAIL 消费侧入口：
+  guest 登录页加"邮箱验证码登录"——通道已就绪）；②忘记密码；③公开面开启
+  checklist；④权威核验渠道对接（等渠道清单）；⑤PHONE 短信（等供应商）；
+  ⑥待办：vitest 纳入前端门禁
 
 ---
 

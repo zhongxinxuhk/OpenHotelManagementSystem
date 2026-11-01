@@ -24,7 +24,7 @@
 | `guest-h5/` | H5 客户端 + 小程序 | GUEST | 住客（移动） | Vite + React + antd-mobile（预案） | **暂缓**（需求方指示：只建目录放规划 README） |
 | `platform-ops/` | 平台业务管理端 | PLATFORM | 客服、售后、运营 | Ant Design Pro 6 | **已可运行**（R-20261102-03：实名审核工作台真实接口 + 骨架空态页） |
 | `platform-admin/` | 平台管理员端 | PLATFORM | 技术、组织架构、存储 | Ant Design Pro 6 | **已可运行**（R-20261102-02：登录/策略/渠道真实接口 + 骨架空态页） |
-| `corp-portal/` | 企业商旅控制台 | TENANT/独立 | 企业对公账户（DEC-17 OPEN） | Ant Design Pro 6 | 待初始化（纯骨架，无身份平面） |
+| `corp-portal/` | 企业商旅控制台 | 待定（DEC-17） | 企业对公账户 | Ant Design Pro 6 | **已可运行**（R-20261102-06 纯骨架：无登录、四页空态，冒烟 7/7） |
 
 **为什么只有 5 个工程却有 6 个端**：H5 客户端与 Web 客户端是同一套业务流程（看房型 → 下单 → 查订单），
 差别只在版式与触屏交互。拆成两个工程等于把下单流程维护两遍，
@@ -49,41 +49,34 @@
 
 ## 4. 本地启动
 
-**Web 商家端（当前唯一可运行的端）**
+五个 Web 控制台均已可运行（2026-11-02 起）。后端默认端口 18080（联调惯例；
+`PMS_API_TARGET` 指向它），dev 端口各端固定互不冲突：
 
-```bash
-cd frontend/merchant-web
-npm ci                      # 首次
-PMS_API_TARGET="http://[::1]:18080" npm run start:no-mock
-```
+| 工程 | dev 端口 | 启动 |
+| --- | --- | --- |
+| merchant-web | 8000 | `PORT=8000 PMS_API_TARGET=http://127.0.0.1:18080 npm run start:no-mock` |
+| platform-admin | 8001 | 同上（PORT=8001） |
+| platform-ops | 8002 | 同上（PORT=8002） |
+| guest | 8003 | 同上（PORT=8003） |
+| corp-portal | 8004 | 静态骨架，无需后端（`PORT=8004 npm run start:no-mock`） |
 
-门禁三件套：`npm run tsc` → `npm run biome:lint` → `npm run build`。
+首次进入各工程先 `npm ci`（同一份 package-lock 派生，缓存命中很快）。
+门禁三件套（每端同一条链）：`npm run tsc` → `npm run biome:lint` → `npm run build`。
+CI（`.github/workflows/frontend.yml`）以五工程矩阵逐端执行同一链。
 
-**五控制台计划（需求方 2026-11-02 指示）**：按优先级创建 ①管理员 ②平台业务员 ③商家扩展
-④C 端 Web ⑤企业商旅；Web 端统一 Ant Design Pro；H5 与小程序暂不做（只建目录放 README）。
-`platform-admin`（R-02）、`platform-ops`（R-03）、merchant-web 扩展（R-04）、
-`guest`（R-05，重建为 AntD Pro）已交付；`guest-h5/`（R-05）为规划目录。
+> **TeleAgent 等 Electron 宿主注意**：宿主注入的 `APP_ROOT` 会与 Umi 的
+> `getCwd()` 撞名导致 `max setup` 解析失败——跑 umi 命令须 `env -u APP_ROOT`；
+> 普通 Terminal 与 CI 不受影响（backend-setup 已知坑 22）。dev 端口用 `PORT`
+> 环境变量（`--port` 参数不生效）。
 
-**其余各端尚未初始化**，原因有两条：
+**五控制台计划（需求方 2026-11-02 指示）已全部落地**：①platform-admin（R-02）
+②platform-ops（R-03）③merchant-web 扩展（R-04）④guest Web（R-05）
+⑤corp-portal（R-06 纯骨架）。H5 与小程序暂缓（`merchant-h5/`、`guest-h5/`
+只建目录放规划 README）。
 
-1. ~~新增工程需要安装依赖，而本机 Agent 沙箱无法完成 `npm ci`~~ **已解除**（2026-11-02 实测
-   npm 网络通畅，platform-admin 已完成 npm ci + 三件套门禁）。新工程统一做法：
-   **克隆 merchant-web（同 package-lock）→ 删商家页面 → 按身份平面改造**，
-   依赖版本严格一致且 npm ci 走热缓存。
-2. 各端细化功能仍受对应 DEC 约束（DEC-01/02 平台细化、DEC-17 企业对公、J-01 验证码登录）；
-   骨架先行是需求方显式指示，不等于越过未定案的业务决策。
-
-初始化时的建议命令（在宿主终端执行）：
-
-```bash
-# H5 商家端
-npm create vite@latest frontend/merchant-h5 -- --template react-ts
-cd frontend/merchant-h5 && npm i antd-mobile
-
-# 客户端
-npm create vite@latest frontend/guest -- --template react-ts
-cd frontend/guest && npm i antd-mobile react-router-dom
-```
+**骨架先行的边界**：各端细化功能仍受对应 DEC 约束（DEC-01/02 平台细化、
+DEC-17 企业对公、J-01 验证码登录）；骨架页只含列定义与真实空态，
+不渲染假数据——需求方显式指示创建骨架，不等于越过未定案的业务决策。
 
 ## 5. 新增一个端时必须过的检查
 

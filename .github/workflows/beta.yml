@@ -32,7 +32,7 @@ on:
       - main
     paths:
       - 'openbackupsaas/**'
-      - 'frontend/merchant-web/**'
+      - 'frontend/**'
       - 'deploy/app.sh'
       - 'deploy/nginx/**'
       - '.github/workflows/beta.yml'

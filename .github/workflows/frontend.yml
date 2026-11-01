@@ -2,23 +2,28 @@ name: frontend
 
 # 前端门禁（ADR-015 三件套）：tsc + biome lint + 生产构建。
 #
-# 为什么每一步都要在这里跑：本地 Agent 沙箱无法完成 npm ci（见 docs/verification/S3-01a），
-# CI 是当前唯一可重复的依赖安装 + 完整构建环境。三件套缺一不可——
-# tsc 抓类型、biome 抓风格与明显错误、build 抓"引用了不存在的文件"这类只有打包才暴露的问题
-# （Welcome 页的悬挂 import 就是这么红了两轮的）。
+# 五工程矩阵（R-20261102-06 起多端并跑）：merchant-web / platform-admin /
+# platform-ops / guest / corp-portal。各端独立依赖（不建 workspace），
+# 同一份 package-lock 派生（版本严格一致），矩阵逐工程执行同一条门禁链。
+#
+# 为什么每一步都要在这里跑：三件套缺一不可——
+# tsc 抓类型、biome 抓风格与明显错误、build 抓"引用了不存在的文件"这类
+# 只有打包才暴露的问题（Welcome 页的悬挂 import 就是这么红过两轮的）。
 on:
   push:
     paths:
-      - 'frontend/merchant-web/**'
+      - 'frontend/**'
       - '.github/workflows/frontend.yml'
   pull_request:
     branches:
       - main
     paths:
-      - 'frontend/merchant-web/**'
+      - 'frontend/**'
       - '.github/workflows/frontend.yml'
   workflow_dispatch:
   # 与 backend 同理：beta 出包前被调用，全绿才允许打包（详见 .github/workflows/beta.yml）。
+  # 注意：beta 的发布物仍然只有 merchant-web 的 dist——其余四端是控制台骨架，
+  # 进入发布链前会各自补打包步骤；门禁先行是为了"未发布的端也不能红"。
   workflow_call:
 
 permissions:
@@ -31,10 +36,19 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - merchant-web
+          - platform-admin
+          - platform-ops
+          - guest
+          - corp-portal
     defaults:
       run:
-        working-directory: frontend/merchant-web
+        working-directory: frontend/${{ matrix.project }}
     steps:
       - uses: actions/checkout@v5
 
@@ -43,7 +57,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: frontend/merchant-web/package-lock.json
+          cache-dependency-path: frontend/${{ matrix.project }}/package-lock.json
 
       - name: Install (locked)
         run: npm ci --no-audit --no-fund
@@ -68,18 +82,18 @@ jobs:
         #   1. 模板 public/CNAME 会让任意静态托管把域名指到 Ant Design 官方预览站；
         #   2. 缺 index.html 说明打包没真正完成（而 build 未以非零码退出）。
         run: |
-          test -f dist/index.html || { echo '::error::dist/index.html 缺失，构建不完整'; exit 1; }
+          test -f dist/index.html || { echo "::error::dist/index.html 缺失，构建不完整（${{ matrix.project }}）"; exit 1; }
           if [ -f dist/CNAME ]; then
-            echo '::error::构建产物包含 CNAME（模板残留），部署会改写域名'
+            echo "::error::构建产物包含 CNAME（模板残留），部署会改写域名（${{ matrix.project }}）"
             exit 1
           fi
-          echo "dist 大小：$(du -sh dist | cut -f1)"
+          echo "${{ matrix.project }} dist 大小：$(du -sh dist | cut -f1)"
 
       - name: Upload dist
         if: success()
         uses: actions/upload-artifact@v5
         with:
-          name: frontend-dist
-          path: frontend/merchant-web/dist/**
+          name: frontend-dist-${{ matrix.project }}
+          path: frontend/${{ matrix.project }}/dist/**
           if-no-files-found: warn
           retention-days: 7
