@@ -203,3 +203,11 @@ PMS_IT_DB=true ./mvnw -B -ntp test   # 连真实库
     换成便捷 setter 会在编译期才暴露（R-20261102-01 踩到）。
 
 > AI生成
+22. **TeleAgent 宿主 shell 的 `APP_ROOT` 会与 Umi 撞名（R-20261102-02 踩到）**：Umi 的
+    `getCwd()` 读 `process.env.APP_ROOT` 作为应用根，TeleAgent 注入的
+    `/Applications/TeleAgent.app/.../app.asar` 会让 `max setup` 解析 react-dom 失败
+    （报 "Cannot find module 'react-dom/package.json' from app.asar"）。**用户终端与
+    CI 均不受影响**（无此变量）；在 Agent 环境跑 umi 命令须 `env -u APP_ROOT npm run tsc/build`。
+    另：Umi Max 的 `--port` 参数不生效，dev 端口用 `PORT` 环境变量（各工程 package.json 已固化）。
+
+> AI生成

@@ -85,6 +85,16 @@
 **各端共享什么**：`docs/api/openapi-v1.json` 契约 + `scripts/gen-pms-types.mjs` 生成的前端类型 + 错误三分类约定（`errors.ts` 的心智模型）。
 **不共享**：不建 npm workspace。首期各端独立 `node_modules`，避免构建耦合把"改一个端要重装所有端"这种成本提前引进来。
 
+**技术选型修订（需求方指示，2026-11-02）**：Web 端**统一 Ant Design Pro**——
+C 端 Web 客户端从"Vite 两断点同库"改为独立的 AntD Pro 工程（`guest/`），
+H5 与小程序**暂缓**（只建目录放 README，等后端面与产品节奏）；
+企业商旅控制台（`corp-portal/`，DEC-17）也按 AntD Pro 立骨架。落地顺序按需求方给的
+优先级：①platform-admin（R-20261102-02 已交付）→②platform-ops→③merchant-web 扩展→
+④guest Web→⑤corp-portal。**初始化方式**：克隆 merchant-web（同一份 package-lock，
+依赖版本严格一致）后按身份平面改造——多端同栈后这是成本最低且不漂移的做法。
+骨架先行**不改变**各端的 DEC 约束（DEC-01/02 仍约束平台端细化功能，DEC-17 仍 OPEN）：
+骨架页只含列定义与真实空态，不渲染假数据。
+
 ### 2.4 平台管理员端的范围（**已由需求方确认 2026-11-01**）
 
 需求方给的范围是"只做 SaaS 系统的关键操作"。据此把本端切成**配置与运维**，不含租户业务数据：
@@ -211,3 +221,5 @@ CI（`frontend.yml` / `beta.yml` / `release.yml`）、生成脚本（`gen-pms-ty
 | 移动端商家端承载哪些动作 | 产品输入，未定 |
 | 公开面限流策略（按 IP / 按门店 / 配额） | J-05，下一轮 |
 | 各端域名、部署形态（同域多路径还是多子域） | 待上线方案，S2-07 |
+
+> AI生成

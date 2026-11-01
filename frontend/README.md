@@ -19,10 +19,11 @@
 | 目录 | 端 | 身份平面 | 使用者 | 技术栈 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | `merchant-web/` | Web 商家端 | TENANT | 前台、客房、店长、财务 | Ant Design Pro 6（Umi Max + React 19） | **已可运行** |
-| `merchant-h5/` | H5 商家端 | TENANT | 员工（移动：查房态、办入住、接通知） | Vite + React + antd-mobile | 待初始化 |
-| `guest/` | H5 客户端 + Web 客户端 | GUEST | 住客 | Vite + React（两套断点，同一工程） | 待初始化（后端面未就绪） |
-| `platform-ops/` | 平台业务管理端 | PLATFORM | 客服、售后、运营 | Ant Design Pro 6 | 阻塞（DEC-01/02） |
-| `platform-admin/` | 平台管理员端 | PLATFORM | 技术、组织架构、存储 | Ant Design Pro 6 | 阻塞（DEC-01/02） |
+| `merchant-h5/` | H5 商家端 | TENANT | 员工（移动：查房态、办入住、接通知） | Vite + React + antd-mobile | 待初始化（H5 暂缓，需求方 2026-11-02） |
+| `guest/` | Web 客户端 | GUEST | 住客 | Ant Design Pro 6（原定 Vite，需求方 2026-11-02 改为统一 AntD Pro） | 待初始化（下一轮） |
+| `platform-ops/` | 平台业务管理端 | PLATFORM | 客服、售后、运营 | Ant Design Pro 6 | 待初始化（下一轮；实名审核接口已就绪） |
+| `platform-admin/` | 平台管理员端 | PLATFORM | 技术、组织架构、存储 | Ant Design Pro 6 | **已可运行**（R-20261102-02：登录/策略/渠道真实接口 + 骨架空态页） |
+| `corp-portal/` | 企业商旅控制台 | TENANT/独立 | 企业对公账户（DEC-17 OPEN） | Ant Design Pro 6 | 待初始化（纯骨架，无身份平面） |
 
 **为什么只有 5 个工程却有 6 个端**：H5 客户端与 Web 客户端是同一套业务流程（看房型 → 下单 → 查订单），
 差别只在版式与触屏交互。拆成两个工程等于把下单流程维护两遍，
@@ -57,12 +58,18 @@ PMS_API_TARGET="http://[::1]:18080" npm run start:no-mock
 
 门禁三件套：`npm run tsc` → `npm run biome:lint` → `npm run build`。
 
-**其余四端尚未初始化**，原因有两条：
+**五控制台计划（需求方 2026-11-02 指示）**：按优先级创建 ①管理员 ②平台业务员 ③商家扩展
+④C 端 Web ⑤企业商旅；Web 端统一 Ant Design Pro；H5 与小程序暂不做（只建目录放 README）。
+`platform-admin` 已交付（R-20261102-02，克隆 merchant-web 保持同版本依赖）。
 
-1. 新增工程需要安装依赖，而**本机 Agent 沙箱无法完成 `npm ci`**
-   （并行下载会被代理掐断，见 `docs/verification/S3-01a`）。依赖安装必须在宿主终端执行。
-2. `guest/` 还缺后端面：公开目录（J-02）已实现但默认关闭，限流（J-05）未做；
-   住客身份（J-01）卡 DEC-10。此时代码写出来只能对着假数据，不算交付。
+**其余各端尚未初始化**，原因有两条：
+
+1. ~~新增工程需要安装依赖，而本机 Agent 沙箱无法完成 `npm ci`~~ **已解除**（2026-11-02 实测
+   npm 网络通畅，platform-admin 已完成 npm ci + 三件套门禁）。新工程统一做法：
+   **克隆 merchant-web（同 package-lock）→ 删商家页面 → 按身份平面改造**，
+   依赖版本严格一致且 npm ci 走热缓存。
+2. 各端细化功能仍受对应 DEC 约束（DEC-01/02 平台细化、DEC-17 企业对公、J-01 验证码登录）；
+   骨架先行是需求方显式指示，不等于越过未定案的业务决策。
 
 初始化时的建议命令（在宿主终端执行）：
 
@@ -92,3 +99,5 @@ cd frontend/guest && npm i antd-mobile react-router-dom
 `frontend-admin-pro/` 已迁移为 `frontend/merchant-web/`（R-20261101-29）。
 CI（`frontend.yml` / `beta.yml` / `release.yml`）与生成脚本已同步。
 `docs/verification/**` 下的历史记录保留原路径：那是当时的证据，不做追溯改写。
+
+> AI生成

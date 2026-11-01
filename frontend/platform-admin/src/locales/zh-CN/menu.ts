@@ -1,0 +1,17 @@
+export default {
+  'menu.overview': '系统概览',
+  'menu.guest': '住客身份',
+  'menu.guest.loginPolicy': '登录方式策略',
+  'menu.guest.channels': '核验渠道',
+  'menu.system': '系统管理',
+  'menu.system.trends': '系统趋势',
+  'menu.system.users': '平台用户与权限',
+  'menu.system.audit': '系统级审计',
+  'menu.ota': 'OTA 对接',
+  'menu.ota.adapters': '接口适配',
+  'menu.login': '登录',
+  'menu.exception': '异常页',
+  'menu.exception.403': '无访问权限',
+  'menu.exception.404': '页面不存在',
+  'menu.exception.500': '服务异常',
+};

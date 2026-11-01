@@ -8,9 +8,11 @@
  * 两端因此共用同一份事实源。
  *
  * 用法：
- *   node scripts/gen-pms-types.mjs            # 生成 src/services/pms/types.ts
- *   node scripts/gen-pms-types.mjs --check    # 只校验是否已是最新（CI 用）
+ *   node scripts/gen-pms-types.mjs                          # 默认输出 merchant-web
+ *   node scripts/gen-pms-types.mjs frontend/platform-admin   # 指定前端工程（R-20261102-02 起多端）
+ *   node scripts/gen-pms-types.mjs --check [工程]            # 只校验是否已是最新（CI 用）
  *
+ * 多端各自生成到自己的 src/services/pms/types.ts（ADR-017：类型从契约生成，不手写、不共享包）。
  * 契约文件路径：仓库根的 docs/api/openapi-v1.json。
  * 重新导出契约的方法见该文件顶部的说明（后端 /v3/api-docs）。
  */
@@ -22,7 +24,17 @@ const here = dirname(fileURLToPath(import.meta.url));
 // 脚本位于 <repo>/scripts/，因此仓库根是上一级（而不是两级）。
 const repoRoot = resolve(here, '..');
 const contractPath = join(repoRoot, 'docs', 'api', 'openapi-v1.json');
-const outputPath = join(repoRoot, 'frontend', 'merchant-web', 'src', 'services', 'pms', 'types.ts');
+
+// 目标工程：位置参数（如 frontend/platform-admin）；缺省为 merchant-web。
+const targetArg = process.argv.slice(2).filter((a) => a !== '--check')[0];
+const outputPath = join(
+  repoRoot,
+  targetArg ?? 'frontend/merchant-web',
+  'src',
+  'services',
+  'pms',
+  'types.ts',
+);
 
 if (!existsSync(contractPath)) {
   console.error(`找不到契约文件：${contractPath}`);
