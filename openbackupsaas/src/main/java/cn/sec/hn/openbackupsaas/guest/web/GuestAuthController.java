@@ -7,6 +7,7 @@ import cn.sec.hn.openbackupsaas.guest.mapper.GuestLoginPolicyMapper;
 import cn.sec.hn.openbackupsaas.guest.security.GuestPrincipal;
 import cn.sec.hn.openbackupsaas.guest.service.GuestAccountService;
 import cn.sec.hn.openbackupsaas.guest.service.GuestAuthenticationService;
+import cn.sec.hn.openbackupsaas.guest.service.GuestCodeLoginService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -41,13 +42,16 @@ public class GuestAuthController {
     private final GuestAccountService accountService;
     private final GuestAuthenticationService authenticationService;
     private final GuestLoginPolicyMapper loginPolicyMapper;
+    private final GuestCodeLoginService codeLoginService;
 
     public GuestAuthController(GuestAccountService accountService,
                                GuestAuthenticationService authenticationService,
-                               GuestLoginPolicyMapper loginPolicyMapper) {
+                               GuestLoginPolicyMapper loginPolicyMapper,
+                               GuestCodeLoginService codeLoginService) {
         this.accountService = accountService;
         this.authenticationService = authenticationService;
         this.loginPolicyMapper = loginPolicyMapper;
+        this.codeLoginService = codeLoginService;
     }
 
     /**
@@ -75,6 +79,41 @@ public class GuestAuthController {
                 request.username(), request.password());
         // 登录服务在口令比对通过后才解析账户；快照在此时读取，
         // 失败路径上不会多读任何账户资料。
+        return GuestAuthResponse.of(
+                new GuestAuthenticationService.IssuedSession(login.token(), login.expiresAt()),
+                authenticationService.snapshotOf(login.accountId()));
+    }
+
+    /**
+     * 发起邮箱验证码登录挑战（匿名，R-20261102-07）。
+     *
+     * <p>**枚举防护**：邮箱未注册也照发验证码——响应形态与已注册完全一致，
+     * 未注册用户会收到一封无法完成登录的验证码邮件。提交码时
+     * "未注册"与"码错"统一文案，接口不构成邮箱枚举器。
+     *
+     * <p>响应**不含验证码**——码只经发送通道走（SMTP，见 ADR-019 §2.10）。
+     */
+    @PostMapping("/code-login/challenge")
+    @Operation(operationId = "guestCodeLoginChallenge")
+    public CodeLoginChallengeView codeLoginChallenge(
+            @Valid @RequestBody CodeLoginChallengeRequest request) {
+        var issued = codeLoginService.requestChallenge(request.email());
+        return new CodeLoginChallengeView(issued.challengeId().toString(),
+                issued.subjectMasked(), issued.expiresAt());
+    }
+
+    /**
+     * 用邮箱验证码完成登录（R-20261102-07）。
+     *
+     * <p>失败统一"验证码或邮箱不正确"（401）——未注册、码错、账户关闭同文案；
+     * 挑战失效（过期/超次/已消费）为 409，需重新发起。防爆破三件套
+     * （哈希存储 + 5 次上限 + 10 分钟过期）与绑定挑战同构。
+     */
+    @PostMapping("/code-login")
+    @Operation(operationId = "guestCodeLogin")
+    public GuestAuthResponse codeLogin(@Valid @RequestBody CodeLoginRequest request) {
+        var login = codeLoginService.loginWithCode(
+                java.util.UUID.fromString(request.challengeId()), request.code());
         return GuestAuthResponse.of(
                 new GuestAuthenticationService.IssuedSession(login.token(), login.expiresAt()),
                 authenticationService.snapshotOf(login.accountId()));
@@ -127,6 +166,27 @@ public class GuestAuthController {
     public record GuestLoginRequest(
             @NotBlank(message = "用户名不能为空") String username,
             @NotBlank(message = "密码不能为空") String password
+    ) {
+    }
+
+    /** 邮箱验证码登录挑战的发起请求。 */
+    public record CodeLoginChallengeRequest(
+            @NotBlank(message = "邮箱不能为空") String email
+    ) {
+    }
+
+    /** 登录挑战的发起结果：challengeId + 掩码 + 过期时间（**不含验证码**）。 */
+    public record CodeLoginChallengeView(
+            String challengeId,
+            String subjectMasked,
+            OffsetDateTime expiresAt
+    ) {
+    }
+    public record CodeLoginRequest(
+            @NotBlank(message = "挑战标识不能为空") String challengeId,
+            @NotBlank(message = "验证码不能为空")
+            @jakarta.validation.constraints.Pattern(regexp = "^\\d{6}$", message = "验证码须为 6 位数字")
+            String code
     ) {
     }
 

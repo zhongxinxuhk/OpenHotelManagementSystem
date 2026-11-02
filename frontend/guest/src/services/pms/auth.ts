@@ -9,6 +9,9 @@
  */
 import { request } from '@umijs/max';
 import type {
+  CodeLoginChallengeRequest,
+  CodeLoginChallengeView,
+  CodeLoginRequest,
   GuestAuthResponse,
   GuestLoginRequest,
   GuestMeView,
@@ -57,6 +60,44 @@ export async function guestLogout() {
 export async function getGuestMe() {
   return request<GuestMeView>('/api/v1/guest/me', {
     method: 'GET',
+    skipErrorHandler: true,
+  });
+}
+
+// ==================== 邮箱验证码登录（R-20261102-07） ====================
+
+export type {
+  CodeLoginChallengeRequest,
+  CodeLoginChallengeView,
+  CodeLoginRequest,
+};
+
+/**
+ * 发起邮箱验证码登录挑战（匿名）。
+ *
+ * 枚举防护（后端口径）：未注册邮箱也照发验证码——响应形态与已注册完全一致，
+ * 提交码时"未注册/码错/账户关闭"统一文案。本函数不做任何邮箱存在性判断。
+ */
+export async function guestCodeLoginChallenge(
+  body: CodeLoginChallengeRequest,
+) {
+  return request<CodeLoginChallengeView>(
+    '/api/v1/guest/auth/code-login/challenge',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: body,
+      skipErrorHandler: true,
+    },
+  );
+}
+
+/** 用验证码完成登录（两步之二）。挑战失效（过期/超次/已消费）返回 409。 */
+export async function guestCodeLogin(body: CodeLoginRequest) {
+  return request<GuestAuthResponse>('/api/v1/guest/auth/code-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: body,
     skipErrorHandler: true,
   });
 }

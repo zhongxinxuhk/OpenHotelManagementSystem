@@ -305,4 +305,60 @@
         WHERE account_id = #{accountId} AND provider = #{provider} AND subject = #{subject}
     </delete>
 
+    <!-- ===== 验证码登录挑战（R-20261102-07，与归属挑战分表） ===== -->
+
+    <resultMap id="loginChallengeMap"
+               type="cn.sec.hn.openbackupsaas.guest.domain.LoginChallenge">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <!-- account_id 可空：登录前无法归属，凭证定位在码校验之后 -->
+            <arg column="account_id" javaType="java.util.UUID"/>
+            <arg column="provider" javaType="java.lang.String"/>
+            <arg column="subject" javaType="java.lang.String"/>
+            <arg column="code_hash" javaType="java.lang.String"/>
+            <arg column="expires_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="attempts" javaType="_int"/>
+            <arg column="consumed_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <insert id="insertLoginChallenge">
+        INSERT INTO guest_login_challenge
+            (id, provider, subject, code_hash, expires_at, created_at)
+        VALUES (#{id}, #{provider}, #{subject}, #{codeHash}, #{expiresAt}, #{at})
+    </insert>
+
+    <select id="findLoginChallenge" resultMap="loginChallengeMap">
+        SELECT id, account_id, provider, subject, code_hash, expires_at, attempts, consumed_at
+        FROM guest_login_challenge
+        WHERE id = #{id}
+    </select>
+
+    <update id="bumpLoginChallengeAttempts">
+        UPDATE guest_login_challenge
+        SET attempts = attempts + 1
+        WHERE id = #{id} AND consumed_at IS NULL
+    </update>
+
+    <!-- 过期与超次的判定在服务层（域模型持有 MAX_ATTEMPTS/TTL 常量），
+         这里只做"未消费"的原子标记，条件与归属挑战同构 -->
+    <update id="consumeLoginChallenge">
+        UPDATE guest_login_challenge
+        SET consumed_at = now()
+        WHERE id = #{id}
+          AND consumed_at IS NULL
+          AND attempts &lt; 5
+          AND expires_at &gt; now()
+    </update>
+
+    <!-- 码校验通过后定位账户：只回 ACTIVE 账户（关闭账户与未注册同形） -->
+    <select id="findActiveAccountIdByCredential" resultType="java.util.UUID">
+        SELECT c.account_id
+        FROM guest_credential c
+        JOIN guest_account a ON a.id = c.account_id
+        WHERE c.provider = #{provider}
+          AND c.subject = #{subject}
+          AND a.status = 'ACTIVE'
+        LIMIT 1
+    </select>
 </mapper>

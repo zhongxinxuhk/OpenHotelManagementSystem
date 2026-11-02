@@ -1181,6 +1181,37 @@ public class NoDatabaseStubConfig {
         public int deleteCredential(UUID accountId, String provider, String subject) {
             throw new UnsupportedOperationException(MESSAGE);
         }
+
+        // ---------- 验证码登录挑战（R-20261102-07）：与归属挑战同样抛——
+        // test 档案不提供数据访问实现，登录行为只能在 integration 档案验证 ----------
+
+        @Override
+        public int insertLoginChallenge(UUID id, String provider, String subject,
+                                         String codeHash, OffsetDateTime expiresAt,
+                                         OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.guest.domain.LoginChallenge> findLoginChallenge(
+                UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int bumpLoginChallengeAttempts(UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int consumeLoginChallenge(UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<UUID> findActiveAccountIdByCredential(String provider, String subject) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
     }
 
     /**

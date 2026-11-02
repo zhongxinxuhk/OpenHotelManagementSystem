@@ -4,6 +4,7 @@ import cn.sec.hn.openbackupsaas.guest.domain.GuestAccount;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestSession;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestSessionView;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestCredentialView;
+import cn.sec.hn.openbackupsaas.guest.domain.LoginChallenge;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestVerification;
 import cn.sec.hn.openbackupsaas.guest.domain.OwnershipChallenge;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestVerificationReview;
@@ -192,4 +193,35 @@ public interface GuestMapper {
     int deleteCredential(@Param("accountId") UUID accountId,
                          @Param("provider") String provider,
                          @Param("subject") String subject);
+
+    // ---------- 验证码登录挑战（R-20261102-07，与归属挑战分表） ----------
+
+    /**
+     * 写入一条登录挑战。{@code accountId} 可空：登录前无法归属——
+     * 凭证定位（按 provider+subject 找账户）发生在码校验通过之后。
+     */
+    int insertLoginChallenge(@Param("id") UUID id,
+                             @Param("provider") String provider,
+                             @Param("subject") String subject,
+                             @Param("codeHash") String codeHash,
+                             @Param("expiresAt") OffsetDateTime expiresAt,
+                             @Param("at") OffsetDateTime at);
+
+    Optional<LoginChallenge> findLoginChallenge(@Param("id") UUID id);
+
+    /** 记一次错误尝试。返回 0 表示挑战已消费（不能再加）。 */
+    int bumpLoginChallengeAttempts(@Param("id") UUID id);
+
+    /**
+     * 原子消费登录挑战：只有"未消费、未超次、未过期"才能成功。
+     * 并发下第二个提交拿到 0 行 → 409，同一码不会登录两次。
+     */
+    int consumeLoginChallenge(@Param("id") UUID id);
+
+    /**
+     * 码校验通过后按凭证定位账户。只回**有效账户**（ACTIVE）——
+     * 关闭账户在这里与"未注册"同形：登录接口不暴露账户状态。
+     */
+    Optional<UUID> findActiveAccountIdByCredential(@Param("provider") String provider,
+                                                   @Param("subject") String subject);
 }

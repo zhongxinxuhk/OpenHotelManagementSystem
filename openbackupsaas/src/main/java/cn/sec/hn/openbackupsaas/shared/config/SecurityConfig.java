@@ -93,6 +93,11 @@ public class SecurityConfig {
                                 org.springframework.http.HttpMethod.POST, "/api/v1/guest/auth/register").permitAll()
                         .requestMatchers(
                                 org.springframework.http.HttpMethod.POST, "/api/v1/guest/auth/login").permitAll()
+                        // 验证码登录两端点（R-20261102-07）：登录前无身份，必须匿名放行
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.POST, "/api/v1/guest/auth/code-login/challenge").permitAll()
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.POST, "/api/v1/guest/auth/code-login").permitAll()
                         .requestMatchers("/api/v1/guest/auth/methods").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling

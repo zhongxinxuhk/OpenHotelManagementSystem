@@ -205,9 +205,19 @@ timeout / priority）与熔断状态（circuit_state / consecutive_failures / op
 同性质），本地伪造不出有意义的"真实验证"。接通时只需新增一个
 `supports("PHONE")` 的实现，机制与路由零改动。
 
-**验证码登录是消费侧，不在本节**：本轮接通的是"绑定"的投递能力；
-用 EMAIL+验证码**登录**需要新的登录入口（发起挑战 → 确认 → 发会话），
-是独立的后续工作，`isImplemented()` 在那之前仍只标 USERNAME。
+**验证码登录（R-20261102-07 已接通）**：`POST /guest/auth/code-login/challenge`
+（匿名发码）+ `POST /guest/auth/code-login`（码对→凭证定位账户→发会话）。
+**登录挑战与绑定挑战分表分服务**（`guest_login_challenge` vs
+`guest_ownership_challenge`）：绑定是"归属验证"（已登录发起、挑战绑定 account_id、
+confirm 校验归属防接管）；登录是"身份证明"（匿名发起、account_id 可空**无外键**、
+凭证定位发生在码校验之后）。分表的实质理由是**可用性不联动**：登录挑战必须过
+`requireAvailable(EMAIL)`（实现 ∧ 登录开关），绑定挑战只看通道能力——
+合一张表会让"运营临时关停 EMAIL 登录"连带堵死"绑定邮箱"。
+**枚举防护（需求方确认口径：照发码 + 统一文案）**：发起时未注册邮箱也照发验证码
+（响应形态与已注册完全一致）；提交码时"未注册/码错/账户关闭"统一
+"验证码或邮箱不正确"（401）——登录接口不构成邮箱枚举器。
+防爆破三件套（哈希存储 + 5 次尝试 + 10 分钟过期 + 一次性消费）与绑定挑战同构。
+自本轮起 `isImplemented()` 标 USERNAME 与 EMAIL，控制台开关对 EMAIL 即刻生效。
 
 ## 3. 被否决的替代方案
 

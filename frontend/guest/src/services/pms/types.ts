@@ -62,6 +62,21 @@ export type ChannelView = {
   timeoutMs?: number;
 };
 
+export type CodeLoginChallengeRequest = {
+  email: string;
+};
+
+export type CodeLoginChallengeView = {
+  challengeId?: string;
+  expiresAt?: string;
+  subjectMasked?: string;
+};
+
+export type CodeLoginRequest = {
+  challengeId: string;
+  code: string;
+};
+
 export type ConfirmRequest = {
   challengeId: string;
   code: string;

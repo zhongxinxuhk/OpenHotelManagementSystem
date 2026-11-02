@@ -91,6 +91,13 @@ public class RateLimitRules {
         // 用户名绑定 / 解绑：要已登录，限额只防脚本化批量操作
         list.add(rule(environment, HttpMethod.POST, "/api/v1/guest/auth/bindings/username",
                 "guest.binding.username", 10, Duration.ofMinutes(10)));
+        // 验证码登录发码（R-20261102-07）：与绑定发码同档——这条挡的是
+        // 邮件轰炸与邮件账单；注意**具体路径必须在通配 /guest/auth/** 之前**登记
+        list.add(rule(environment, HttpMethod.POST, "/api/v1/guest/auth/code-login/challenge",
+                "guest.code-login.challenge", 5, Duration.ofMinutes(10)));
+        // 验证码登录提交：未认证流量，比绑定确认更严（登录是攻击面最大的入口）
+        list.add(rule(environment, HttpMethod.POST, "/api/v1/guest/auth/code-login",
+                "guest.code-login.confirm", 10, Duration.ofMinutes(10)));
         // 其余住客认证接口（方式清单、登出、我的凭证列表）
         list.add(rule(environment, null, "/api/v1/guest/auth/**",
                 "guest.auth", 60, Duration.ofMinutes(1)));

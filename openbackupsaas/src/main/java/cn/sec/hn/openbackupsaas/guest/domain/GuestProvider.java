@@ -106,11 +106,13 @@ public enum GuestProvider {
      * 该登录方式当前是否**已实现**（ADR-019 §2.9）。
      *
      * <p>登录方式的可用性 = 本方法 **∧** 策略开关（{@code guest_login_policy}）。
-     * 只有 USERNAME 是 true：手机号/邮箱要验证码通道，第三方要 OAuth 回调，
-     * 都还没接。把未实现的方式在控制台里打开，对外仍然是"未开放"——
-     * 这样"接通新通道"永远是代码发布，"暂时关掉"永远是控制台开关，两者不会混。
+     * USERNAME 自 R-20261101-32；EMAIL 自 R-20261102-07（验证码登录消费侧接通，
+     * 投递通道在 R-20261102-01 落地）。把未实现的方式在控制台里打开，
+     * 对外仍然是"未开放"——这样"接通新通道"永远是代码发布，
+     * "暂时关掉"永远是控制台开关，两者不会混。PHONE 要短信服务商，
+     * 第三方要 OAuth 回调，仍未接。
      */
     public boolean isImplemented() {
-        return this == USERNAME;
+        return this == USERNAME || this == EMAIL;
     }
 }

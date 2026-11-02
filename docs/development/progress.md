@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-02（R-20261102-06，五控制台计划完成）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-02（R-20261102-07）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,14 +10,14 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261102-06`（企业商旅控制台 corp-portal 纯骨架（DEC-17 未定案不提供假登录）+ CI frontend 五工程矩阵 + 残留清理；五控制台计划全部落地，DONE） |
+| 当前轮次 | `R-20261102-07`（EMAIL 验证码登录消费侧：登录挑战分表分服务 + 枚举防护（照发码+统一文案）+ isImplemented 标 EMAIL + 限流两档 + 契约 66path；前端双方式登录；浏览器冒烟 8/8，DONE） |
 | 五控制台计划 | 需求方指示（2026-11-02）：①管理员②平台业务员③商家扩展④C 端 Web⑤企业商旅，Web 统一 AntD Pro，H5/小程序只建目录放 README。**全部 DONE**：R-02 admin（冒烟 17/17）、R-03 ops（10/10）、R-04 merchant 扩展（6/6）、R-05 guest（10/10，邮箱绑定真实 SMTP 全链路）、R-06 corp（7/7 静态骨架）；CI 矩阵五端同链 |
 | 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-06 DONE，S2-07 大半完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 用同一份 compose 起中间件、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ + mail starter；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V17 共 42 张表）；**411 个测试通过（需真实 PostgreSQL、4 需真实 RabbitMQ、3 需真实 SMTP/MailPit）**；接口契约 64 path / 77 schema（本轮无变更）；（`OutboxPublisherIntegrationTest` 的非确定性失败已在 R-20261101-30 定位并修复：两侧时钟不同源；生产侧同类跨时钟依赖仍记在待办）；**部署形态定调：中间件 compose（PG+Rabbit+MailPit）+ 后端裸机（deploy/app.sh），统一 .env 单源口令**；**可观测性已落地**：业务指标门面 `PmsMetrics`（低基数约束）、`/actuator/prometheus` 暴露、OTel 链路桥接（默认关）、Outbox 积压 gauge/告警原语、Prometheus 抓取+告警规则+运维手册；备份闭环与支付仍未实现，**尚无真实渠道处理器**（L/K 域缺授权）；**超级管理员初始化脚本已交付**（`scripts/seed-super-admin.sql`，admin/admin，刻意不进 Flyway 迁移链）；**员工开通闭环已交付**：服务端生成一次性初始口令 + `must_change_password` 强制首改（V13）；**匿名公开面已建**：`/api/v1/public/**` 是唯一匿名前缀，`pms.public-api.enabled` 默认 false（限流 J-05 前不对外）；**住客与平台身份平面已建**：guest 三表 + platform 三表 + 会话两张 + 渠道配置（全库无 `tenant_id` 的一族表）；**三条安全链按路径前缀隔离**（`/api/v1/guest/**`、`/api/v1/platform/**`、其余），令牌哈希域分离，跨平面令牌在库层不可互换；**人工实名审核闭环已交付**（权威渠道熔断时人工照常——结构保证而非 if）；**住客用户名+密码登录已交付**（注册即登录、账号枚举防护、登录方式开关=实现∧控制台开关）；**凭证绑定已交付**（挑战-响应、防爆破三件套、一次性消费、解绑自保护）；**EMAIL 验证码通道已接通**（R-20261102-01：SMTP 实发送器 + 路由器集中分发 + MailPit compose + 全链路验证；默认关、显式开；PHONE 待供应商；验证码登录下一轮）；**匿名入口限流已交付**（J-05：令牌桶 + 可信代理解析 + 9 条档位 + 429/`Retry-After` 契约 + `pms.security.rate_limited` 指标；默认只信 TCP 对端，防 `X-Forwarded-For` 伪造；ADR-020） |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ + mail starter；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V18 共 43 张表）；**416 个测试通过（需真实 PG/Rabbit/SMTP）**；接口契约 **66 path / 80 schema**（R-20261102-07 新增验证码登录两端点）；部署形态：中间件 compose（PG+Rabbit+MailPit）+ 后端裸机；**住客登录方式已两种**：用户名+密码、**EMAIL+验证码（R-20261102-07：登录挑战分表分服务、枚举防护照发码+统一文案、防爆破三件套、方式开关即刻生效；登录是未认证流量限流更严）**；凭证绑定（挑战-响应）、人工实名审核（熔断时人工照常）、平台三平面（令牌哈希域分离）、限流（11 档含 code-login 两档）、可观测性、运维处置等前轮成果见历史轮次条目 |
 | 前端工程状态 | **六个前端工程全部落地**（五控制台 + H5 规划目录）：`merchant-web/`（商家端，e2e 26/26 + R-04 三新页）；`platform-admin/`（8001，冒烟 17/17）；`platform-ops/`（8002，实名审核冒烟 10/10）；`guest/`（8003，注册/登录/邮箱绑定真实 SMTP 冒烟 10/10）；`corp-portal/`（8004，纯骨架冒烟 7/7，无后端依赖）；`merchant-h5/`+`guest-h5/`（规划 README，暂缓）。**五端三件套全绿**（各自 tsc 0/biome 0/build ✓）；**CI frontend.yml 五工程矩阵**（逐端同链：ci→tsc→biome→build→产物断言）；类型由契约生成（gen-pms-types 支持指定工程）；**坑已记：Agent 环境 `APP_ROOT` 撞名需 `env -u APP_ROOT`；运行态冒烟前须重跑种子（compose DB 被集成测试清空）** |
 | 功能项完成度 | **约 40%**（129 项，DONE 46 / VERIFYING 8，见 feature-catalog §1；J-01 本轮 95% → 98%：EMAIL 通道接通，剩验证码登录与忘记密码） |
-| 下一轮目标 | 五控制台完成，回到主线：①**验证码登录**（EMAIL 消费侧入口：guest 登录页加邮箱验证码登录——通道已就绪）；②忘记密码；③公开面开启 checklist（门店配额 + WAF）；④权威核验渠道对接（等渠道清单）；⑤PHONE 短信（等供应商）；⑥待办：vitest 纳入前端门禁 |
+| 下一轮目标 | ①**忘记密码/找回**（复用登录挑战机制，流不同：验证→重置口令而非发会话；注意 GUEST 面当前无改密接口，需连改密 HTTP 一起建）；②公开面开启 checklist（门店配额 + WAF）；③权威核验渠道对接（等渠道清单）；④PHONE 短信（等供应商）；⑤待办：vitest 纳入前端门禁 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -160,6 +160,68 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261102-07 EMAIL 验证码登录（J-01 收尾：登录挑战消费侧）
+
+- 状态：DONE（J-01 → **VERIFYING 99%**：EMAIL 登录全链路交付；剩余=忘记密码+PHONE 短信）
+- 背景：主线回归（五控制台完成）。R-01 接通了 EMAIL 投递通道，但登录方式仍只有
+  用户名+密码（`isImplemented()` 只标 USERNAME）。本轮建**消费侧**：邮箱+验证码登录。
+- 关键设计（需求方已确认枚举防护口径：**照发码 + 统一文案**）：
+  登录挑战与绑定挑战**分表分服务**——绑定挑战是"归属验证"（需已登录、带账户归属），
+  登录挑战是"身份证明"（匿名、account_id 可空、凭证定位账户）。混用一张表会让
+  "运营关停 EMAIL 登录"连带堵死"绑定邮箱"；且登录挑战必须过 `requireAvailable(EMAIL)`
+  （实现 ∧ 登录开关），绑定只看通道能力。
+- 范围（实际交付）：
+  1. V18：`guest_login_challenge`（account_id 可空**无外键**——登录前无法归属；
+     防爆破三件套与 V17 对齐：SHA-256 存储、5 次尝试、10 分钟 TTL、一次性消费）。
+  2. `GuestCodeLoginService` + `LoginChallengeAttemptRecorder`（REQUIRES_NEW——
+     失败计数必须在主事务回滚后存活）：匿名发码（**未注册邮箱也照发**，响应形态
+     与已注册完全一致）；`loginWithCode`：码对→原子消费→凭证定位 ACTIVE 账户→
+     `issueSession`；"未注册/码错/账户关闭"统一"验证码或邮箱不正确"（401）。
+  3. 控制器两端点；`GuestProvider.isImplemented()` EMAIL→true（控制台开关即刻生效）。
+  4. 限流两档：`guest.code-login.challenge` 5/10min、`guest.code-login.confirm` 10/10min
+     （登录是未认证流量，比绑定更严）；SecurityConfig 匿名放行。
+  5. 契约重导 **64→66 path / 77→80 schema**（OpenApiContractTest 守卫按设计拦下后重导）。
+  6. guest 前端登录页：双方式（Radio 切换）——邮箱 Tab 仅当 `methods` 里 EMAIL
+     `available=true` 时渲染（未开放不出现"点了才不行"的入口）；两步式
+     （邮箱→发码→验证码→登录）；409 退回第一步重新发码。
+- 涉及功能项（FT-*）/ 任务（S*-*）：J-01（98% → 99%）、J-10（30% → 40%）
+- 变更文件：V18 迁移；`guest/domain/LoginChallenge`、`guest/service/{GuestCodeLoginService,
+  LoginChallengeAttemptRecorder}`；`GuestMapper` +4 方法（XML 同步）；
+  `GuestAuthController` 两端点；`GuestProvider.isImplemented()`；`SecurityConfig` 放行；
+  `RateLimitRules` 两档；`NoDatabaseStubConfig` stub 补方法；
+  `docs/api/openapi-v1.json` 重导；guest 前端 `services/pms/auth.ts` +2 函数、
+  登录页重写双方式
+- 验证（本轮实际执行）：
+  - 新增集成测试 `GuestCodeLoginFlowTest` **5/5**（真实 PG + 真实 SMTP/MailPit）：
+    登录全链路（真码签发会话+一次性消费）、未注册邮箱响应形态一致（字段级对比）+
+    照发码、统一文案（正确码+未注册→401 同句）、5 次错码耗尽（第 6 次 409）、
+    方式开关（关 EMAIL→403 + 清单 available 反映）
+  - **全量门禁（与 CI 等价）**：`PMS_IT_DB=true PMS_IT_RABBIT=true PMS_IT_SMTP=true
+    ./mvnw clean verify` → **416 tests / 0 failures / 0 skipped，BUILD SUCCESS**（411→416）
+  - guest 前端三件套：tsc ✓ 0 / biome ✓ 0（112 文件）/ build ✓
+  - **运行态浏览器冒烟 8/8**（真实 Tomcat + dev 代理 + 真实 SMTP）：前置（注册+绑邮箱
+    真实流程）→ 方式切换渲染（EMAIL available）→ MailPit 真实取码 → 错码 401 统一文案
+    → 正确码登录进首页 → 会话有效（我的页）→ 登出。冒烟数据用后即清。
+  - 未覆盖：忘记密码（下一轮）、PHONE 短信（等供应商）、限流两档的 429 实测
+    （档位已生效——启动日志 11 条可见；专项覆盖归 J-05 用例）
+- 本轮发现（重要，已处理或记入文档）：
+  1. **`fieldNames()` 在 Jackson 3 不可用**：`JsonNode` 的字段遍历改用
+     `properties()`（返回 `Iterable<Map.Entry>`）——测试里枚举防护的字段级对比踩到。
+  2. **`NoDatabaseStubConfig` 的 stub 必须随 Mapper 接口同步**：新增 4 个 Mapper 方法
+     未同步 stub 直接编译失败（好事——接口不会静默漂移，但每次加 Mapper 方法要记得补 stub）。
+  3. **测试基线与运行态种子口径不同**：`guest_login_policy` 里 EMAIL 种子默认 false
+     （运营态由控制台开），集成测试用 `@BeforeEach UPDATE` 显式打开——关停行为
+     由专项用例覆盖，基线等价于"管理员已开启"。
+  4. **LoginForm（pro-components v3）无 Tabs/other 支持**：双方式登录改用
+     Radio.Group 切换（表单字段按方式条件渲染）——不与组件库对抗。
+  5. **冒烟断言口径踩坑**：正确码+未注册邮箱会**消费挑战**（401 统一文案），
+     随后错码提交已是 409（已消费）——断言要按真实状态机写，不是按"我以为的分支"。
+- 回写确认：feature-catalog ✓（J-01 → 99%，J-10 → 40%）/ §1 快照 ✓ / 规划 §1.3 ✓ / ADR-019 §2.10 追记 ✓
+- 下一步：①**忘记密码/找回**（复用登录挑战机制，流不同：验证→重置口令而非发会话）；
+  ②公开面开启 checklist；③权威核验渠道对接（等渠道清单）；④PHONE 短信（等供应商）
 
 ---
 
