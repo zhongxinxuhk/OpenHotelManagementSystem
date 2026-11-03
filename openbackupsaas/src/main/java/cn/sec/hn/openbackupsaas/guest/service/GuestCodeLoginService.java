@@ -112,7 +112,7 @@ public class GuestCodeLoginService {
         // 路由器集中负责"方式→实现"分发与"未接通→503"；
         // 发送失败时事务回滚，不留下"声称已发码"的孤儿挑战。
         senderRouter.send(new OwnershipChallengeSender.ChallengeDelivery(
-                GuestProvider.EMAIL.name(), email, code, expiresAt));
+                GuestProvider.EMAIL.name(), email, code, expiresAt, "登录"));
 
         log.info("guest login challenge issued provider=EMAIL subject={} challengeId={}",
                 mask(email), challengeId);

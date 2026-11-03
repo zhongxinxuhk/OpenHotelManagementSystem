@@ -431,9 +431,17 @@ const Login: React.FC = () => {
           )}
 
           {method === 'username' && (
-            <div style={{ marginBottom: 8, textAlign: 'right' }}>
-              <span style={{ marginRight: 8 }}>没有账号？</span>
-              <Link to="/user/register">注册</Link>
+            <div
+              style={{
+                marginBottom: 8,
+                display: 'flex',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Link to="/user/forgot">忘记密码？</Link>
+              <span>
+                没有账号？ <Link to="/user/register">注册</Link>
+              </span>
             </div>
           )}
         </LoginForm>

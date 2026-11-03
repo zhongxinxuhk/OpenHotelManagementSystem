@@ -57,7 +57,7 @@ class MailChallengeSenderSmokeTest {
 
         OffsetDateTime expiresAt = OffsetDateTime.now().plusMinutes(10);
         sender.send(new OwnershipChallengeSender.ChallengeDelivery(
-                "EMAIL", mailbox, CODE, expiresAt));
+                "EMAIL", mailbox, CODE, expiresAt, "登录"));
 
         JsonNode message = awaitMessageFor(mailbox, Duration.ofSeconds(10));
         String text = message.get("Text").asString();
@@ -77,7 +77,7 @@ class MailChallengeSenderSmokeTest {
                 ChallengeDeliveryUnavailableException.class,
                 () -> sender.send(new OwnershipChallengeSender.ChallengeDelivery(
                         "EMAIL", "smoke-reject@pms.test", CODE,
-                        OffsetDateTime.now().plusMinutes(10))));
+                        OffsetDateTime.now().plusMinutes(10), "登录")));
         assertTrue(String.valueOf(ex).contains("发送失败"), "应显式报告投递失败");
     }
 

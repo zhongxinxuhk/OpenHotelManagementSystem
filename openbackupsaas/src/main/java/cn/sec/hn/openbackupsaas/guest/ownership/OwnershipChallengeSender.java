@@ -46,7 +46,8 @@ public interface OwnershipChallengeSender {
             String provider,
             String subject,
             String code,
-            java.time.OffsetDateTime expiresAt
+            java.time.OffsetDateTime expiresAt,
+            String purpose
     ) {
     }
 }

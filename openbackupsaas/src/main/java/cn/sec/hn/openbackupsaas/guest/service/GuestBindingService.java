@@ -108,7 +108,7 @@ public class GuestBindingService {
         // 路由器负责“方式→实现”的分发与“未接通→503”的兜底；
         // 发送抛异常时本事务回滚，挑战不会留下“未投递”的孤儿记录。
         senderRouter.send(new OwnershipChallengeSender.ChallengeDelivery(
-                provider.name(), subject, code, expiresAt));
+                provider.name(), subject, code, expiresAt, "绑定登录方式"));
 
         log.info("guest ownership challenge issued accountId={} provider={} subject={} challengeId={}",
                 accountId, provider, mask(subject), challengeId);

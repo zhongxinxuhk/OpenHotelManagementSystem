@@ -219,6 +219,15 @@ confirm 校验归属防接管）；登录是"身份证明"（匿名发起、acco
 防爆破三件套（哈希存储 + 5 次尝试 + 10 分钟过期 + 一次性消费）与绑定挑战同构。
 自本轮起 `isImplemented()` 标 USERNAME 与 EMAIL，控制台开关对 EMAIL 即刻生效。
 
+**忘记密码重置（R-20261103-01 已接通）**：`POST /guest/auth/password-reset/challenge`
+（匿名发码）+ `POST /guest/auth/password-reset`（码对→凭证定位账户→更新口令哈希），
+另有已登录改密 `POST /guest/auth/password`（会话+当前口令双证明，踢其它会话保当前）。
+**第三张挑战表**（`guest_password_reset_challenge`）：除"可用性不联动"外多一条
+分表理由——**码按用途绑定**：登录挑战的码只能登录，重置挑战的码只能重置口令
+（`ChallengeDelivery.purpose` 让邮件正文明示操作类型，抗"借登录码钓鱼重置"）。
+重置**不受 EMAIL 登录开关约束**（账号恢复 ≠ 登录方式）；成功撤销**全部**会话
+且不自动登录（匿名流程没有"当前会话"——与改密的"保当前"刻意不同）。
+
 ## 3. 被否决的替代方案
 
 - **一张会话表 + surface 列**：隔离依赖每个查询写对条件。否决，理由见 §2.1。

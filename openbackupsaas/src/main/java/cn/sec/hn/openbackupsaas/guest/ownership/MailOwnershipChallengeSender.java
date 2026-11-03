@@ -100,10 +100,16 @@ public class MailOwnershipChallengeSender implements OwnershipChallengeSender {
         message.setSubject("PMS 验证码");
         // 文案遵守前端禁令同源原则：只给动作所需的最小信息，无营销、无自述。
         // 有效期从投递对象取，而不是再写死一份——挑战 TTL 改了这里不会说错话。
+        // purpose（R-20261103-01）：正文第一行明示操作类型——同一邮箱可能收到
+        // 登录/绑定/重置三种码，写清楚用途是抗钓鱼的最低成本防线
+        //（用户被诱骗读码时，"重置登录口令"比一句"验证码"更能引起警觉）。
         message.setText("""
+                您正在进行：%s
+
                 验证码：%s
 
                 %d 分钟内有效。若非本人操作，请忽略本邮件。""".formatted(
+                delivery.purpose(),
                 delivery.code(),
                 java.time.Duration.between(
                         java.time.OffsetDateTime.now(), delivery.expiresAt()).toMinutes()));

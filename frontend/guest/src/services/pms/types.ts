@@ -355,6 +355,17 @@ export type PageViewReservationSummary = {
   totalPages?: number;
 };
 
+export type PasswordChangeRequest = {
+  currentPassword: string;
+  newPassword: string;
+};
+
+export type PasswordResetRequest = {
+  challengeId: string;
+  code: string;
+  newPassword: string;
+};
+
 export type PendingSummary = {
   deadLetters?: number;
   parkedInbox?: number;
@@ -510,6 +521,16 @@ export type ReservationView = {
   reservationNo?: string;
   sourceType?: string;
   status?: string;
+};
+
+export type ResetChallengeRequest = {
+  email: string;
+};
+
+export type ResetChallengeView = {
+  challengeId?: string;
+  expiresAt?: string;
+  subjectMasked?: string;
 };
 
 export type ResetCircuitRequest = {

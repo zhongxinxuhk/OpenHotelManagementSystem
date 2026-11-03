@@ -29,6 +29,24 @@ export default [
         component: './user/register',
       },
       {
+        /*
+         * 修改口令（R-20261103-01 恢复）：已登录改密。`layout: false`——
+         * 低频动作独立成页更聚焦；头像菜单「修改口令」指向这里。
+         */
+        path: '/user/password',
+        layout: false,
+        component: './user/password',
+      },
+      {
+        /*
+         * 忘记密码（R-20261103-01）：匿名找回，两步式（发码→重置）。
+         * 不给 name：流程步骤不进菜单。
+         */
+        path: '/user/forgot',
+        layout: false,
+        component: './user/forgot',
+      },
+      {
         path: '/user',
         redirect: '/user/login',
       },

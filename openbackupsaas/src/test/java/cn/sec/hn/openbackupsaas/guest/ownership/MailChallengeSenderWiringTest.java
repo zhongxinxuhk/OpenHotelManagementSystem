@@ -66,7 +66,7 @@ class MailChallengeSenderWiringTest {
         // PHONE 没有真实实现：经路由器应落进 dev 信箱（证明兜底方向没接反）
         router.send(new OwnershipChallengeSender.ChallengeDelivery(
                 "PHONE", "+8613800138000", "000111",
-                java.time.OffsetDateTime.now().plusMinutes(10)));
+                java.time.OffsetDateTime.now().plusMinutes(10), "登录"));
         assertNotNull(mailbox.get("PHONE", "+8613800138000"),
                 "PHONE 应由信箱兜底——如果落到了邮件实现，路由顺序接反了");
     }

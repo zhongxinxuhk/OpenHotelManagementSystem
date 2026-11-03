@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-02（R-20261102-07）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-03（R-20261103-01）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,14 +10,14 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261102-07`（EMAIL 验证码登录消费侧：登录挑战分表分服务 + 枚举防护（照发码+统一文案）+ isImplemented 标 EMAIL + 限流两档 + 契约 66path；前端双方式登录；浏览器冒烟 8/8，DONE） |
+| 当前轮次 | `R-20261103-01`（忘记密码/找回 + 住客改密：第三张挑战表（码按用途绑定）+ ChallengeDelivery.purpose 抗钓鱼 + 改密/重置 3 端点 + 前端找回页与改密页（修复 R-05 潜伏 404）；浏览器冒烟 12/12，DONE） |
 | 五控制台计划 | 需求方指示（2026-11-02）：①管理员②平台业务员③商家扩展④C 端 Web⑤企业商旅，Web 统一 AntD Pro，H5/小程序只建目录放 README。**全部 DONE**：R-02 admin（冒烟 17/17）、R-03 ops（10/10）、R-04 merchant 扩展（6/6）、R-05 guest（10/10，邮箱绑定真实 SMTP 全链路）、R-06 corp（7/7 静态骨架）；CI 矩阵五端同链 |
 | 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-06 DONE，S2-07 大半完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 用同一份 compose 起中间件、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ + mail starter；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V18 共 43 张表）；**416 个测试通过（需真实 PG/Rabbit/SMTP）**；接口契约 **66 path / 80 schema**（R-20261102-07 新增验证码登录两端点）；部署形态：中间件 compose（PG+Rabbit+MailPit）+ 后端裸机；**住客登录方式已两种**：用户名+密码、**EMAIL+验证码（R-20261102-07：登录挑战分表分服务、枚举防护照发码+统一文案、防爆破三件套、方式开关即刻生效；登录是未认证流量限流更严）**；凭证绑定（挑战-响应）、人工实名审核（熔断时人工照常）、平台三平面（令牌哈希域分离）、限流（11 档含 code-login 两档）、可观测性、运维处置等前轮成果见历史轮次条目 |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ + mail starter；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V19 共 44 张表）；**425 个测试通过（需真实 PG/Rabbit/SMTP）**；接口契约 **69 path / 84 schema**（R-20261103-01 新增改密/重置 3 端点）；部署形态：中间件 compose（PG+Rabbit+MailPit）+ 后端裸机；**住客登录方式已两种**：用户名+密码、EMAIL+验证码（R-20261102-07）；**口令闭环已交付**（R-20261103-01：已登录改密（第二因子+踢其它会话）+ 忘记密码重置（第三张挑战表码按用途绑定、不受登录开关联动、撤全部会话不自动登录）+ 邮件 purpose 抗钓鱼文案；限流 14 档）；凭证绑定（挑战-响应）、人工实名审核（熔断时人工照常）、平台三平面（令牌哈希域分离）、限流（11 档含 code-login 两档）、可观测性、运维处置等前轮成果见历史轮次条目 |
 | 前端工程状态 | **六个前端工程全部落地**（五控制台 + H5 规划目录）：`merchant-web/`（商家端，e2e 26/26 + R-04 三新页）；`platform-admin/`（8001，冒烟 17/17）；`platform-ops/`（8002，实名审核冒烟 10/10）；`guest/`（8003，注册/登录/邮箱绑定真实 SMTP 冒烟 10/10）；`corp-portal/`（8004，纯骨架冒烟 7/7，无后端依赖）；`merchant-h5/`+`guest-h5/`（规划 README，暂缓）。**五端三件套全绿**（各自 tsc 0/biome 0/build ✓）；**CI frontend.yml 五工程矩阵**（逐端同链：ci→tsc→biome→build→产物断言）；类型由契约生成（gen-pms-types 支持指定工程）；**坑已记：Agent 环境 `APP_ROOT` 撞名需 `env -u APP_ROOT`；运行态冒烟前须重跑种子（compose DB 被集成测试清空）** |
 | 功能项完成度 | **约 40%**（129 项，DONE 46 / VERIFYING 8，见 feature-catalog §1；J-01 本轮 95% → 98%：EMAIL 通道接通，剩验证码登录与忘记密码） |
-| 下一轮目标 | ①**忘记密码/找回**（复用登录挑战机制，流不同：验证→重置口令而非发会话；注意 GUEST 面当前无改密接口，需连改密 HTTP 一起建）；②公开面开启 checklist（门店配额 + WAF）；③权威核验渠道对接（等渠道清单）；④PHONE 短信（等供应商）；⑤待办：vitest 纳入前端门禁 |
+| 下一轮目标 | ①**公开面开启 checklist**（按门店配额 + WAF 规则 + 被刷降级流程）后开 `PMS_PUBLIC_API_ENABLED`——C 端房型浏览（J-02/J-10）的前置；②权威核验渠道对接（等渠道清单）；③PHONE 短信（等供应商授权）；④待办：挑战表族机制抽层（第四种流程出现时）、vitest 纳入前端门禁 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -160,6 +160,83 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261103-01 忘记密码/找回 + 住客改密接口（J-01 最后一块消费侧）
+
+- 状态：DONE（J-01 消费侧全部完成：**本地可做的已做完**，剩余=PHONE 短信等外部授权）
+- 背景：progress 上一轮"下一步①"。GUEST 面**没有任何改密 HTTP**（员工/平台都有，
+  住客没有）；且 guest 前端头像菜单「修改口令」指向已删除的 /user/password——
+  R-05 删页时留下的潜伏 404，本轮一并修复。
+- 关键设计（沿用既有原则，三个决策）：
+  1. **重置挑战第三张表**（V19 guest_password_reset_challenge）——沿用 R-07 分表先例；
+     额外收益：**码按用途绑定**（登录码不能用于重置——抗"借登录码钓鱼重置"），
+     `ChallengeDelivery` 增加 purpose 字段，邮件正文明示操作类型。
+  2. **找回不受 EMAIL 登录开关约束**（账号恢复 ≠ 登录方式，可用性不联动）；
+     只受通道可用性约束（SMTP 未接通 → 503）。
+  3. **重置成功撤销全部会话、不自动登录**——匿名流程无"当前会话"，
+     强制重新登录是标准姿态；已登录改密则撤销**其它**会话、保留当前（与员工/平台一致）。
+  4. 枚举防护沿用已确认口径：未注册邮箱照发码 + confirm 统一文案。
+- 范围（本轮只做这些）：
+  1. V19 重置挑战表；`GuestPasswordService`（authenticated 改密 + 匿名重置两流程）；
+     `ResetChallengeAttemptRecorder`（REQUIRES_NEW）。
+  2. `ChallengeDelivery` +purpose 字段（三个调用点：绑定/登录/重置——邮件区分用途）。
+  3. `GuestPasswordController` 三端点：POST /guest/auth/password（已登录改密）、
+     /guest/auth/password-reset/challenge（匿名发码）、/guest/auth/password-reset（匿名重置）。
+  4. 限流三档（change 10/10min、reset.challenge 5/10min、reset.confirm 10/10min）；
+     SecurityConfig 匿名放行两个 reset 端点。
+  5. guest 前端：恢复 /user/password（改密页，修复头像菜单 404）、新增 /user/forgot
+     （找回页：邮箱→验证码+新口令→跳登录）、登录页"忘记密码？"入口。
+  6. 契约重导（66→69 path）；**本轮明确不做**：PHONE 短信（等供应商）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：J-01（99% → 目标 99% 收口：剩 PHONE 外部依赖）、J-10（40% → 50%）
+- 变更文件：
+  - V19 `guest_password_reset_challenge`（第三张挑战表；码按用途绑定）
+  - `guest/domain/{PasswordResetChallenge, UsernameCredential(+subject)}`
+  - `guest/service/{GuestPasswordService, ResetChallengeAttemptRecorder}`
+  - `guest/mapper/GuestMapper` +7 方法（XML 同步；usernameCredentialMap +subject 列）
+  - `guest/web/GuestPasswordController`（3 端点：改密/重置发码/重置完成）
+  - `ownership/OwnershipChallengeSender.ChallengeDelivery` **+purpose 字段**
+    （绑定/登录/重置三个调用点全部传用途；邮件正文首行明示操作类型）
+  - `MailOwnershipChallengeSender` 邮件正文含 purpose（抗钓鱼文案）
+  - `SecurityConfig`（重置两端点匿名放行）+ `RateLimitRules`（3 档：change 10/10min、
+    reset.challenge 5/10min、reset.confirm 10/10min；共 14 档）
+  - `NoDatabaseStubConfig` stub +7 方法
+  - 契约重导 **66→69 path / 80→84 schema**
+  - guest 前端：`services/pms/auth.ts` +3 函数；**恢复 `/user/password`**（修复 R-05
+    潜伏 404：头像菜单指向已删页面）；新增 `/user/forgot`（两步式找回）；
+    登录页「忘记密码？」入口
+- 验证（本轮实际执行）：
+  - 集成测试 `GuestPasswordFlowTest` **9/9**（真实 PG + 真实 SMTP/MailPit）：
+    改密（当前会话保留+其它撤销+新旧口令切换）、当前口令错 401、新口令含用户名 400、
+    无 USERNAME 凭证 409、重置全链路（**邮件含"重置登录口令"文案断言**+全部会话撤销+
+    新口令登录+一次性消费）、**跨流程防护**（登录码不能重置、重置码不能登录——双向）、
+    **EMAIL 登录关停时重置照常**（可用性不联动）、未注册邮箱形态一致+统一文案、
+    5 次耗尽
+  - **全量门禁（与 CI 等价）**：`PMS_IT_DB=true PMS_IT_RABBIT=true PMS_IT_SMTP=true
+    ./mvnw clean verify` → **425 tests / 0 failures / 0 skipped，BUILD SUCCESS**（416→425）
+  - guest 前端三件套：tsc ✓ 0 / biome ✓ 0（114 文件）/ build ✓（user/password 与
+    user/forgot 路由产出）
+  - **运行态浏览器冒烟 12/12**（真实后端+真实 SMTP）：前置（注册+绑邮箱+第二设备）→
+    忘记密码入口 → 找回页发码（MailPit 邮件明示用途）→ 重置成功页 →
+    **两台设备会话均 401** → 旧口令失效 → 新口令登录 → 头像菜单进改密页（**404 已修复**）→
+    改密成功回跳 → 当前会话仍有效。冒烟数据用后即清。
+  - 未覆盖：限流 3 档的 429 实测（档位生效见启动日志；专项归 J-05）、
+    PHONE 短信（等供应商）
+- 本轮发现（重要）：
+  1. **R-05 潜伏 bug 实锤并修复**：guest 头像菜单「修改口令」指向 /user/password，
+     而 R-05 删掉了该页（当时无接口）——菜单点了 404。教训：删页面要连带清入口
+     （或确认入口已无引用）；本轮以"恢复页面+接真接口"修复。
+  2. **测试断言的期望列表也要排序**：字段名比较时 expected 没排序列表导致假失败
+     （R-07 踩过同族问题）——断言口径必须与真实输出形态对齐，不是"我以为的顺序"。
+  3. **Mapper 加方法必补 stub**（第二次踩）：NoDatabaseStubConfig 编译期拦截——
+     接口不静默漂移是好事，但流程上应形成肌肉记忆。
+  4. **第三张挑战表的出现是模式信号**：绑定/登录/重置三张同构表 + 三个 recorder，
+     若出现第四种流程（如换绑邮箱二次确认），应抽"挑战表族"共享机制层
+     （分表保留、机制复用）——记入待办，现在不动（三张尚可维护）。
+- 回写确认：feature-catalog ✓（J-01 → 99% 收口：剩 PHONE 外部依赖）/ §1 快照 ✓ /
+  规划 §1.3 ✓ / ADR-019 §2.10 追记重置设计 ✓
+- 下一步：①公开面开启 checklist（按门店配额 + WAF 规则 + 降级流程）后开 PMS_PUBLIC_API_ENABLED；②权威核验渠道对接（等渠道清单）；③PHONE 短信（等供应商授权）；④待办：挑战表族机制抽层（出现第四种流程时）、vitest 纳入前端门禁
 
 ---
 

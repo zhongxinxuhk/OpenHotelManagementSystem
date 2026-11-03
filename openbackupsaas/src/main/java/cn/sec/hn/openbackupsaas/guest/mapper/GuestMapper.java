@@ -5,6 +5,7 @@ import cn.sec.hn.openbackupsaas.guest.domain.GuestSession;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestSessionView;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestCredentialView;
 import cn.sec.hn.openbackupsaas.guest.domain.LoginChallenge;
+import cn.sec.hn.openbackupsaas.guest.domain.PasswordResetChallenge;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestVerification;
 import cn.sec.hn.openbackupsaas.guest.domain.OwnershipChallenge;
 import cn.sec.hn.openbackupsaas.guest.domain.GuestVerificationReview;
@@ -224,4 +225,43 @@ public interface GuestMapper {
      */
     Optional<UUID> findActiveAccountIdByCredential(@Param("provider") String provider,
                                                    @Param("subject") String subject);
+
+    // ---------- 忘记密码 / 改密（R-20261103-01） ----------
+
+    /**
+     * 某账户的 USERNAME 凭证（含 subject 与 secretHash）——改密要校验当前口令，
+     * 策略校验要用户名。账户没有 USERNAME 凭证（被解绑）返回 empty。
+     */
+    Optional<UsernameCredential> findUsernameCredentialOfAccount(
+            @Param("accountId") UUID accountId);
+
+    /** 更新 USERNAME 凭证的口令哈希（已登录改密与忘记密码共用）。 */
+    int updateUsernameSecret(@Param("accountId") UUID accountId,
+                             @Param("secretHash") String secretHash,
+                             @Param("at") OffsetDateTime at);
+
+    /**
+     * 撤销账户全部会话但保留当前一个——已登录改密用：踢掉其它设备，
+     * 保留本会话（与员工/平台改密同一语义）。
+     */
+    int revokeAllSessionsExcept(@Param("accountId") UUID accountId,
+                                @Param("exceptSessionId") UUID exceptSessionId,
+                                @Param("reason") String reason,
+                                @Param("at") OffsetDateTime at);
+
+    int insertResetChallenge(@Param("id") UUID id,
+                             @Param("provider") String provider,
+                             @Param("subject") String subject,
+                             @Param("codeHash") String codeHash,
+                             @Param("expiresAt") OffsetDateTime expiresAt,
+                             @Param("at") OffsetDateTime at);
+
+    Optional<cn.sec.hn.openbackupsaas.guest.domain.PasswordResetChallenge> findResetChallenge(
+            @Param("id") UUID id);
+
+    /** 记一次错误尝试。返回 0 表示挑战已消费。 */
+    int bumpResetChallengeAttempts(@Param("id") UUID id);
+
+    /** 原子消费重置挑战：未消费、未超次、未过期才能成功。 */
+    int consumeResetChallenge(@Param("id") UUID id);
 }

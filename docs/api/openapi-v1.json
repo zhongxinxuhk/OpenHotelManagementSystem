@@ -39,6 +39,10 @@
     {
       "name": "住客凭证绑定",
       "description": "绑定/解绑登录方式（挑战-响应，归属验证）"
+    },
+    {
+      "name": "住客口令",
+      "description": "已登录改密与忘记密码重置（住客平面）"
     }
   ],
   "paths": {
@@ -1681,6 +1685,82 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/GuestAuthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/password": {
+      "post": {
+        "tags": [
+          "住客口令"
+        ],
+        "operationId": "guestChangePassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/password-reset": {
+      "post": {
+        "tags": [
+          "住客口令"
+        ],
+        "operationId": "guestPasswordReset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/password-reset/challenge": {
+      "post": {
+        "tags": [
+          "住客口令"
+        ],
+        "operationId": "guestPasswordResetChallenge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetChallengeView"
                 }
               }
             }
@@ -3902,6 +3982,73 @@
             "type": "boolean"
           },
           "sessionExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PasswordChangeRequest": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "PasswordResetRequest": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\d{6}$"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "challengeId",
+          "code",
+          "newPassword"
+        ]
+      },
+      "ResetChallengeRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "ResetChallengeView": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string"
+          },
+          "subjectMasked": {
+            "type": "string"
+          },
+          "expiresAt": {
             "type": "string",
             "format": "date-time"
           }

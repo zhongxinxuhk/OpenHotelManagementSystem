@@ -50,7 +50,7 @@ class ChallengeSenderRouterTest {
 
     private static OwnershipChallengeSender.ChallengeDelivery delivery(String provider) {
         return new OwnershipChallengeSender.ChallengeDelivery(provider, "subject@example.test", "123456",
-                java.time.OffsetDateTime.now().plusMinutes(10));
+                java.time.OffsetDateTime.now().plusMinutes(10), "登录");
     }
 
     @Test

@@ -98,6 +98,12 @@ public class SecurityConfig {
                                 org.springframework.http.HttpMethod.POST, "/api/v1/guest/auth/code-login/challenge").permitAll()
                         .requestMatchers(
                                 org.springframework.http.HttpMethod.POST, "/api/v1/guest/auth/code-login").permitAll()
+                        // 忘记密码两端点（R-20261103-01）：匿名——忘记密码本就没有身份
+                        //（已登录改密 /password 不放行：默认要求认证）
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.POST, "/api/v1/guest/auth/password-reset/challenge").permitAll()
+                        .requestMatchers(
+                                org.springframework.http.HttpMethod.POST, "/api/v1/guest/auth/password-reset").permitAll()
                         .requestMatchers("/api/v1/guest/auth/methods").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling

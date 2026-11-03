@@ -94,7 +94,7 @@ class MailOwnershipChallengeSenderTest {
 
     private static OwnershipChallengeSender.ChallengeDelivery emailDelivery() {
         return new OwnershipChallengeSender.ChallengeDelivery("EMAIL", TO, CODE,
-                OffsetDateTime.now().plusMinutes(10));
+                OffsetDateTime.now().plusMinutes(10), "登录");
     }
 
     @Test
@@ -135,7 +135,8 @@ class MailOwnershipChallengeSenderTest {
                 new MailOwnershipChallengeSender(new RecordingMailSender(null), FROM);
         OwnershipChallengeSender.ChallengeDelivery phoneDelivery =
                 new OwnershipChallengeSender.ChallengeDelivery(
-                        "PHONE", "+8613800138000", CODE, OffsetDateTime.now().plusMinutes(10));
+                        "PHONE", "+8613800138000", CODE,
+                        OffsetDateTime.now().plusMinutes(10), "登录");
 
         ChallengeDeliveryUnavailableException ex = assertThrows(
                 ChallengeDeliveryUnavailableException.class, () -> sender.send(phoneDelivery));

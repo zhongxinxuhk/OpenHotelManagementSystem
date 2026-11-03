@@ -1212,6 +1212,50 @@ public class NoDatabaseStubConfig {
         public Optional<UUID> findActiveAccountIdByCredential(String provider, String subject) {
             throw new UnsupportedOperationException(MESSAGE);
         }
+
+        // ---------- 忘记密码 / 改密（R-20261103-01）：同样抛——
+        // test 档案不提供数据访问，口令行为只能在 integration 档案验证 ----------
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.guest.domain.UsernameCredential>
+                findUsernameCredentialOfAccount(UUID accountId) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int updateUsernameSecret(UUID accountId, String secretHash,
+                                         OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int revokeAllSessionsExcept(UUID accountId, UUID exceptSessionId,
+                                           String reason, OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int insertResetChallenge(UUID id, String provider, String subject,
+                                        String codeHash, OffsetDateTime expiresAt,
+                                        OffsetDateTime at) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public Optional<cn.sec.hn.openbackupsaas.guest.domain.PasswordResetChallenge>
+                findResetChallenge(UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int bumpResetChallengeAttempts(UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
+
+        @Override
+        public int consumeResetChallenge(UUID id) {
+            throw new UnsupportedOperationException(MESSAGE);
+        }
     }
 
     /**

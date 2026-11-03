@@ -98,6 +98,15 @@ public class RateLimitRules {
         // 验证码登录提交：未认证流量，比绑定确认更严（登录是攻击面最大的入口）
         list.add(rule(environment, HttpMethod.POST, "/api/v1/guest/auth/code-login",
                 "guest.code-login.confirm", 10, Duration.ofMinutes(10)));
+        // 忘记密码发码（R-20261103-01）：与登录发码同档——挡邮件轰炸与账单
+        list.add(rule(environment, HttpMethod.POST, "/api/v1/guest/auth/password-reset/challenge",
+                "guest.password-reset.challenge", 5, Duration.ofMinutes(10)));
+        // 重置提交：未认证流量，与登录提交同档
+        list.add(rule(environment, HttpMethod.POST, "/api/v1/guest/auth/password-reset",
+                "guest.password-reset.confirm", 10, Duration.ofMinutes(10)));
+        // 已登录改密：要认证 + 当前口令，限额只防脚本化滥用
+        list.add(rule(environment, HttpMethod.POST, "/api/v1/guest/auth/password",
+                "guest.password.change", 10, Duration.ofMinutes(10)));
         // 其余住客认证接口（方式清单、登出、我的凭证列表）
         list.add(rule(environment, null, "/api/v1/guest/auth/**",
                 "guest.auth", 60, Duration.ofMinutes(1)));

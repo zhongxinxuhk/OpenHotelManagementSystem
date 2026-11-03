@@ -16,6 +16,10 @@ import type {
   GuestLoginRequest,
   GuestMeView,
   GuestRegisterRequest,
+  PasswordChangeRequest,
+  PasswordResetRequest,
+  ResetChallengeRequest,
+  ResetChallengeView,
 } from './types';
 
 export type {
@@ -95,6 +99,62 @@ export async function guestCodeLoginChallenge(
 /** 用验证码完成登录（两步之二）。挑战失效（过期/超次/已消费）返回 409。 */
 export async function guestCodeLogin(body: CodeLoginRequest) {
   return request<GuestAuthResponse>('/api/v1/guest/auth/code-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: body,
+    skipErrorHandler: true,
+  });
+}
+
+
+// ==================== 改密与忘记密码（R-20261103-01） ====================
+
+export type {
+  PasswordChangeRequest,
+  PasswordResetRequest,
+  ResetChallengeRequest,
+  ResetChallengeView,
+};
+
+/**
+ * 已登录改密：校验当前口令（会话可能是被盗的 cookie，口令是第二因子）；
+ * 成功后撤销**其它**会话、保留当前。
+ */
+export async function guestChangePassword(body: PasswordChangeRequest) {
+  return request<void>('/api/v1/guest/auth/password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: body,
+    skipErrorHandler: true,
+  });
+}
+
+/**
+ * 忘记密码：发起重置挑战（匿名）。
+ *
+ * 枚举防护（后端口径）：未注册邮箱也照发码，响应形态与已注册一致。
+ * 不受 EMAIL 登录开关约束（账号恢复 ≠ 登录方式）。
+ */
+export async function guestPasswordResetChallenge(
+  body: ResetChallengeRequest,
+) {
+  return request<ResetChallengeView>(
+    '/api/v1/guest/auth/password-reset/challenge',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: body,
+      skipErrorHandler: true,
+    },
+  );
+}
+
+/**
+ * 忘记密码：用验证码完成重置（匿名）。
+ * 成功撤销全部会话、不自动登录——需用新口令重新登录。
+ */
+export async function guestPasswordReset(body: PasswordResetRequest) {
+  return request<void>('/api/v1/guest/auth/password-reset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     data: body,
