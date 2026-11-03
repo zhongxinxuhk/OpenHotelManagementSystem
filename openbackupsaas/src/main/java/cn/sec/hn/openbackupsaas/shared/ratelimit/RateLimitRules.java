@@ -53,7 +53,7 @@ public class RateLimitRules {
     }
 
     /**
-     * 解析请求命中的档位。
+     * 解析请求命中的档位（声明序第一条）。
      *
      * @return 命中的规则；没有规则覆盖该路径时返回 {@code null}（不限流）
      */
@@ -64,6 +64,23 @@ public class RateLimitRules {
             }
         }
         return null;
+    }
+
+    /**
+     * 解析请求命中的**全部**档位（R-20261103-02）。
+     *
+     * <p>公开面的房型目录同时命中两条：按门店配额（具体路径，在前）与
+     * IP 兜底（通配，在后）——两条是**叠加**关系，任一拒绝即 429。
+     * 返回按声明序（最具体在前），供过滤器逐条求值与选取响应头档位。
+     */
+    public java.util.List<RateLimitRule> resolveAll(String method, String path) {
+        java.util.List<RateLimitRule> matched = new java.util.ArrayList<>();
+        for (RateLimitRule rule : rules) {
+            if (rule.matches(method, path)) {
+                matched.add(rule);
+            }
+        }
+        return matched;
     }
 
     /** 供启动日志之外的地方（运维接口、测试）读当前档位。 */
@@ -121,6 +138,15 @@ public class RateLimitRules {
                 "platform.login", 5, Duration.ofMinutes(5)));
 
         // ===== 匿名公开面（默认关闭，开启前必须有这一条） =====
+        // 按门店配额（R-20261103-02）：桶键 = tenantCode/hotelCode，**不含 IP**——
+        // 对抗分布式抓取：换 IP 无效，单店库存探测被店级额度封顶。
+        // 额度高于单 IP 档位（正常多客源流量不受影响）；与 IP 档位叠加生效
+        // （过滤器对全部命中规则求值，任一拒绝即 429）。
+        // 具体路径必须声明在 /public/** 通配之前。
+        list.add(scopedRule(environment, HttpMethod.GET,
+                "/api/v1/public/{tenantCode}/hotels/{hotelCode}/room-types",
+                "public.catalog.hotel", 3000, Duration.ofMinutes(1)));
+        // IP 维度兜底（既有行为）：防单源刷全量目录
         list.add(rule(environment, HttpMethod.GET, "/api/v1/public/**",
                 "public.catalog", 60, Duration.ofMinutes(1)));
 
@@ -141,5 +167,26 @@ public class RateLimitRules {
                 permits == null ? defaultPermits : permits,
                 window == null ? defaultWindow : window);
         return new RateLimitRule(method, pathPattern, policy);
+    }
+
+    /**
+     * 路径维度档位（R-20261103-02）：桶键 = 档位名 + 路径模板变量的值（排序拼接），
+     * 不含客户端 IP。覆盖键与 {@link #rule} 同一套
+     * （{@code pms.rate-limit.rules.<名>.permits/.window}）。
+     */
+    private static RateLimitRule scopedRule(Environment environment,
+                                            HttpMethod method,
+                                            String pathPattern,
+                                            String name,
+                                            int defaultPermits,
+                                            Duration defaultWindow) {
+        String prefix = OVERRIDE_PREFIX + name + ".";
+        Integer permits = environment.getProperty(prefix + "permits", Integer.class);
+        Duration window = environment.getProperty(prefix + "window", Duration.class);
+        RateLimitPolicy policy = new RateLimitPolicy(
+                name,
+                permits == null ? defaultPermits : permits,
+                window == null ? defaultWindow : window);
+        return new RateLimitRule(method, pathPattern, policy, RateLimitRule.KeyDimension.PATH_VARIABLES);
     }
 }

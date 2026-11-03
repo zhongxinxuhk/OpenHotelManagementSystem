@@ -2121,6 +2121,62 @@
         }
       }
     },
+    "/api/v1/public/{tenantCode}/hotels/{hotelCode}/room-types": {
+      "get": {
+        "tags": [
+          "public-catalog-controller"
+        ],
+        "operationId": "publicListRoomTypes",
+        "parameters": [
+          {
+            "name": "tenantCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hotelCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCatalogView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/platform/guest-verifications": {
       "get": {
         "tags": [
@@ -4317,6 +4373,74 @@
             "type": "string",
             "maxLength": 500,
             "minLength": 0
+          }
+        }
+      },
+      "PublicCatalogView": {
+        "type": "object",
+        "properties": {
+          "tenantCode": {
+            "type": "string"
+          },
+          "hotel": {
+            "$ref": "#/components/schemas/PublicHotelView"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "nights": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "roomTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicRoomTypeView"
+            }
+          }
+        }
+      },
+      "PublicHotelView": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          }
+        }
+      },
+      "PublicRoomTypeView": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "capacityAdults": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "capacityChildren": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bedType": {
+            "type": "string"
+          },
+          "bookable": {
+            "type": "boolean"
           }
         }
       },

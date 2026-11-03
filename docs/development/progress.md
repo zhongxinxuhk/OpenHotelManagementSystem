@@ -1,6 +1,6 @@
 # PMS 开发进度台账
 
-> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-03（R-20261103-01）。
+> 版本：1.0；建立日期：2026-10-29（AEST）；最近更新：2026-11-03（R-20261103-02）。
 >
 > 台账规则：**每轮开发必须在 §4 追加一条 Round 记录，并同步 §1 快照与 [feature-catalog.md](./feature-catalog.md) 受影响行**。状态词只允许使用 [README.md](./README.md) §2 的 8 个值。
 >
@@ -10,14 +10,14 @@
 
 | 项 | 当前值 |
 | --- | --- |
-| 当前轮次 | `R-20261103-01`（忘记密码/找回 + 住客改密：第三张挑战表（码按用途绑定）+ ChallengeDelivery.purpose 抗钓鱼 + 改密/重置 3 端点 + 前端找回页与改密页（修复 R-05 潜伏 404）；浏览器冒烟 12/12，DONE） |
+| 当前轮次 | `R-20261103-02`（公开面开启：按门店配额（键不含 IP，与 IP 档叠加）+ 开启 checklist + public 端点入契约 + C 端房型浏览接真实接口（修复匿名页被踢登录的骨架 bug）；浏览器 6/6 + 双维度锤击 2/2，DONE） |
 | 五控制台计划 | 需求方指示（2026-11-02）：①管理员②平台业务员③商家扩展④C 端 Web⑤企业商旅，Web 统一 AntD Pro，H5/小程序只建目录放 README。**全部 DONE**：R-02 admin（冒烟 17/17）、R-03 ops（10/10）、R-04 merchant 扩展（6/6）、R-05 guest（10/10，邮箱绑定真实 SMTP 全链路）、R-06 corp（7/7 静态骨架）；CI 矩阵五端同链 |
 | 当前阶段 | **阶段 2 进行中**（S1 全部 DONE；S2-01—S2-06 DONE，S2-07 大半完成）；G1 技术条件满足、待开审；阶段 0 的 S0-05—S0-09 仍为 TODO |
 | 已通过门禁 | 无正式开审（G0 未审）；**CI 门禁在真实 GitHub Actions 上全绿**（backend 用同一份 compose 起中间件、frontend） |
-| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ + mail starter；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V19 共 44 张表）；**425 个测试通过（需真实 PG/Rabbit/SMTP）**；接口契约 **69 path / 84 schema**（R-20261103-01 新增改密/重置 3 端点）；部署形态：中间件 compose（PG+Rabbit+MailPit）+ 后端裸机；**住客登录方式已两种**：用户名+密码、EMAIL+验证码（R-20261102-07）；**口令闭环已交付**（R-20261103-01：已登录改密（第二因子+踢其它会话）+ 忘记密码重置（第三张挑战表码按用途绑定、不受登录开关联动、撤全部会话不自动登录）+ 邮件 purpose 抗钓鱼文案；限流 14 档）；凭证绑定（挑战-响应）、人工实名审核（熔断时人工照常）、平台三平面（令牌哈希域分离）、限流（11 档含 code-login 两档）、可观测性、运维处置等前轮成果见历史轮次条目 |
+| 后端工程状态 | 依赖按 ADR-011 收敛并已引入 RabbitMQ + mail starter；十一域 + Outbox + Inbox + 外部任务 + 运维处置 + 对账工单 + **住客身份与平台身份**已落库（V1—V19 共 44 张表）；**430 个测试通过（需真实 PG/Rabbit/SMTP）**；接口契约 **70 path / 87 schema**（R-20261103-02：public 端点首次入基线）；部署形态：中间件 compose（PG+Rabbit+MailPit）+ 后端裸机；**住客登录方式已两种**：用户名+密码、EMAIL+验证码（R-20261102-07）；**口令闭环已交付**（R-20261103-01：已登录改密（第二因子+踢其它会话）+ 忘记密码重置（第三张挑战表码按用途绑定、不受登录开关联动、撤全部会话不自动登录）+ 邮件 purpose 抗钓鱼文案；限流 15 档含**按门店配额 public.catalog.hotel（键不含 IP，与 IP 档叠加任一拒绝即 429）**）；**匿名公开面本地默认开**（R-20261103-02：生产按 docs/operations/public-api-checklist.md 开启）；凭证绑定（挑战-响应）、人工实名审核（熔断时人工照常）、平台三平面（令牌哈希域分离）、限流（11 档含 code-login 两档）、可观测性、运维处置等前轮成果见历史轮次条目 |
 | 前端工程状态 | **六个前端工程全部落地**（五控制台 + H5 规划目录）：`merchant-web/`（商家端，e2e 26/26 + R-04 三新页）；`platform-admin/`（8001，冒烟 17/17）；`platform-ops/`（8002，实名审核冒烟 10/10）；`guest/`（8003，注册/登录/邮箱绑定真实 SMTP 冒烟 10/10）；`corp-portal/`（8004，纯骨架冒烟 7/7，无后端依赖）；`merchant-h5/`+`guest-h5/`（规划 README，暂缓）。**五端三件套全绿**（各自 tsc 0/biome 0/build ✓）；**CI frontend.yml 五工程矩阵**（逐端同链：ci→tsc→biome→build→产物断言）；类型由契约生成（gen-pms-types 支持指定工程）；**坑已记：Agent 环境 `APP_ROOT` 撞名需 `env -u APP_ROOT`；运行态冒烟前须重跑种子（compose DB 被集成测试清空）** |
 | 功能项完成度 | **约 40%**（129 项，DONE 46 / VERIFYING 8，见 feature-catalog §1；J-01 本轮 95% → 98%：EMAIL 通道接通，剩验证码登录与忘记密码） |
-| 下一轮目标 | ①**公开面开启 checklist**（按门店配额 + WAF 规则 + 被刷降级流程）后开 `PMS_PUBLIC_API_ENABLED`——C 端房型浏览（J-02/J-10）的前置；②权威核验渠道对接（等渠道清单）；③PHONE 短信（等供应商授权）；④待办：挑战表族机制抽层（第四种流程出现时）、vitest 纳入前端门禁 |
+| 下一轮目标 | ①**C 端下单流程**（J-06/J-07：选房型→建订单——住客身份与匿名浏览已就绪，交易侧住客下单入口待建）；②门店发现匿名接口（J-02 剩余，可选）；③权威核验渠道对接（等渠道清单）；④PHONE 短信（等供应商授权）；⑤待办：挑战表族机制抽层、vitest 纳入前端门禁 |
 
 ## 2. 任务状态总表（66 项 = 规划 65 项 + 变更追加 S3-01a）
 
@@ -160,6 +160,81 @@
 - 回写确认：feature-catalog ✓ / §1 快照 ✓ / 规划 §1.3 ✓
 - 下一步：
 ```
+
+---
+
+### R-20261103-02 公开面开启：按门店配额 + checklist + C 端房型浏览（J-02/J-10）
+
+- 状态：DONE（公开面本地默认开；生产按 checklist 开）
+- 背景：progress 上一轮"下一步①"。J-05 应用层限流已交付、J-02 查询接口已实现但
+  `pms.public-api.enabled` 默认 false——开启前的三件缺口（按门店配额 / WAF 与降级
+  流程 checklist / C 端消费页面）本轮补齐后，本地默认开启（生产仍按 checklist 开）。
+- 关键设计：
+  1. **按门店配额（新维度）**：限流键从"档位|IP"扩展出"档位|路径变量"——
+     `public.catalog.hotel` 桶键 = tenantCode/hotelCode，**不含 IP**。
+     对抗分布式抓取：换 IP 无效，单店库存探测被店级额度封顶；
+     额度（默认 3000/min）高于单 IP 档位，正常多客源流量不受影响。
+     与既有 IP 档位**叠加生效**（过滤器改为多规则求值：任一拒绝即 429）。
+  2. **本地默认开启**（application-local.properties）：
+     开启依据 = J-05 应用层 + 店级配额 + checklist 文档就绪；
+     生产仍按 checklist（WAF 建议条款 + 降级流程）逐项确认后开。
+  3. **C 端房型浏览**：guest 首页接真实公开接口；门店定位用 URL 参数
+     （?tenant=&hotel=，商家分享链接/二维码形态——门店发现接口不在本轮）。
+- 范围（本轮只做这些）：
+  1. `RateLimitRule` +KeyDimension（CLIENT / PATH_VARIABLES）+ scopeKey 提取；
+     `RateLimitRules` +scopedRule 工厂与新档位（声明在 /public/** 通配之前）+ resolveAll；
+     `RateLimitFilter` 多规则求值（任一拒绝即 429，响应头取最具体档位）。
+  2. 测试：Filter 单测（店级桶隔离 + 键不含 IP + 429 指明档位）+ 真实链
+     Enforcement 用例（店级与 IP 两维度叠加）。
+  3. `docs/operations/public-api-checklist.md`（开启前置/步骤/被刷降级/回滚）；
+     local 档案开 public-api；application.properties 注释更新。
+  4. guest 前端：services/public.ts + 首页房型浏览（表单 + URL 参数 + 结果列表，
+     404/400 如实呈现）；三件套门禁。
+  5. **本轮明确不做**：门店发现匿名接口（新契约，另轮）、报价（DEC-09）、
+     WAF 实施本身（部署侧，checklist 给建议）。
+- 涉及功能项（FT-*）/ 任务（S*-*）：J-02（60% → 80%）、J-05（75% → 85%）、J-10（50% → 60%）
+- 变更文件：
+  - 限流：`RateLimitRule`（+KeyDimension 枚举 + scopeKey 路径变量提取 + 兼容三参构造）、
+    `RateLimitRules`（+scopedRule 工厂、+public.catalog.hotel 档位 3000/min、+resolveAll）、
+    `RateLimitFilter`（多规则叠加求值：任一拒绝即 429，响应头取最具体档位；
+    注释记录"前序档位已消耗"语义）
+  - 配置：`application-local.properties`（public-api 默认 true，C 端联调）、
+    `application.properties` 注释更新（开启前置已就绪 + checklist 指引）
+  - 契约：**public 端点首次纳入基线**（69→70 path / 84→87 schema）；
+    `application-test.properties` 同步开 public-api（守卫一致性——基线与实时文档同口径）
+  - 文档：`docs/operations/public-api-checklist.md`（开启前置 6 项 / 步骤 / 被刷降级 / 回滚）
+  - guest 前端：`services/pms/public.ts`；首页重写为真实房型浏览（表单 + URL 参数
+    读写 + 房型列表 + 404/400 如实呈现）；**app.tsx +ANONYMOUS_PATHS**（修复把
+    未登录用户全部踢到登录页的骨架默认行为——房型浏览是匿名功能）
+  - 测试：`RateLimitFilterTest` +2（店级键不含 IP / 桶隔离 + 叠加）、
+    `PublicCatalogPerHotelRateLimitTest` 新建 +3（真实链：店级拒绝 / 桶隔离 / IP 叠加）
+- 验证（本轮实际执行）：
+  - 集成测试：FilterTest **11/11**、PerHotelRateLimitTest **3/3**（真实 PG）
+  - **全量门禁（与 CI 等价）**：`PMS_IT_DB=true PMS_IT_RABBIT=true PMS_IT_SMTP=true
+    ./mvnw clean verify` → **430 tests / 0 failures / 0 skipped，BUILD SUCCESS**（425→430）
+  - guest 前端三件套：tsc ✓ 0 / biome ✓ 0（114 文件）/ build ✓
+  - **运行态冒烟（真实后端 + 真实数据）**：
+    - 数据准备走真实商家 API（admin 登录→改密→建房型"标准大床房"→建房间→目录 bookable=true）
+    - **浏览器 6/6**：分享链接直达（URL 参数自动查询）→ 门店名/房型/属性/可预订渲染 →
+      不存在门店 404 统一文案 → URL 参数保留（本页即分享链接）
+    - **双维度配额锤击 2/2**（后端压小额度 IP=40/店=20）：hq 第 21 次被
+      `public.catalog.hotel` 拒（此时 IP 桶有余额——证键不含 IP）；换 20 家新店各 1 次
+      后第 41 次被 `public.catalog` 拒（证 IP 维度叠加、新店自身额度未耗尽）
+  - 未覆盖：WAF/网关实配（部署侧，checklist 给建议条款）、生产档位校准（需真实流量）、
+    多实例部署（单实例档位按实例放大——ADR-020 既有边界）
+- 本轮发现（重要）：
+  1. **guest 骨架把未登录用户全部踢到登录页**——与"房型浏览是匿名功能"直接冲突
+     （R-05 从 merchant-web 克隆带来的默认行为）。修复：ANONYMOUS_PATHS 白名单。
+     教训：克隆骨架的默认安全姿态要对照本端的身份语义逐条核对。
+  2. **契约基线从未包含 public 端点**（历次导出开关均关）——纳入基线必须同步
+     test 档案开 public-api，否则守卫的实时文档与基线必然漂移。
+  3. **令牌桶惰性回填让"恰好 N 次"全部放行**（第 N+1 次才拒）——锤击断言按 N+1
+     口径写，且锤前等桶回满；另外 compose 中间件会被宿主休眠停掉，开工先查 docker ps
+     （本轮实测：容器消失导致测试连接拒绝）。
+  4. 顺带验证：admin 新口令含登录名被策略拒（"新口令不能包含登录名"在线上同样生效）。
+- 回写确认：feature-catalog ✓（J-02 → 80%、J-05 → 85%、J-10 → 60%）/ §1 快照 ✓ /
+  规划 §1.3 ✓ / ADR-020 ✓（按门店配额从遗留表移入已交付）
+- 下一步：门店发现匿名接口（可选）；权威核验渠道（等清单）；PHONE 短信（等供应商）
 
 ---
 

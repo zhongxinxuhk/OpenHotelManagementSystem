@@ -10,6 +10,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import java.util.List;
+
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
@@ -86,23 +88,45 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         String path = pathHelper.getPathWithinApplication(request);
-        RateLimitRule rule = rules.resolve(request.getMethod(), path);
-        if (rule == null) {
+        // 多规则叠加求值（R-20261103-02）：公开面房型目录同时命中
+        // 按门店配额（具体路径，在前）与 IP 兜底（通配，在后）——
+        // 任一拒绝即 429；全部放行时响应头取声明序第一条（最具体）的额度。
+        // 注意：前序档位放行后，后续档位拒绝的请求**已消耗**前序额度——
+        // 各桶独立计数"到达的尝试"，这是分层限流的标准语义（宁可多算不可漏算）。
+        List<RateLimitRule> matched = rules.resolveAll(request.getMethod(), path);
+        if (matched.isEmpty()) {
             chain.doFilter(request, response);
             return;
         }
 
         String client = ipResolver.resolve(request);
-        RateLimitPolicy policy = rule.policy();
-        RateLimitDecision decision = limiter.tryAcquire(policy.name() + "|" + client, policy);
+        RateLimitDecision allowed = null;
+        for (RateLimitRule rule : matched) {
+            RateLimitPolicy policy = rule.policy();
+            String key = rule.dimension() == RateLimitRule.KeyDimension.PATH_VARIABLES
+                    ? policy.name() + "|" + rule.scopeKey(path)
+                    : policy.name() + "|" + client;
+            RateLimitDecision decision = limiter.tryAcquire(key, policy);
 
-        if (decision.allowed()) {
-            response.setHeader(HEADER_LIMIT, String.valueOf(decision.limit()));
-            response.setHeader(HEADER_REMAINING, String.valueOf(decision.remaining()));
-            chain.doFilter(request, response);
-            return;
+            if (!decision.allowed()) {
+                reject(request, response, rule, decision, client, path);
+                return;
+            }
+            if (allowed == null) {
+                allowed = decision;
+            }
         }
 
+        response.setHeader(HEADER_LIMIT, String.valueOf(allowed.limit()));
+        response.setHeader(HEADER_REMAINING, String.valueOf(allowed.remaining()));
+        chain.doFilter(request, response);
+    }
+
+    /** 拒绝响应：429 + ProblemDetail + Retry-After + 指明命中的档位。 */
+    private void reject(HttpServletRequest request, HttpServletResponse response,
+                        RateLimitRule rule, RateLimitDecision decision,
+                        String client, String path) throws IOException {
+        RateLimitPolicy policy = rule.policy();
         metrics.rateLimited(policy.name());
         log.warn("命中限流 rule={} client={} path={} method={} retryAfter={}s requestId={}",
                 policy.name(), client, path, request.getMethod(), decision.retryAfterSeconds(),

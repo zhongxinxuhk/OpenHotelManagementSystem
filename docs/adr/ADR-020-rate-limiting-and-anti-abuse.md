@@ -161,8 +161,12 @@ Content-Type: application/problem+json
    真正需要热更新的场景属于网关层，不在应用内做。
 4. **只按来源地址一个维度**。同一 NAT 后的正常用户会共享额度，
    同一攻击者用地址池可以摊薄。前者靠"档位留余量"缓解，后者只能靠网关/WAF。
-5. **公开面仍未开启**。IP 维度闸门是开启的前置条件之一，不是全部（还缺按门店配额、
-   WAF 规则、被刷时的降级流程）。`pms.public-api.enabled` 保持 `false`。
+5. **公开面按 checklist 开启**（R-20261103-02 更新）。应用侧前置已全部就绪：
+   IP 维度闸门 + **按门店配额**（`public.catalog.hotel`，桶键 = tenantCode/hotelCode
+   **不含 IP**——对抗分布式换源抓取；与 IP 档叠加求值，任一拒绝即 429）+
+   开启 checklist（`docs/operations/public-api-checklist.md`：WAF 建议条款、
+   被刷降级流程、回滚）。local 档案默认开（C 端联调）；生产与 CI 仍默认 `false`，
+   按 checklist 逐项确认（网关实配、告警接线、档位校准）后开启。
 
 ## 4. 被否决的方案
 
@@ -195,3 +199,5 @@ Content-Type: application/problem+json
 - 测试：`TokenBucketRateLimiterTest`（7）、`ClientIpResolverTest`（9）、
   `RateLimitFilterTest`（9）、`RateLimitEnforcementTest`（5，真实库 + 真实安全链）
 - 运维：`docs/operations/rate-limiting.md`
+
+> AI生成

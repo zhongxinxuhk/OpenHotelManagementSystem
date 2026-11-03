@@ -423,6 +423,30 @@ export type PolicyView = {
   updatedBy?: string;
 };
 
+export type PublicCatalogView = {
+  from?: string;
+  hotel?: PublicHotelView;
+  nights?: number;
+  roomTypes?: PublicRoomTypeView[];
+  tenantCode?: string;
+  to?: string;
+};
+
+export type PublicHotelView = {
+  code?: string;
+  name?: string;
+  timezone?: string;
+};
+
+export type PublicRoomTypeView = {
+  bedType?: string;
+  bookable?: boolean;
+  capacityAdults?: number;
+  capacityChildren?: number;
+  code?: string;
+  name?: string;
+};
+
 export type RebuildResult = {
   deletedRows?: number;
   from?: string;

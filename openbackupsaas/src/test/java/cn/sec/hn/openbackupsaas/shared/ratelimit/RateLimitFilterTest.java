@@ -75,6 +75,54 @@ class RateLimitFilterTest {
         assertFalse(harness.chainInvoked(), "被拒的请求不应继续进入安全链与业务代码");
     }
 
+    // ==================== 按门店配额（R-20261103-02） ====================
+
+    @Test
+    void perHotelQuotaIsKeyedByHotelNotClientIp() throws Exception {
+        // 店级档位压到 2；IP 档位保持默认 600——本用例只看店级维度
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("pms.rate-limit.rules.public.catalog.hotel.permits", "2");
+        FilterHarness harness = harness(environment);
+        String path = "/api/v1/public/pms-admin/hotels/hq/room-types";
+
+        assertEquals(200, harness.get(path, "203.0.113.7").getStatus());
+        // 响应头取声明序第一条（最具体 = 店级）档位的额度
+        assertEquals("2", harness.get(path, "203.0.113.7").getHeader(RateLimitFilter.HEADER_LIMIT));
+
+        // 换客户端 IP 仍然被拒：店级键**不含 IP**——防分布式换源，
+        // 换 IP 若能重置额度，这条档位等于没做
+        MockHttpServletResponse blocked = harness.get(path, "198.51.100.9");
+        assertEquals(429, blocked.getStatus());
+        assertTrue(blocked.getContentAsString().contains("\"limit\":\"public.catalog.hotel\""),
+                "429 应指明命中的是店级档位：" + blocked.getContentAsString());
+        assertFalse(harness.chainInvoked(), "被拒的请求不应进入安全链");
+    }
+
+    @Test
+    void perHotelBucketsAreIsolatedAndStackWithClientQuota() throws Exception {
+        // 店级 2 + IP 3：两条叠加——任一拒绝即 429
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("pms.rate-limit.rules.public.catalog.hotel.permits", "2")
+                .withProperty("pms.rate-limit.rules.public.catalog.permits", "3");
+        FilterHarness harness = harness(environment);
+
+        // hq 用掉店级 2 份；beach 用掉 1 份（IP 累计 3 份恰好用尽）
+        assertEquals(200, harness.get("/api/v1/public/pms-admin/hotels/hq/room-types", "203.0.113.7").getStatus());
+        assertEquals(200, harness.get("/api/v1/public/pms-admin/hotels/hq/room-types", "203.0.113.7").getStatus());
+        assertEquals(200, harness.get("/api/v1/public/pms-admin/hotels/beach/room-types", "203.0.113.7").getStatus());
+
+        // beach 店级只用了 1/2，但 IP 已耗尽 → IP 档位拒绝（叠加生效）
+        MockHttpServletResponse blocked = harness.get("/api/v1/public/pms-admin/hotels/beach/room-types", "203.0.113.7");
+        assertEquals(429, blocked.getStatus());
+        assertTrue(blocked.getContentAsString().contains("\"limit\":\"public.catalog\""),
+                "IP 维度兜底仍对该路径生效：" + blocked.getContentAsString());
+
+        // 店级桶互相独立：hq 耗尽不影响别的门店——全新门店 + 全新 IP 应放行。
+        // （beach 的店级额度已被上一个"到达即计数"的尝试耗尽：被 IP 档拒绝的请求
+        // 仍先消耗了店级桶——各桶独立计数它收到的尝试，这是分层限流的标准语义。）
+        assertEquals(200, harness.get("/api/v1/public/pms-admin/hotels/cove/room-types", "198.51.100.9").getStatus());
+    }
+
     @Test
     void anotherClientKeepsItsOwnBudget() throws Exception {
         FilterHarness harness = harness();

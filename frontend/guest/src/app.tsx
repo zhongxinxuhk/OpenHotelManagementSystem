@@ -30,6 +30,13 @@ import { errorConfig } from './requestErrorConfig';
 dayjs.extend(relativeTime);
 
 const loginPath = '/user/login';
+
+/**
+ * 匿名可用的路径（R-20261103-02）：房型浏览是公开面（/api/v1/public/**）的
+ * 消费页——住客在注册前就要能选房，把它挡在登录后面等于公开面白开。
+ * 列表外的页面（我的/订单/绑定）仍然要求登录。
+ */
+const ANONYMOUS_PATHS = ['/home'];
 // 住客平面没有强制改密机制（无 must_change_password 标记、无改密接口）：
 // 口令找回走「忘记密码」流程（规划中，复用验证码通道）。
 
@@ -123,8 +130,12 @@ export const layout: RunTimeLayoutConfig = ({
     footerRender: () => <Footer />,
     onPageChange: () => {
       const { location } = history;
-      // 如果没有登录，重定向到 login
-      if (!initialState?.currentUser && location.pathname !== loginPath) {
+      // 未登录 → 回登录页；匿名路径（房型浏览）除外
+      if (
+        !initialState?.currentUser &&
+        location.pathname !== loginPath &&
+        !ANONYMOUS_PATHS.some((prefix) => location.pathname.startsWith(prefix))
+      ) {
         history.replace(
           `${loginPath}?redirect=${encodeURIComponent(location.pathname + location.search + location.hash)}`,
         );
