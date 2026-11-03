@@ -1,0 +1,5331 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PMS API",
+    "description": "企业级酒店 PMS 接口。库存与订单事实以 PostgreSQL 为准，写操作需携带幂等键（S1-07/S1-11 冻结字段名）。",
+    "version": "0.0.1-SNAPSHOT"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:18081",
+      "description": "Generated server url"
+    }
+  ],
+  "tags": [
+    {
+      "name": "住客认证",
+      "description": "注册、登录与登录方式清单（住客平面）"
+    },
+    {
+      "name": "住客自助",
+      "description": "住客平面接口（独立会话，与商家/平台平面隔离）"
+    },
+    {
+      "name": "核验渠道配置",
+      "description": "实名核验权威接口与人工渠道的配置、熔断复位"
+    },
+    {
+      "name": "平台认证",
+      "description": "平台雇员登录与会话（独立平面）"
+    },
+    {
+      "name": "实名人工审核",
+      "description": "平台侧审核住客实名资料（只给掩码，决定必填理由）"
+    },
+    {
+      "name": "住客登录方式开关",
+      "description": "各登录方式的实现状态与启用开关（管理员控制台）"
+    },
+    {
+      "name": "住客凭证绑定",
+      "description": "绑定/解绑登录方式（挑战-响应，归属验证）"
+    },
+    {
+      "name": "住客口令",
+      "description": "已登录改密与忘记密码重置（住客平面）"
+    }
+  ],
+  "paths": {
+    "/api/v1/platform/verification-channels/{code}": {
+      "put": {
+        "tags": [
+          "核验渠道配置"
+        ],
+        "operationId": "updateVerificationChannel",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChannelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/guest-login-policy/{provider}": {
+      "put": {
+        "tags": [
+          "住客登录方式开关"
+        ],
+        "operationId": "setGuestLoginPolicy",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/users/{userId}/roles": {
+      "put": {
+        "tags": [
+          "identity-admin-controller"
+        ],
+        "operationId": "replaceUserRoles",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserRolesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRolesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/users/{userId}/hotel-scopes": {
+      "get": {
+        "tags": [
+          "identity-controller"
+        ],
+        "operationId": "identityHotelScopes",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "identity-admin-controller"
+        ],
+        "operationId": "replaceUserHotelScopes",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotelScopesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotelScopesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/verification-channels": {
+      "get": {
+        "tags": [
+          "核验渠道配置"
+        ],
+        "operationId": "listVerificationChannels",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "核验渠道配置"
+        ],
+        "operationId": "createVerificationChannel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChannelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/verification-channels/{code}/reset-circuit": {
+      "post": {
+        "tags": [
+          "核验渠道配置"
+        ],
+        "operationId": "resetVerificationChannelCircuit",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetCircuitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/guest-verifications/{accountId}/decision": {
+      "post": {
+        "tags": [
+          "实名人工审核"
+        ],
+        "operationId": "reviewGuestVerification",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/auth/password": {
+      "post": {
+        "tags": [
+          "平台认证"
+        ],
+        "operationId": "platformChangePassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlatformChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/platform/auth/logout": {
+      "post": {
+        "tags": [
+          "平台认证"
+        ],
+        "operationId": "platformLogout",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/platform/auth/login": {
+      "post": {
+        "tags": [
+          "平台认证"
+        ],
+        "operationId": "platformLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlatformLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformLoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ops/external-tasks/{taskId}/resolve": {
+      "post": {
+        "tags": [
+          "ops-controller"
+        ],
+        "operationId": "resolveExternalTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "succeeded",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "resultRef",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ops/external-tasks/{taskId}/replay": {
+      "post": {
+        "tags": [
+          "ops-controller"
+        ],
+        "operationId": "replayExternalTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reviewer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ops/dead-letters/{deadLetterId}/replay": {
+      "post": {
+        "tags": [
+          "ops-controller"
+        ],
+        "operationId": "replayDeadLetter",
+        "parameters": [
+          {
+            "name": "deadLetterId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ops/dead-letters/{deadLetterId}/dismiss": {
+      "post": {
+        "tags": [
+          "ops-controller"
+        ],
+        "operationId": "dismissDeadLetter",
+        "parameters": [
+          {
+            "name": "deadLetterId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/users": {
+      "get": {
+        "tags": [
+          "identity-admin-controller"
+        ],
+        "operationId": "listUsers",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageViewIdentityUserView"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "identity-admin-controller"
+        ],
+        "operationId": "createUser",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedUserView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/users/{userId}/status": {
+      "post": {
+        "tags": [
+          "identity-admin-controller"
+        ],
+        "operationId": "changeUserStatus",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityUserView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/roles": {
+      "get": {
+        "tags": [
+          "identity-admin-controller"
+        ],
+        "operationId": "listRoles",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoleView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "identity-admin-controller"
+        ],
+        "operationId": "createRole",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/roles/{roleId}/status": {
+      "post": {
+        "tags": [
+          "identity-admin-controller"
+        ],
+        "operationId": "changeRoleStatus",
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/rooms": {
+      "get": {
+        "tags": [
+          "room-controller"
+        ],
+        "operationId": "listRooms",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roomTypeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "INACTIVE"
+              ]
+            }
+          },
+          {
+            "name": "floor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoomView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "room-controller"
+        ],
+        "operationId": "createRoom",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoomRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/rooms/{roomId}/status": {
+      "post": {
+        "tags": [
+          "room-controller"
+        ],
+        "operationId": "changeRoomStatus",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roomId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/room-types": {
+      "get": {
+        "tags": [
+          "room-type-controller"
+        ],
+        "operationId": "listRoomTypes",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoomTypeView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "room-type-controller"
+        ],
+        "operationId": "createRoomType",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoomTypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomTypeView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/room-types/{roomTypeId}/status": {
+      "post": {
+        "tags": [
+          "room-type-controller"
+        ],
+        "operationId": "changeRoomTypeStatus",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roomTypeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomTypeStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomTypeView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reservations": {
+      "get": {
+        "tags": [
+          "reservation-query-controller"
+        ],
+        "operationId": "listReservations",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "PENDING",
+                  "CONFIRMED",
+                  "CHECKED_IN",
+                  "CHECKED_OUT",
+                  "CANCELLED",
+                  "EXPIRED",
+                  "NO_SHOW"
+                ]
+              }
+            }
+          },
+          {
+            "name": "sourceType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FRONTDESK",
+                "DIRECT",
+                "OTA",
+                "MINIPROGRAM"
+              ]
+            }
+          },
+          {
+            "name": "no",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roomCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stayFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "stayTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageViewReservationSummary"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "reservation-controller"
+        ],
+        "operationId": "createReservation",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Caller-Namespace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "frontend"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReservationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reservations/{reservationId}/no-show": {
+      "post": {
+        "tags": [
+          "reservation-controller"
+        ],
+        "operationId": "markReservationNoShow",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Caller-Namespace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "frontend"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reservations/{reservationId}/confirm": {
+      "post": {
+        "tags": [
+          "reservation-controller"
+        ],
+        "operationId": "confirmReservation",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Caller-Namespace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "frontend"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reservations/{reservationId}/cancel": {
+      "post": {
+        "tags": [
+          "reservation-controller"
+        ],
+        "operationId": "cancelReservation",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Caller-Namespace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "frontend"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/run": {
+      "post": {
+        "tags": [
+          "reconcile-controller"
+        ],
+        "operationId": "runReconcile",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "autoRepair",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconcileRunReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/findings/{findingId}/repair": {
+      "post": {
+        "tags": [
+          "reconcile-controller"
+        ],
+        "operationId": "repairReconcileFinding",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "findingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepairResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/findings/{findingId}/ignore": {
+      "post": {
+        "tags": [
+          "reconcile-controller"
+        ],
+        "operationId": "ignoreReconcileFinding",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "findingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepairResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/inventory/rebuild": {
+      "post": {
+        "tags": [
+          "inventory-controller"
+        ],
+        "operationId": "rebuildInventory",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roomTypeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebuildResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/register": {
+      "post": {
+        "tags": [
+          "住客认证"
+        ],
+        "operationId": "guestRegister",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestRegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestAuthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/password": {
+      "post": {
+        "tags": [
+          "住客口令"
+        ],
+        "operationId": "guestChangePassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/password-reset": {
+      "post": {
+        "tags": [
+          "住客口令"
+        ],
+        "operationId": "guestPasswordReset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/password-reset/challenge": {
+      "post": {
+        "tags": [
+          "住客口令"
+        ],
+        "operationId": "guestPasswordResetChallenge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetChallengeView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/logout": {
+      "post": {
+        "tags": [
+          "住客认证"
+        ],
+        "operationId": "guestLogout",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/login": {
+      "post": {
+        "tags": [
+          "住客认证"
+        ],
+        "operationId": "guestLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestAuthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/code-login": {
+      "post": {
+        "tags": [
+          "住客认证"
+        ],
+        "operationId": "guestCodeLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestAuthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/code-login/challenge": {
+      "post": {
+        "tags": [
+          "住客认证"
+        ],
+        "operationId": "guestCodeLoginChallenge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeLoginChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeLoginChallengeView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/bindings/username": {
+      "post": {
+        "tags": [
+          "住客凭证绑定"
+        ],
+        "operationId": "guestBindUsername",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindUsernameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GuestCredentialView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/bindings/confirm": {
+      "post": {
+        "tags": [
+          "住客凭证绑定"
+        ],
+        "operationId": "guestBindingConfirm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GuestCredentialView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/bindings/challenge": {
+      "post": {
+        "tags": [
+          "住客凭证绑定"
+        ],
+        "operationId": "guestBindingChallenge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password": {
+      "post": {
+        "tags": [
+          "auth-controller"
+        ],
+        "operationId": "authChangePassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth-controller"
+        ],
+        "operationId": "authLogout",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth-controller"
+        ],
+        "operationId": "authLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/rooms/{roomId}": {
+      "get": {
+        "tags": [
+          "room-controller"
+        ],
+        "operationId": "getRoom",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roomId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomView"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "room-controller"
+        ],
+        "operationId": "updateRoom",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roomId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoomRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/{tenantCode}/hotels/{hotelCode}/room-types": {
+      "get": {
+        "tags": [
+          "public-catalog-controller"
+        ],
+        "operationId": "publicListRoomTypes",
+        "parameters": [
+          {
+            "name": "tenantCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hotelCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCatalogView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/guest-verifications": {
+      "get": {
+        "tags": [
+          "实名人工审核"
+        ],
+        "operationId": "listGuestVerifications",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageViewPendingVerification"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/guest-verifications/{accountId}/history": {
+      "get": {
+        "tags": [
+          "实名人工审核"
+        ],
+        "operationId": "listGuestVerificationHistory",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/guest-login-policy": {
+      "get": {
+        "tags": [
+          "住客登录方式开关"
+        ],
+        "operationId": "listGuestLoginPolicy",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PolicyView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/auth/me": {
+      "get": {
+        "tags": [
+          "平台认证"
+        ],
+        "operationId": "getPlatformMe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformPrincipalView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ops/pending": {
+      "get": {
+        "tags": [
+          "ops-controller"
+        ],
+        "operationId": "getOpsPending",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ops/interventions": {
+      "get": {
+        "tags": [
+          "ops-controller"
+        ],
+        "operationId": "listOpsInterventions",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OpsIntervention"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ops/external-tasks": {
+      "get": {
+        "tags": [
+          "ops-controller"
+        ],
+        "operationId": "listExternalTasks",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "DEAD"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExternalTask"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ops/dead-letters": {
+      "get": {
+        "tags": [
+          "ops-controller"
+        ],
+        "operationId": "listDeadLetters",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeadLetter"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operations/{operationId}": {
+      "get": {
+        "tags": [
+          "operation-controller"
+        ],
+        "operationId": "getOperationById",
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operations/lookup": {
+      "get": {
+        "tags": [
+          "operation-controller"
+        ],
+        "operationId": "getOperationByKey",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "command",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/users/{userId}": {
+      "get": {
+        "tags": [
+          "identity-admin-controller"
+        ],
+        "operationId": "getUserDetail",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDetailView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/identity/permissions": {
+      "get": {
+        "tags": [
+          "identity-admin-controller"
+        ],
+        "operationId": "listPermissions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Permission"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels": {
+      "get": {
+        "tags": [
+          "hotel-scope-controller"
+        ],
+        "operationId": "listHotels",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HotelView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/room-types/{roomTypeId}": {
+      "get": {
+        "tags": [
+          "room-type-controller"
+        ],
+        "operationId": "getRoomType",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roomTypeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomTypeView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reservations/{reservationId}": {
+      "get": {
+        "tags": [
+          "reservation-query-controller"
+        ],
+        "operationId": "getReservationDetail",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationDetailView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/summary": {
+      "get": {
+        "tags": [
+          "reconcile-controller"
+        ],
+        "operationId": "getReconcileSummary",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/runs": {
+      "get": {
+        "tags": [
+          "reconcile-controller"
+        ],
+        "operationId": "listReconcileRuns",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReconcileRunView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reconcile/findings": {
+      "get": {
+        "tags": [
+          "reconcile-controller"
+        ],
+        "operationId": "listReconcileFindings",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "OPEN"
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DERIVED",
+                "FACT",
+                "BACKLOG"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FindingView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/inventory/reconcile": {
+      "get": {
+        "tags": [
+          "inventory-controller"
+        ],
+        "operationId": "reconcileInventory",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roomTypeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconcileReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/availability": {
+      "get": {
+        "tags": [
+          "inventory-controller"
+        ],
+        "operationId": "getAvailability",
+        "parameters": [
+          {
+            "name": "hotelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "roomTypeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailabilityView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/me": {
+      "get": {
+        "tags": [
+          "住客自助"
+        ],
+        "operationId": "getGuestMe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestMeView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/methods": {
+      "get": {
+        "tags": [
+          "住客认证"
+        ],
+        "operationId": "listGuestLoginMethods",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GuestMethodView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/guest/auth/bindings": {
+      "get": {
+        "tags": [
+          "住客凭证绑定"
+        ],
+        "operationId": "listGuestBindings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GuestCredentialView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "住客凭证绑定"
+        ],
+        "operationId": "guestUnbind",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GuestCredentialView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "auth-controller"
+        ],
+        "operationId": "authMe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserView"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UpdateChannelRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "credentialRef": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ]
+      },
+      "ChannelView": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "credentialRef": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "circuitState": {
+            "type": "string"
+          },
+          "consecutiveFailures": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openedUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastFailureReason": {
+            "type": "string"
+          },
+          "implementationAvailable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PolicyUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "PolicyView": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "implemented": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        }
+      },
+      "UserRolesRequest": {
+        "type": "object",
+        "properties": {
+          "roleIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "roleIds"
+        ]
+      },
+      "RoleBriefView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "UserRolesView": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleBriefView"
+            }
+          }
+        }
+      },
+      "HotelScopesRequest": {
+        "type": "object",
+        "properties": {
+          "hotelIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "hotelIds"
+        ]
+      },
+      "HotelScopesView": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hotelIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CreateChannelRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "AUTHORITY",
+              "MANUAL"
+            ]
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "credentialRef": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "code",
+          "kind",
+          "name"
+        ]
+      },
+      "ResetCircuitRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ReviewDecisionRequest": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "UNVERIFIED",
+              "PENDING",
+              "VERIFIED",
+              "REJECTED"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "decision",
+          "reason"
+        ]
+      },
+      "ReviewView": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idNumberMask": {
+            "type": "string"
+          },
+          "realNameMask": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reviewerName": {
+            "type": "string"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PlatformChangePasswordRequest": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "PlatformLoginRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "password",
+          "username"
+        ]
+      },
+      "PlatformLoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "$ref": "#/components/schemas/PlatformPrincipalView"
+          }
+        }
+      },
+      "PlatformPrincipalView": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "mustChangePassword": {
+            "type": "boolean"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sessionExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReplayResult": {
+        "type": "object",
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "notFound": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "roleIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1
+          },
+          "hotelIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "displayName",
+          "roleIds",
+          "username"
+        ]
+      },
+      "CreatedUserView": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/IdentityUserView"
+          },
+          "initialPassword": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleBriefView"
+            }
+          },
+          "hotelIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "IdentityUserView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastLoginAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "StatusRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "CreateRoleRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "permissionCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "RoleView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "permissionCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateRoomRequest": {
+        "type": "object",
+        "properties": {
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 0
+          },
+          "floor": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 200,
+            "minimum": -10
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "code",
+          "roomTypeId"
+        ]
+      },
+      "RoomView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "floor": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "housekeepingStatus": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RoomStatusRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "CreateRoomTypeRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 0
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 0
+          },
+          "capacityAdults": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 20,
+            "minimum": 1
+          },
+          "capacityChildren": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 20,
+            "minimum": 0
+          },
+          "bedType": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "RoomTypeView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "capacityAdults": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "capacityChildren": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bedType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RoomTypeStatusRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "CreateReservationRequest": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "FRONTDESK",
+              "DIRECT",
+              "OTA",
+              "MINIPROGRAM"
+            ]
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineRequest"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "lines",
+          "sourceType"
+        ]
+      },
+      "LineRequest": {
+        "type": "object",
+        "properties": {
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "checkIn": {
+            "type": "string",
+            "format": "date"
+          },
+          "checkOut": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "checkIn",
+          "checkOut",
+          "roomTypeId"
+        ]
+      },
+      "LineView": {
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestedRoomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assignedRoomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stayRange": {
+            "$ref": "#/components/schemas/StayRange"
+          },
+          "occupancyId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ReservationView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reservationNo": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "FRONTDESK",
+              "DIRECT",
+              "OTA",
+              "MINIPROGRAM"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "CHECKED_IN",
+              "CHECKED_OUT",
+              "CANCELLED",
+              "EXPIRED",
+              "NO_SHOW"
+            ]
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineView"
+            }
+          }
+        }
+      },
+      "StayRange": {
+        "type": "object",
+        "properties": {
+          "checkIn": {
+            "type": "string",
+            "format": "date"
+          },
+          "checkOut": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "LifecycleRequest": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ]
+      },
+      "ReconcileRunReport": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hotelId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "windowFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "windowTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "triggerSource": {
+            "type": "string"
+          },
+          "newFindings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "repeatedFindings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "repairedFindings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "supersededFindings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openFindings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openDerived": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openFact": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openBacklog": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "RepairResult": {
+        "type": "object",
+        "properties": {
+          "findingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "applied": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "RebuildResult": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "deletedRows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "writtenRows": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "GuestRegisterRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "username"
+        ]
+      },
+      "GuestAuthResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "$ref": "#/components/schemas/GuestMeView"
+          }
+        }
+      },
+      "GuestMeView": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "verificationStatus": {
+            "type": "string"
+          },
+          "realNameRequired": {
+            "type": "boolean"
+          },
+          "sessionExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PasswordChangeRequest": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "PasswordResetRequest": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\d{6}$"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "challengeId",
+          "code",
+          "newPassword"
+        ]
+      },
+      "ResetChallengeRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "ResetChallengeView": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string"
+          },
+          "subjectMasked": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GuestLoginRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "password",
+          "username"
+        ]
+      },
+      "CodeLoginRequest": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\d{6}$"
+          }
+        },
+        "required": [
+          "challengeId",
+          "code"
+        ]
+      },
+      "CodeLoginChallengeRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "CodeLoginChallengeView": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string"
+          },
+          "subjectMasked": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BindUsernameRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "password",
+          "username"
+        ]
+      },
+      "GuestCredentialView": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ConfirmRequest": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 6,
+            "minLength": 6
+          }
+        },
+        "required": [
+          "challengeId",
+          "code"
+        ]
+      },
+      "ChallengeRequest": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "provider",
+          "subject"
+        ]
+      },
+      "ChallengeView": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "subjectMasked": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          },
+          "newPassword": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "tenantCode": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 0
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 0
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "password",
+          "tenantCode",
+          "username"
+        ]
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserView"
+          }
+        }
+      },
+      "UserView": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "sessionExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hotelIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mustChangePassword": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UpdateRoomRequest": {
+        "type": "object",
+        "properties": {
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "floor": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 200,
+            "minimum": -10
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 0
+          }
+        }
+      },
+      "PublicCatalogView": {
+        "type": "object",
+        "properties": {
+          "tenantCode": {
+            "type": "string"
+          },
+          "hotel": {
+            "$ref": "#/components/schemas/PublicHotelView"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "nights": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "roomTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicRoomTypeView"
+            }
+          }
+        }
+      },
+      "PublicHotelView": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          }
+        }
+      },
+      "PublicRoomTypeView": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "capacityAdults": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "capacityChildren": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bedType": {
+            "type": "string"
+          },
+          "bookable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PageViewPendingVerification": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingVerification"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PendingVerification": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idNumberMask": {
+            "type": "string"
+          },
+          "realNameMask": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "UNVERIFIED",
+              "PENDING",
+              "VERIFIED",
+              "REJECTED"
+            ]
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PendingSummary": {
+        "type": "object",
+        "properties": {
+          "deadLetters": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stuckTasks": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "parkedInbox": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "OpsIntervention": {
+        "type": "object",
+        "properties": {
+          "interventionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "DEAD_LETTER",
+              "EXTERNAL_TASK",
+              "INBOX_EVENT"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "REPLAY",
+              "DISMISS",
+              "RESOLVE_SUCCEEDED",
+              "RESOLVE_FAILED"
+            ]
+          },
+          "operatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operatorName": {
+            "type": "string"
+          },
+          "reviewerName": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "beforeState": {
+            "type": "string"
+          },
+          "afterState": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ExternalTask": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hotelId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskType": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "MANUAL_REVIEW",
+              "DEAD"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "leaseToken": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resultRef": {
+            "type": "string"
+          },
+          "lastError": {
+            "type": "string"
+          }
+        }
+      },
+      "DeadLetter": {
+        "type": "object",
+        "properties": {
+          "deadLetterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string"
+          },
+          "messageBody": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "REPLAYED",
+              "DISMISSED"
+            ]
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OperationView": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hotelId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "commandName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "resultCode": {
+            "type": "string"
+          },
+          "resultRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageViewIdentityUserView": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IdentityUserView"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UserDetailView": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/IdentityUserView"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleBriefView"
+            }
+          },
+          "hotelIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "Permission": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "HotelView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        }
+      },
+      "PageViewReservationSummary": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReservationSummary"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ReservationSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reservationNo": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "FRONTDESK",
+              "DIRECT",
+              "OTA",
+              "MINIPROGRAM"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "CHECKED_IN",
+              "CHECKED_OUT",
+              "CANCELLED",
+              "EXPIRED",
+              "NO_SHOW"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lineCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "checkIn": {
+            "type": "string",
+            "format": "date"
+          },
+          "checkOut": {
+            "type": "string",
+            "format": "date"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DetailLineView": {
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lineNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "requestedRoomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "CHECKED_IN",
+              "CHECKED_OUT",
+              "CANCELLED",
+              "EXPIRED",
+              "NO_SHOW"
+            ]
+          },
+          "plannedRange": {
+            "$ref": "#/components/schemas/StayRange"
+          },
+          "assignedRoomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assignedRoomCode": {
+            "type": "string"
+          },
+          "occupancyStatus": {
+            "type": "string",
+            "enum": [
+              "HELD",
+              "CONFIRMED",
+              "CHECKED_IN",
+              "RELEASED",
+              "EXPIRED",
+              "COMPLETED",
+              "SUPERSEDED",
+              "BLOCKED",
+              "UNBLOCKED"
+            ]
+          }
+        }
+      },
+      "ReservationDetailView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reservationNo": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "FRONTDESK",
+              "DIRECT",
+              "OTA",
+              "MINIPROGRAM"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "CHECKED_IN",
+              "CHECKED_OUT",
+              "CANCELLED",
+              "EXPIRED",
+              "NO_SHOW"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stayRange": {
+            "$ref": "#/components/schemas/StayRange"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DetailLineView"
+            }
+          },
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReconcileRunView": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hotelId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "windowFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "windowTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "triggerSource": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "newFindings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "repeatedFindings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "repairedFindings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "supersededFindings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openFindings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "SummaryView": {
+        "type": "object",
+        "properties": {
+          "openDerived": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "openFact": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "openBacklog": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "openTotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "needsAttention": {
+            "type": "boolean"
+          },
+          "scannedThrough": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastRun": {
+            "$ref": "#/components/schemas/ReconcileRunView"
+          }
+        }
+      },
+      "FindingView": {
+        "type": "object",
+        "properties": {
+          "findingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hotelId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "MISSING_PROJECTION",
+              "STALE_PROJECTION",
+              "ORPHAN_PROJECTION",
+              "LEDGER_MISMATCH",
+              "STATUS_MISMATCH",
+              "MISSING_OCCUPANCY",
+              "OUTBOX_BACKLOG",
+              "INBOX_PARKED"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "DERIVED",
+              "FACT",
+              "BACKLOG"
+            ]
+          },
+          "targetKey": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "occurrences": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "repairedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "settledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "settledBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "settleReason": {
+            "type": "string"
+          },
+          "stayDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reservationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "Difference": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stayDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "ReconcileReport": {
+        "type": "object",
+        "properties": {
+          "hotelId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "expectedRows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "storedRows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missingRows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "staleRows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "orphanRows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ledgerMismatches": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "differences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Difference"
+            }
+          }
+        }
+      },
+      "AvailabilityView": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "nights": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryDay"
+            }
+          },
+          "bookable": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookableRoomType"
+            }
+          }
+        }
+      },
+      "BookableRoomType": {
+        "type": "object",
+        "properties": {
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bookableRooms": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "InventoryDay": {
+        "type": "object",
+        "properties": {
+          "stayDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "roomTypeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "totalRooms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "soldRooms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "blockedRooms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "availableRooms": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "GuestMethodView": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "implemented": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+export default {
+  'menu.workspace': 'ワークスペース',
+  'menu.workspace.today': '今日',
+  'menu.hotel': 'ホテル',
+  'menu.hotel.reservation': '予約',
+  'menu.hotel.room': '客室タイプと客室',
+  'menu.hotel.inventory': '在庫と販売可否',
+  'menu.hotel.assignment': '部屋割当',
+  'menu.hotel.create': '施設を作成',
+  'menu.ota': 'OTA 連携',
+  'menu.ota.integration': 'チャネル',
+  'menu.identity': 'スタッフと役割',
+  'menu.identity.user': 'スタッフ',
+  'menu.identity.role': '役割',
+  'menu.ops': '運用',
+  'menu.ops.queue': '運用対応',
+  'menu.login': 'ログイン',
+  'menu.exception': '例外',
+  'menu.exception.403': '権限なし',
+  'menu.exception.404': 'ページなし',
+  'menu.exception.500': 'サーバーエラー',
+
+};

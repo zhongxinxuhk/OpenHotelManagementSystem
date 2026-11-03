@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  身份模块 SQL（S1-03）。原则与组织模块一致，并额外强调：
+  1. 每条语句都带 tenant_id 条件——包括按主键的更新与删除，不存在"全局按 id 改"的语句；
+  2. 会话可用性判定（未撤销 / 未过期 / 账号可用 / 租户可用）合并成一条 SQL，
+     不留给应用层分步判断，避免半有效状态；
+  3. 任何语句都不返回 password_hash 给非认证路径；令牌只以哈希参与查询。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.identity.mapper.IdentityMapper">
+
+    <resultMap id="appUserMap" type="cn.sec.hn.openbackupsaas.identity.domain.AppUser">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.identity.domain.UserStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="last_login_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="roleMap" type="cn.sec.hn.openbackupsaas.identity.domain.Role">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.tenant.domain.OrgStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="sessionViewMap" type="cn.sec.hn.openbackupsaas.identity.domain.SessionView">
+        <constructor>
+            <idArg column="session_id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="user_id" javaType="java.util.UUID"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="expires_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="must_change_password" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="appUserColumns">
+        id, tenant_id, username, display_name, password_hash, status, version,
+        last_login_at, created_at, updated_at
+    </sql>
+
+    <!-- ============ 账号 ============ -->
+
+    <insert id="insertUser" parameterType="cn.sec.hn.openbackupsaas.identity.domain.AppUser">
+        INSERT INTO app_user (id, tenant_id, username, display_name, password_hash, status, version,
+                              last_login_at, created_at, updated_at)
+        VALUES (#{id}, #{tenantId}, #{username}, #{displayName}, #{passwordHash}, #{status}, #{version},
+                #{lastLoginAt}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findUserByUsername" resultMap="appUserMap">
+        SELECT <include refid="appUserColumns"/>
+        FROM app_user
+        WHERE tenant_id = #{tenantId} AND username = #{username}
+    </select>
+
+    <select id="findUser" resultMap="appUserMap">
+        SELECT <include refid="appUserColumns"/>
+        FROM app_user
+        WHERE tenant_id = #{tenantId} AND id = #{id}
+    </select>
+
+    <update id="updateLastLogin">
+        UPDATE app_user
+        SET last_login_at = #{at}, updated_at = #{at}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND id = #{userId}
+    </update>
+
+    <update id="updatePasswordHash">
+        UPDATE app_user
+        SET password_hash        = #{passwordHash},
+            must_change_password = false,
+            updated_at           = #{at},
+            version              = version + 1
+        WHERE tenant_id = #{tenantId} AND id = #{userId}
+    </update>
+
+    <!--
+      置"待改密"：新建员工时调用。
+
+      单独一条语句而不是往 insertUser 里加参数，是为了不改变既有插入的语义 ——
+      insertUser 还被夹具与其它路径使用，多一个布尔参数会让"这次插入到底要不要强制改密"
+      散落在每个调用点上。调用点显式写一次，意图更清楚。
+    -->
+    <update id="requirePasswordChange">
+        UPDATE app_user
+        SET must_change_password = true,
+            updated_at           = #{at},
+            version              = version + 1
+        WHERE tenant_id = #{tenantId} AND id = #{userId}
+    </update>
+
+    <!-- ============ 账号管理（S3-02） ============ -->
+
+    <!--
+      员工列表。注意返回列含 password_hash（复用 appUserMap 构造器映射），
+      服务层必须转成 View 再出接口 —— 实体绝不能被直接序列化。
+      分页用 limit/offset：员工表规模是"每租户几十到几百人"，不需要游标分页。
+    -->
+    <select id="findUsers" resultMap="appUserMap">
+        SELECT <include refid="appUserColumns"/>
+        FROM app_user
+        WHERE tenant_id = #{tenantId}
+        <if test="status != null and status != ''">
+            AND status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (username ILIKE '%' || #{keyword} || '%'
+                 OR display_name ILIKE '%' || #{keyword} || '%')
+        </if>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countUsers" resultType="long">
+        SELECT count(*)
+        FROM app_user
+        WHERE tenant_id = #{tenantId}
+        <if test="status != null and status != ''">
+            AND status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (username ILIKE '%' || #{keyword} || '%'
+                 OR display_name ILIKE '%' || #{keyword} || '%')
+        </if>
+    </select>
+
+    <!--
+      条件更新 status <> #{status}：重复调用返回 0 行而不是"成功"。
+      服务层据此区分"真的改了"与"本来就是这个状态"——
+      后者不必撤销会话，也不该记一条审计。
+    -->
+    <update id="updateUserStatus">
+        UPDATE app_user
+        SET status = #{status}, updated_at = #{at}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND id = #{userId} AND status &lt;&gt; #{status}
+    </update>
+
+    <!-- ============ 角色与权限 ============ -->
+
+    <insert id="insertRole" parameterType="cn.sec.hn.openbackupsaas.identity.domain.Role">
+        INSERT INTO role (id, tenant_id, code, name, status, version, created_at, updated_at)
+        VALUES (#{id}, #{tenantId}, #{code}, #{name}, #{status}, #{version}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findRoleByCode" resultMap="roleMap">
+        SELECT id, tenant_id, code, name, status, version, created_at, updated_at
+        FROM role
+        WHERE tenant_id = #{tenantId} AND code = #{code}
+    </select>
+
+    <!-- ============ 角色管理（S3-02） ============ -->
+
+    <select id="findRole" resultMap="roleMap">
+        SELECT id, tenant_id, code, name, status, version, created_at, updated_at
+        FROM role
+        WHERE tenant_id = #{tenantId} AND id = #{id}
+    </select>
+
+    <select id="findRoles" resultMap="roleMap">
+        SELECT id, tenant_id, code, name, status, version, created_at, updated_at
+        FROM role
+        WHERE tenant_id = #{tenantId}
+        ORDER BY code
+    </select>
+
+    <update id="updateRoleStatus">
+        UPDATE role
+        SET status = #{status}, updated_at = #{at}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND id = #{roleId} AND status &lt;&gt; #{status}
+    </update>
+
+    <!--
+      某角色"登记了什么权限"，供管理界面展示与回填。
+      刻意**不过滤角色状态**：这是配置快照，不是生效权限。
+      若在这里过滤，停用角色一看就"没有任何权限"，运维会误以为授权丢了。
+      真正决定"现在能不能做"的是 findPermissionCodes（带 r.status = 'ACTIVE'）。
+    -->
+    <select id="findRolePermissionCodes" resultType="java.lang.String">
+        SELECT permission_code
+        FROM role_permission
+        WHERE tenant_id = #{tenantId} AND role_id = #{roleId}
+        ORDER BY permission_code
+    </select>
+
+    <delete id="revokeRolePermission">
+        DELETE FROM role_permission
+        WHERE tenant_id = #{tenantId} AND role_id = #{roleId} AND permission_code = #{permissionCode}
+    </delete>
+
+    <!-- 全局字典，不带租户条件（表本身就没有 tenant_id） -->
+    <select id="findAllPermissions" resultType="cn.sec.hn.openbackupsaas.identity.domain.Permission">
+        SELECT code, name, description
+        FROM permission
+        ORDER BY code
+    </select>
+
+    <select id="findRolesByUser" resultMap="roleMap">
+        SELECT r.id, r.tenant_id, r.code, r.name, r.status, r.version, r.created_at, r.updated_at
+        FROM user_role ur
+        JOIN role r ON r.id = ur.role_id AND r.tenant_id = ur.tenant_id
+        WHERE ur.tenant_id = #{tenantId} AND ur.user_id = #{userId}
+        ORDER BY r.code
+    </select>
+
+    <insert id="grantPermission">
+        INSERT INTO role_permission (tenant_id, role_id, permission_code)
+        VALUES (#{tenantId}, #{roleId}, #{permissionCode})
+        ON CONFLICT (role_id, permission_code) DO NOTHING
+    </insert>
+
+    <insert id="assignRole">
+        INSERT INTO user_role (tenant_id, user_id, role_id)
+        VALUES (#{tenantId}, #{userId}, #{roleId})
+        ON CONFLICT (user_id, role_id) DO NOTHING
+    </insert>
+
+    <delete id="clearUserRoles">
+        DELETE FROM user_role
+        WHERE tenant_id = #{tenantId} AND user_id = #{userId}
+    </delete>
+
+    <!-- 停用角色立即失去权限：条件写在 SQL 里，不依赖调用方记得过滤 -->
+    <select id="findPermissionCodes" resultType="java.lang.String">
+        SELECT DISTINCT rp.permission_code
+        FROM user_role ur
+        JOIN role r ON r.id = ur.role_id AND r.tenant_id = ur.tenant_id
+        JOIN role_permission rp ON rp.role_id = r.id AND rp.tenant_id = r.tenant_id
+        WHERE ur.tenant_id = #{tenantId}
+          AND ur.user_id = #{userId}
+          AND r.status = 'ACTIVE'
+        ORDER BY rp.permission_code
+    </select>
+
+    <!--
+      除某人之外还有几个账号持有该权限点。
+
+      只算 ACTIVE 账号与 ACTIVE 角色：被停用的账号、被停用的角色都不能作为
+      "还有人能恢复"的依据 —— 否则运维先把同事停用、再给自己降权，
+      结果谁也进不来，而且没有任何在线入口能救。
+    -->
+    <select id="countOtherActiveUsersWithPermission" resultType="long">
+        SELECT count(DISTINCT u.id)
+        FROM app_user u
+        JOIN user_role ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+        JOIN role r ON r.id = ur.role_id AND r.tenant_id = ur.tenant_id AND r.status = 'ACTIVE'
+        JOIN role_permission rp ON rp.role_id = r.id AND rp.tenant_id = r.tenant_id
+        WHERE u.tenant_id = #{tenantId}
+          AND u.status = 'ACTIVE'
+          AND rp.permission_code = #{permissionCode}
+          AND u.id &lt;&gt; #{excludedUserId}
+    </select>
+
+    <!-- ============ 门店数据范围 ============ -->
+
+    <insert id="addHotelScope">
+        INSERT INTO user_hotel_scope (tenant_id, user_id, hotel_id)
+        VALUES (#{tenantId}, #{userId}, #{hotelId})
+        ON CONFLICT (user_id, hotel_id) DO NOTHING
+    </insert>
+
+    <select id="findHotelScopeIds" resultType="java.util.UUID">
+        SELECT hotel_id
+        FROM user_hotel_scope
+        WHERE tenant_id = #{tenantId} AND user_id = #{userId}
+        ORDER BY hotel_id
+    </select>
+
+    <!--
+      清空门店范围，配合 addHotelScope 做"全量替换"。
+      界面上的门店范围是全量语义：勾掉一个就必须真的失效。
+      只调 addHotelScope（ON CONFLICT DO NOTHING）等于只能加不能减，撤权会失效。
+
+      调用方必须与后续插入在同一事务：中途失败会留下"范围被清空"的中间态，
+      那个账号在所有门店都会 403。
+    -->
+    <delete id="clearHotelScopes">
+        DELETE FROM user_hotel_scope
+        WHERE tenant_id = #{tenantId} AND user_id = #{userId}
+    </delete>
+
+    <!-- ============ 会话 ============ -->
+
+    <insert id="insertSession" parameterType="cn.sec.hn.openbackupsaas.identity.domain.UserSession">
+        INSERT INTO user_session (id, tenant_id, user_id, token_hash, issued_at, expires_at, revoked_at, revoke_reason, version)
+        VALUES (#{id}, #{tenantId}, #{userId}, #{tokenHash}, #{issuedAt}, #{expiresAt}, #{revokedAt}, #{revokeReason}, 0)
+    </insert>
+
+    <!--
+      可用性判定用数据库时钟 now()：会话是否过期属于数据库事实，不受应用节点时钟漂移影响。
+      三个 JOIN 条件都带 tenant_id，确保不会把 A 租户的会话拼到 B 租户的账号上。
+    -->
+    <select id="findUsableSession" resultMap="sessionViewMap">
+        SELECT s.id          AS session_id,
+               s.tenant_id   AS tenant_id,
+               s.user_id     AS user_id,
+               u.username    AS username,
+               u.display_name AS display_name,
+               s.expires_at  AS expires_at,
+               u.must_change_password AS must_change_password
+        FROM user_session s
+        JOIN app_user u ON u.id = s.user_id AND u.tenant_id = s.tenant_id
+        JOIN tenant t ON t.id = s.tenant_id
+        WHERE s.token_hash = #{tokenHash}
+          AND s.revoked_at IS NULL
+          AND s.expires_at > now()
+          AND u.status = 'ACTIVE'
+          AND t.status = 'ACTIVE'
+    </select>
+
+    <update id="revokeSession">
+        UPDATE user_session
+        SET revoked_at = #{at}, revoke_reason = #{reason}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND id = #{sessionId} AND revoked_at IS NULL
+    </update>
+
+    <update id="revokeUserSessions">
+        UPDATE user_session
+        SET revoked_at = #{at}, revoke_reason = #{reason}, version = version + 1
+        WHERE tenant_id = #{tenantId}
+          AND user_id = #{userId}
+          AND revoked_at IS NULL
+        <if test="exceptSessionId != null">
+            AND id &lt;&gt; #{exceptSessionId}
+        </if>
+    </update>
+
+</mapper>

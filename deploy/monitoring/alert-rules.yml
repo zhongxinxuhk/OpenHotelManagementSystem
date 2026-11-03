@@ -1,0 +1,95 @@
+# Prometheus 告警规则（S2-06）：只评"运维确实需要被叫醒"的情形。
+#
+# 设计原则（见 docs/operations/monitoring.md）：
+#   1. 不评"正常波动"。积压/重试的 rate 阈值取"明显偏离常态"而非"非零"。
+#   2. 严重度分 page（叫醒）与 ticket（工单）两档；page 只留给"业务已受损或即将受损"。
+#   3. 标签值全部来自 pms.* 指标的有限集合（outcome / channel / event 等），
+#      不依赖任何高基数字段，规则本身不会因基数爆炸而失效。
+#   4. 真实接收人/路由在 Alertmanager 配置，不在此写死。
+
+groups:
+  - name: pms-outbox
+    rules:
+      # Outbox 积压：最老未发布事件等待超过 10 分钟（与 pms.outbox.alert-age 对齐）。
+      # 含义：Broker 时通时不通，事件在被反复重试——单看 pending 条数看不出来。
+      - alert: OutboxBacklogStale
+        expr: pms_outbox_oldest_event_age_seconds > 600
+        for: 2m
+        labels:
+          severity: page
+          domain: outbox
+        annotations:
+          summary: "Outbox 积压：最老事件等待 {{ $value | humanizeDuration }}"
+          description: "pms_outbox_oldest_event_age_seconds={{ $value }}s，超过 600s。检查 Broker 连通性、队列绑定与 outbox_event.last_error。"
+
+      # 持续越界：backlog_breach 的 rate 持续 > 0，说明积压长期未恢复。
+      - alert: OutboxBreachPersisted
+        expr: rate(pms_outbox_backlog_breach[10m]) > 0
+        for: 10m
+        labels:
+          severity: ticket
+          domain: outbox
+        annotations:
+          summary: "Outbox 积压持续越界超过 10 分钟"
+          description: "pms_outbox_backlog_breach 10 分钟速率 {{ $value }}，积压未恢复。优先排查 Broker 与发布失败原因。"
+
+  - name: pms-integration
+    rules:
+      # 外部任务被判定终局（DEAD）：渠道明确拒绝或尝试耗尽，需要人工处置。
+      - alert: ExternalTaskDead
+        expr: increase(pms_external_task_outcome{outcome="dead"}[15m]) > 0
+        for: 0m
+        labels:
+          severity: ticket
+          domain: integration
+        annotations:
+          summary: "外部任务进入 DEAD（需人工处置）"
+          description: "近 15 分钟有 {{ $value }} 条外部任务被判定终局。结合 channel 标签定位渠道，检查映射与授权。"
+
+      # Inbox 版本缺口（PARKED_GAP）：事件总线出现缺口，必须补齐后才能继续，否则会丢状态迁移。
+      - alert: InboxVersionGap
+        expr: increase(pms_inbox_outcome{outcome="parked_gap"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: page
+          domain: inbox
+        annotations:
+          summary: "Inbox 出现版本缺口（PARKED_GAP）"
+          description: "近 15 分钟 {{ $value }} 条事件被挂起等待补齐。缺口可能丢失关键状态迁移，用 InboxIntegrityService 重放补齐。"
+
+  - name: pms-security
+    rules:
+      # 登录失败速率突增：可能是爆破或下游认证故障，5 分钟内失败 > 50 次触发。
+      - alert: LoginFailureSpike
+        expr: rate(pms_security_auth{event="login_failure"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: ticket
+          domain: security
+        annotations:
+          summary: "登录失败速率突增（疑似爆破或认证故障）"
+          description: "login_failure 5 分钟速率 {{ $value }}/s。检查是否有爆破，或为下游身份源故障。"
+
+  - name: pms-availability
+    rules:
+      # 进程存活：后端 scrape 掉靶。
+      - alert: BackendDown
+        expr: up{job="pms-backend"} == 0
+        for: 1m
+        labels:
+          severity: page
+          domain: availability
+        annotations:
+          summary: "后端实例不可达"
+          description: "{{ $labels.instance }} 的 /actuator/prometheus 抓取失败超过 1 分钟。"
+
+      # JVM 老年代压力：GC 后老年代仍高，可能内存泄漏或堆偏小。
+      - alert: JvmOldGenPressure
+        expr: jvm_memory_used_bytes{area="heap",id="G1 Old Gen"} / jvm_memory_max_bytes{area="heap",id="G1 Old Gen"} > 0.9
+        for: 10m
+        labels:
+          severity: ticket
+          domain: availability
+        annotations:
+          summary: "JVM Old Gen 使用率超过 90%"
+          description: "实例 {{ $labels.instance }} 老年代持续高压，排查内存泄漏或上调 -Xmx。"

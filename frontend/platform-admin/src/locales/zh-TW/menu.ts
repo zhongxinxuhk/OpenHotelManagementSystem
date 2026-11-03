@@ -1,0 +1,17 @@
+export default {
+  'menu.overview': '系統概覽',
+  'menu.guest': '住客身份',
+  'menu.guest.loginPolicy': '登入方式策略',
+  'menu.guest.channels': '核驗渠道',
+  'menu.system': '系統管理',
+  'menu.system.trends': '系統趨勢',
+  'menu.system.users': '平台使用者與權限',
+  'menu.system.audit': '系統級審計',
+  'menu.ota': 'OTA 對接',
+  'menu.ota.adapters': '介面適配',
+  'menu.login': '登入',
+  'menu.exception': '異常頁',
+  'menu.exception.403': '無存取權限',
+  'menu.exception.404': '頁面不存在',
+  'menu.exception.500': '服務異常',
+};

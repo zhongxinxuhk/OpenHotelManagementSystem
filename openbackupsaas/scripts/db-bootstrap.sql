@@ -31,6 +31,14 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'dbname')
 
 \connect :dbname
 
+-- 迁移账号：要能建表（DDL）。
+-- 不能依赖"建库人恰好是 pms_migrator"这个巧合：PostgreSQL 15+ 里 public schema
+-- 的 CREATE 默认只属于库 owner（pg_database_owner），dev 环境碰巧由本脚本以
+-- OWNER pms_migrator 建库才可用；换一种建库方式（如 Docker 镜像的 POSTGRES_DB，
+-- owner 是 postgres）迁移就会 permission denied（R-20261030-21 实测踩到）。
+-- 显式授予，幂等无害。
+GRANT CREATE, USAGE ON SCHEMA public TO pms_migrator;
+
 -- 应用账号：只有 DML
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 REVOKE ALL ON SCHEMA public FROM pms_app;

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  流水、审计与事件 SQL（S1-06）。原则：
+  1. 只有 INSERT 与 SELECT：三张表都是只追加事实，本文件不提供任何 UPDATE / DELETE；
+  2. jsonb 参数以文本绑定 + SQL 侧 ::jsonb 转换（驱动为 runtime 作用域，编译期无 PGobject）；
+  3. 查询都带 tenant_id，审计按归属 + 目标 + 时间查，不做跨租户扫描。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.journal.mapper.JournalMapper">
+
+    <resultMap id="ledgerMap" type="cn.sec.hn.openbackupsaas.journal.domain.InventoryLedger">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="room_id" javaType="java.util.UUID"/>
+            <arg column="stay_date" javaType="java.time.LocalDate"/>
+            <arg column="effect_kind" javaType="cn.sec.hn.openbackupsaas.journal.domain.EffectKind"/>
+            <arg column="operation_id" javaType="java.util.UUID"/>
+            <arg column="delta" javaType="java.lang.Integer"/>
+            <arg column="reason_code" javaType="java.lang.String"/>
+            <arg column="effective_from_date" javaType="java.time.LocalDate"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="auditMap" type="cn.sec.hn.openbackupsaas.journal.domain.AuditLog">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="action" javaType="java.lang.String"/>
+            <arg column="actor_type" javaType="cn.sec.hn.openbackupsaas.journal.domain.ActorType"/>
+            <arg column="actor_id" javaType="java.util.UUID"/>
+            <arg column="target_type" javaType="java.lang.String"/>
+            <arg column="target_id" javaType="java.util.UUID"/>
+            <arg column="before_version" javaType="java.lang.Long"/>
+            <arg column="after_version" javaType="java.lang.Long"/>
+            <arg column="change_summary" javaType="java.lang.String"/>
+            <arg column="occurred_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="eventMap" type="cn.sec.hn.openbackupsaas.journal.domain.OutboxEvent">
+        <constructor>
+            <idArg column="event_id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="aggregate_type" javaType="java.lang.String"/>
+            <arg column="aggregate_id" javaType="java.util.UUID"/>
+            <arg column="aggregate_version" javaType="java.lang.Long"/>
+            <arg column="event_ordinal" javaType="java.lang.Integer"/>
+            <arg column="event_type" javaType="java.lang.String"/>
+            <arg column="schema_version" javaType="java.lang.Integer"/>
+            <arg column="payload" javaType="java.lang.String"/>
+            <arg column="occurred_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="published_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="attempt_count" javaType="java.lang.Integer"/>
+            <arg column="next_attempt_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="lease_token" javaType="java.util.UUID"/>
+            <arg column="lease_until" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="ledgerColumns">
+        id, tenant_id, hotel_id, room_id, stay_date, effect_kind, operation_id, delta, reason_code,
+        effective_from_date, created_at
+    </sql>
+
+    <sql id="auditColumns">
+        id, tenant_id, hotel_id, action, actor_type, actor_id, target_type, target_id,
+        before_version, after_version, change_summary, occurred_at, created_at
+    </sql>
+
+    <sql id="eventColumns">
+        event_id, tenant_id, hotel_id, aggregate_type, aggregate_id, aggregate_version, event_ordinal,
+        event_type, schema_version, payload, occurred_at, published_at, attempt_count, next_attempt_at,
+        lease_token, lease_until
+    </sql>
+
+    <insert id="insertLedger" parameterType="cn.sec.hn.openbackupsaas.journal.domain.InventoryLedger">
+        INSERT INTO inventory_ledger (id, tenant_id, hotel_id, room_id, stay_date, effect_kind,
+                                      operation_id, delta, reason_code, effective_from_date, created_at)
+        VALUES (#{id}, #{tenantId}, #{hotelId}, #{roomId}, #{stayDate}, #{effectKind}, #{operationId},
+                #{delta}, #{reasonCode}, #{effectiveFromDate}, #{createdAt})
+    </insert>
+
+    <select id="findLedgerOfRoom" resultMap="ledgerMap">
+        SELECT <include refid="ledgerColumns"/>
+        FROM inventory_ledger
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND room_id = #{roomId}
+        ORDER BY stay_date, effect_kind, id
+    </select>
+
+    <select id="sumDelta" resultType="int">
+        SELECT coalesce(sum(delta), 0)
+        FROM inventory_ledger
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND room_id = #{roomId}
+          AND stay_date = #{stayDate}
+          AND effect_kind = #{effectKind}
+    </select>
+
+    <insert id="insertAudit" parameterType="cn.sec.hn.openbackupsaas.journal.domain.AuditLog">
+        INSERT INTO audit_log (id, tenant_id, hotel_id, action, actor_type, actor_id, target_type, target_id,
+                               before_version, after_version, change_summary, occurred_at, created_at)
+        VALUES (#{id}, #{tenantId}, #{hotelId}, #{action}, #{actorType}, #{actorId}, #{targetType}, #{targetId},
+                #{beforeVersion}, #{afterVersion}, #{changeSummary}::jsonb, #{occurredAt}, #{createdAt})
+    </insert>
+
+    <select id="findAuditOfTarget" resultMap="auditMap">
+        SELECT <include refid="auditColumns"/>
+        FROM audit_log
+        WHERE tenant_id = #{tenantId} AND target_type = #{targetType} AND target_id = #{targetId}
+        ORDER BY occurred_at, id
+    </select>
+
+    <insert id="insertEvent" parameterType="cn.sec.hn.openbackupsaas.journal.domain.OutboxEvent">
+        INSERT INTO outbox_event (event_id, tenant_id, hotel_id, aggregate_type, aggregate_id,
+                                  aggregate_version, event_ordinal, event_type, schema_version, payload,
+                                  occurred_at, published_at, attempt_count, next_attempt_at,
+                                  lease_token, lease_until)
+        VALUES (#{eventId}, #{tenantId}, #{hotelId}, #{aggregateType}, #{aggregateId}, #{aggregateVersion},
+                #{eventOrdinal}, #{eventType}, #{schemaVersion}, #{payload}::jsonb, #{occurredAt},
+                #{publishedAt}, #{attemptCount}, #{nextAttemptAt}, #{leaseToken}, #{leaseUntil})
+    </insert>
+
+    <select id="findEventsOfAggregate" resultMap="eventMap">
+        SELECT <include refid="eventColumns"/>
+        FROM outbox_event
+        WHERE tenant_id = #{tenantId} AND aggregate_type = #{aggregateType} AND aggregate_id = #{aggregateId}
+        ORDER BY aggregate_version, event_ordinal
+    </select>
+
+</mapper>

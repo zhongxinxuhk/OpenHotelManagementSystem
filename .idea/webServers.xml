@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="5e8b1c3f-e551-4248-bb5c-fb8636477458" name="酒店行业文旅系统">
+        <fileTransfer accessType="SFTP" host="8.137.144.53" port="22" sshConfigId="7c25224a-d735-423e-a136-98c4841ca02a" sshConfig="root@8.137.144.53:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" isUseRsync="true" isUseSudo="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

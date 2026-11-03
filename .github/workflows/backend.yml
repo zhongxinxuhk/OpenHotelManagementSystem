@@ -1,82 +1,185 @@
 name: backend
 
-# 后端门禁：干净检出必须能构建、跑单元测试，并在真实 PostgreSQL 上跑组织/约束集成测试（S1-01、S1-02）。
-# 集成测试通过 PMS_IT_DB=true 启用；未设置时相关用例会被跳过（本地无库的开发者仍可跑单元测试）。
+# 后端门禁（S1-01，S2-01 起含消息，R-20261030-21 起改用 compose 起中间件）：
+# 干净检出必须能编译、跑单元测试，并在**真实 PostgreSQL** 上跑组织 / 约束 / 占用排斥 /
+# 幂等 / 订单生命周期 / 到期承接，在**真实 RabbitMQ** 上跑 Outbox 发布的确认与持久化。
+#
+# 三条不能省的约定：
+#   1. 集成测试由 PMS_IT_DB=true 打开；这里显式设成 true，并且**断言没有任何用例被跳过**
+#      （见 "Assert no skipped tests"）——只看 BUILD SUCCESS 会被静默跳过骗过。
+#   2. 数据库账号分权与本地一致：应用账号 pms_app 只有 DML，迁移账号 pms_migrator 才能 DDL。
+#      分权 SQL 由 compose 的 initdb 自动执行（挂载 openbackupsaas/scripts/db-bootstrap.sql），
+#      CI 数据卷每次为空，等于每轮推送都实测「从零初始化」路径。
+#   3. 失败时把 surefire 报告留下来，成功时把可执行 jar 留下来（供手工核验）。
+#   4. RabbitMQ 是必需的，不是可选的：Outbox 的"确认后才算发布""持久化投递"
+#      "不可路由即失败"只能在真实 Broker 上验证，桩无法证明。因此也打开 PMS_IT_RABBIT，
+#      与"零跳过"断言相互咬合——Broker 起不来就红，而不是静默跳过。
+#   5. SMTP 同理（R-20261102-01）：验证码邮件通道的"码真的离开了进程并出现在
+#      真实邮件正文里"只能在真实 SMTP 服务器上证明，因此 PMS_IT_SMTP=true。
+#      收信端是同一份 compose 的 MailPit；中继不可达必须包装为 503 也在这里验。
+#
+# 为什么用 compose 而不是 GitHub Actions service containers（v2，R-20261030-21）：
+#   本地、CI、预发跑**同一份** deploy/compose/docker-compose.yml——环境的可执行定义只有一份，
+#   消灭"本地绿 CI 红"里的环境差异类问题；compose 本身写坏（healthcheck、init 脚本、端口），
+#   这条门禁当场红，而不是等部署时才发现。设计全文见 docs/development/cicd-pipeline.md。
 on:
   push:
     paths:
       - 'openbackupsaas/**'
+      # 契约基线是后端门禁的输入：只改基线不改代码时，OpenApiContractTest 同样需要重跑，
+      # 否则"悄悄放宽契约"可以绕过 CI。
+      - 'docs/api/openapi-v1.json'
+      # 编排文件是本门禁运行环境的一部分：改它必须重跑（compose 写坏要在这里暴露）
+      - 'deploy/compose/**'
       - '.github/workflows/backend.yml'
   pull_request:
+    branches:
+      - main
     paths:
       - 'openbackupsaas/**'
+      - 'docs/api/openapi-v1.json'
+      - 'deploy/compose/**'
       - '.github/workflows/backend.yml'
+  workflow_dispatch:
+  # 被 beta 发布流程当作"出包前的门禁"复用（就不可能有绕过门禁的出包路径）。
+  # 可复用工作流检出的正是调用方的同一个 commit，因此不存在"测 A 出包 B"。
+  workflow_call:
+
+# 最小权限：本 workflow 只读仓库。
+permissions:
+  contents: read
 
 concurrency:
   group: backend-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PMS_IT_DB: 'true'
+  PMS_IT_RABBIT: 'true'
+  PMS_IT_SMTP: 'true'
+
 jobs:
   verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
-
-    services:
-      postgres:
-        # 与 ADR-011 选定的大版本一致；锁大版本不锁补丁，补丁升级走依赖评审。
-        image: postgres:17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
+    timeout-minutes: 30
 
     env:
       PMS_DB_HOST: 127.0.0.1
-      PMS_DB_PORT: '5432'
+      # 与 compose 的宿主端口默认值一致（deploy/compose/docker-compose.yml）
+      PMS_DB_PORT: '55432'
       PMS_DB_NAME: pms
       PMS_DB_USER: pms_app
       PMS_DB_PASSWORD: ci_app_only
       PMS_DB_MIGRATOR_USER: pms_migrator
       PMS_DB_MIGRATOR_PASSWORD: ci_migrator_only
-      PMS_IT_DB: 'true'
+      PMS_RABBIT_HOST: 127.0.0.1
+      PMS_RABBIT_PORT: '55672'
+      PMS_RABBIT_USER: pms_mq
+      PMS_RABBIT_PASSWORD: ci_mq_only
+      # 与 compose 的 mailpit 宿主端口默认值一致；冒烟测试从 MailPit 的
+      # 查询 API（8025）取信，断言验证码在真实邮件正文里。
+      PMS_SMTP_HOST: 127.0.0.1
+      PMS_SMTP_PORT: '55025'
+      PMS_MAILPIT_UI_PORT: '8025'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
           cache-dependency-path: openbackupsaas/pom.xml
 
-      - name: Bootstrap database roles and grants
-        env:
-          PGPASSWORD: postgres
-        # 容器内 host 连接为 scram 认证，因此给两个非超级用户角色设置一次性口令；
-        # 该口令只存在于本次 job 的临时容器中，不用于任何共享环境。
+      # 住客实名密钥（ADR-018 §2.4）：GuestPiiCipher 缺密钥**启动即失败**，这是有意的设计
+      # ——宁可起不来，也不要"没配就跑、悄悄存明文"。
+      # CI 每次运行生成一次性密钥，不写入仓库：测试数据用完即弃，
+      # 这里要证明的是"加密代码路径被真实执行过"，不是"这份密文以后还能解开"。
+      - name: Generate throwaway guest PII keys
         run: |
-          psql -h 127.0.0.1 -U postgres -d postgres \
-               -v ON_ERROR_STOP=1 -v dbname=pms -f openbackupsaas/scripts/db-bootstrap.sql
-          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 \
-               -c "ALTER ROLE pms_app PASSWORD 'ci_app_only'" \
-               -c "ALTER ROLE pms_migrator PASSWORD 'ci_migrator_only'"
+          echo "PMS_GUEST_PII_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          echo "PMS_GUEST_PII_HMAC_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
-      - name: Verify (compile + unit + postgres integration tests)
+      - name: Start middleware (same compose file as local and staging)
+        working-directory: deploy/compose
+        env:
+          # 只存在于本 job 的临时容器，不用于任何共享环境
+          POSTGRES_PASSWORD: ci_super_only
+          PMS_RABBIT_PASSWORD: ci_mq_only
+          PMS_DB_PASSWORD: ci_app_only
+          PMS_DB_MIGRATOR_PASSWORD: ci_migrator_only
+        # --wait：等到两个服务都 healthy 才返回；起不来或 unhealthy 直接失败这一步，
+        # 让后续测试拿到的是确定就绪的中间件，而不是"大概行了"。
+        run: |
+          docker compose up -d --wait --wait-timeout 120
+          docker compose ps
+
+      - name: Verify (compile + unit + postgres + rabbit + smtp integration tests)
         working-directory: openbackupsaas
-        run: ./mvnw -B -ntp verify
+        # clean 不是为了"干净好看"：下面的断言统计 target/surefire-reports 下所有报告，
+        # 残留的旧报告会让计数与本次运行对不上（本地复跑时实测出现 134 ≠ 132）。
+        # CI 里 target 本来就不存在，这一步是给"本地也能复现同一结论"兜底。
+        # -Dstyle.color=never：CI 日志不夹杂 ANSI 转义，检索错误更容易
+        run: ./mvnw -B -ntp -Dstyle.color=never clean verify
 
-      - name: Upload test reports on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
+      - name: Assert no skipped tests
+        # 集成测试被跳过 = 门禁形同虚设。宁可显式失败，也不要一个"绿但没测数据库"的构建。
+        working-directory: openbackupsaas
+        run: |
+          python3 - <<'PY'
+          import glob
+          import sys
+          import xml.etree.ElementTree as ET
+
+          files = glob.glob('target/surefire-reports/TEST-*.xml')
+          if not files:
+              sys.exit('没有找到 surefire 报告：verify 可能没真正执行测试')
+
+          total = skipped = failures = errors = 0
+          for path in files:
+              root = ET.parse(path).getroot()
+              total += int(root.get('tests', 0))
+              skipped += int(root.get('skipped', 0))
+              failures += int(root.get('failures', 0))
+              errors += int(root.get('errors', 0))
+
+          print(f'tests={total} skipped={skipped} failures={failures} errors={errors}')
+          if skipped:
+              sys.exit(f'CI 中不允许跳过用例：{skipped} 个被跳过。'
+                       'PMS_IT_DB / PMS_IT_RABBIT 未生效，或 compose 中间件未就绪。')
+          if total == 0:
+              sys.exit('测试总数为 0，视为门禁失效')
+          PY
+
+      - name: Stop middleware
+        if: always()
+        working-directory: deploy/compose
+        env:
+          # down 也要完整插值 compose 文件：:? 必填校验在这里同样生效。
+          # 占位值不会成为任何凭据——down 只做清理，不启动服务（CI 首跑实测踩到）。
+          POSTGRES_PASSWORD: cleanup-placeholder
+          PMS_RABBIT_PASSWORD: cleanup-placeholder
+        run: docker compose down -v
+
+      - name: Upload surefire reports
+        if: always()
+        uses: actions/upload-artifact@v5
         with:
           name: surefire-reports
           path: openbackupsaas/target/surefire-reports/**
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload runnable jar
+        if: success()
+        uses: actions/upload-artifact@v5
+        with:
+          name: backend-jar
+          # *.jar.original 是 Spring Boot 重打包前的原始 jar，发布用不到
+          path: |
+            openbackupsaas/target/*.jar
+            !openbackupsaas/target/*.jar.original
+          if-no-files-found: warn
           retention-days: 7

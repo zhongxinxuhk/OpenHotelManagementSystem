@@ -113,4 +113,24 @@
         ORDER BY code
     </select>
 
+    <!--
+      按 id 集合取门店。ids 为空时返回空集而不是"不过滤"：
+      调用方（数据范围为空 = 无任何门店权限）若退化成全量返回，撤权就成了扩权。
+    -->
+    <select id="findHotelsByIds" resultMap="hotelMap">
+        SELECT <include refid="hotelColumns"/>
+        FROM hotel
+        WHERE tenant_id = #{tenantId}
+        <if test="ids != null and !ids.isEmpty()">
+            AND id IN
+            <foreach collection="ids" item="hotelId" open="(" separator="," close=")">
+                #{hotelId}
+            </foreach>
+        </if>
+        <if test="ids == null or ids.isEmpty()">
+            AND FALSE
+        </if>
+        ORDER BY code
+    </select>
+
 </mapper>

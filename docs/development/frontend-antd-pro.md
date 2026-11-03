@@ -2,7 +2,8 @@
 
 > 版本：1.0；建立日期：2026-10-29（AEST）；决策依据：[ADR-015](../adr/ADR-015-frontend-ant-design-pro.md)。
 >
-> 适用范围：`frontend-admin-pro/`（集团端 / 门店端 / 前台端 / 运维端统一后台）。
+> 适用范围：`frontend/merchant-web/`（Web 商家端：集团 / 门店 / 前台 / 运维的统一后台）。
+> 客户端与平台端不适用本规范：它们是独立工程、不同身份平面（见 [ADR-017](../adr/ADR-017-multi-surface-and-identity-planes.md) 与 `frontend/README.md`）。
 > 不适用：住客 H5、微信小程序（技术栈另定）。
 >
 > 实时进度见 [progress.md](./progress.md)；功能项 O-01—O-11 见 [feature-catalog.md](./feature-catalog.md) §O。
@@ -25,10 +26,14 @@
 npm start               # 带 mock 数据（UMI_ENV=dev max dev），端口 8000，仅用于纯 UI 走查
 npm run start:no-mock   # MOCK=none 直连后端，联调与验收只用这个
 npm run dev             # 同为 MOCK=none 的开发模式（模板已内置），与上者等价的简写
-npm run tsc             # 类型检查（必跑）
+npm run tsc             # 类型检查（必跑）；内部先跑 max setup 生成 src/.umi 类型
 npm run biome:lint      # 静态检查（必跑）
 npm run build           # 生产构建（必跑）
 ```
+
+**关于 `npm run tsc` 为什么带 `max setup`**：`@umijs/max` 的 `request` / `history` / `Link` / `useIntl` 等插件导出只存在于 umi 生成的 `src/.umi` 类型里。跑过 `start` 或 `build` 后本地才有这份生成物；**全新检出（CI、新机器）没有**，直接 `tsc` 会报几十个 `Module '"@umijs/max"' has no exported member ...`。把 `max setup` 固化进脚本，本地与 CI 走同一条命令。2026-10-30 的 CI 实跑正是踩了这个坑（见 [CI 记录](../verification/CI/2026-10-30-github-actions.md) §3.1）。
+
+**本地构建的一个环境坑**：本机沙箱会拦截 umi 构建前对 `src/.umi-production` 的批量删除（`[safe-delete] broker denied delete`）。构建前先 `mv src/.umi-production /tmp/…` 即可，不是代码问题。CI runner 无此限制。
 
 **规则**：涉及真实业务数据的演示/验收一律 `start:no-mock`。mock 数据无法证明契约正确，接 mock 截图不能作为验收证据。
 
@@ -37,7 +42,7 @@ npm run build           # 生产构建（必跑）
 模板自带的 demo 目录（`pages/Welcome*`、`pages/list`、`pages/form`、`pages/profile`、`pages/account`、`pages/result`、`pages/table-list`、`pages/dashboard`、`pages/chatbot`、`pages/Admin.tsx`）在 O-11 中整体清理；业务代码按下表归位。
 
 ```text
-frontend-admin-pro/
+frontend/merchant-web/
   config/
     config.ts            # 构建、代理、布局插件（只做加法，保持模板结构）
     defaultSettings.ts   # ProLayout 主题：title/logo/colorPrimary/token

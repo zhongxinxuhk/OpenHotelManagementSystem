@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  订单与占用 SQL（S1-05）。原则：
+  1. 查询与更新都带 tenant_id + hotel_id；
+  2. 不做"先查冲突再插入"：排斥只由 ex_room_occupancy_effective 保证；
+  3. 锁定语句显式写 ORDER BY + FOR UPDATE，锁序不接受调用方决定；
+  4. 不提供物理删除：占用、订单与订单行都是事实，终态只改状态。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.reservation.mapper.ReservationMapper">
+
+    <resultMap id="reservationMap" type="cn.sec.hn.openbackupsaas.reservation.domain.Reservation">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="reservation_no" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="cn.sec.hn.openbackupsaas.reservation.domain.ReservationSourceType"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.reservation.domain.ReservationStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="lineMap" type="cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="reservation_id" javaType="java.util.UUID"/>
+            <arg column="line_no" javaType="java.lang.Integer"/>
+            <arg column="requested_room_type_id" javaType="java.util.UUID"/>
+            <arg column="planned_range" javaType="cn.sec.hn.openbackupsaas.reservation.domain.StayRange"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.reservation.domain.LineStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="occupancyMap" type="cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="room_id" javaType="java.util.UUID"/>
+            <arg column="kind" javaType="cn.sec.hn.openbackupsaas.reservation.domain.OccupancyKind"/>
+            <arg column="reservation_id" javaType="java.util.UUID"/>
+            <arg column="line_id" javaType="java.util.UUID"/>
+            <arg column="stay_range" javaType="cn.sec.hn.openbackupsaas.reservation.domain.StayRange"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.reservation.domain.OccupancyStatus"/>
+            <arg column="expires_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="reason_code" javaType="java.lang.String"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="reservationColumns">
+        id, tenant_id, hotel_id, reservation_no, source_type, status, version, created_at, updated_at
+    </sql>
+
+    <sql id="lineColumns">
+        id, tenant_id, hotel_id, reservation_id, line_no, requested_room_type_id, planned_range,
+        status, version, created_at, updated_at
+    </sql>
+
+    <sql id="occupancyColumns">
+        id, tenant_id, hotel_id, room_id, kind, reservation_id, line_id, stay_range, status,
+        expires_at, reason_code, version, created_at, updated_at
+    </sql>
+
+    <!-- ============ 订单（O） ============ -->
+
+    <insert id="insertReservation" parameterType="cn.sec.hn.openbackupsaas.reservation.domain.Reservation">
+        INSERT INTO reservation (id, tenant_id, hotel_id, reservation_no, source_type, status, version,
+                                 created_at, updated_at)
+        VALUES (#{id}, #{tenantId}, #{hotelId}, #{reservationNo}, #{sourceType}, #{status}, #{version},
+                #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findReservation" resultMap="reservationMap">
+        SELECT <include refid="reservationColumns"/>
+        FROM reservation
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND id = #{id}
+    </select>
+
+    <select id="lockReservation" resultMap="reservationMap">
+        SELECT <include refid="reservationColumns"/>
+        FROM reservation
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND id = #{id}
+        FOR UPDATE
+    </select>
+
+    <select id="findAvailableRooms" resultMap="lockedRoomMap">
+        SELECT id, tenant_id, hotel_id, room_type_id, code, floor, status, housekeeping_status,
+               notes, version, created_at, updated_at
+        FROM physical_room r
+        WHERE r.tenant_id = #{tenantId}
+          AND r.hotel_id = #{hotelId}
+          AND r.room_type_id = #{roomTypeId}
+          AND r.status = 'ACTIVE'
+          AND NOT EXISTS (
+                SELECT 1 FROM room_occupancy o
+                WHERE o.tenant_id = r.tenant_id
+                  AND o.hotel_id = r.hotel_id
+                  AND o.room_id = r.id
+                  AND o.status IN ('HELD', 'CONFIRMED', 'CHECKED_IN', 'BLOCKED')
+                  AND o.stay_range &amp;&amp; #{range}::daterange
+          )
+        ORDER BY r.code
+    </select>
+
+    <!-- ============ 订单行（L） ============ -->
+
+    <insert id="insertLine" parameterType="cn.sec.hn.openbackupsaas.reservation.domain.ReservationLine">
+        INSERT INTO reservation_line (id, tenant_id, hotel_id, reservation_id, line_no, requested_room_type_id,
+                                      planned_range, status, version, created_at, updated_at)
+        VALUES (#{id}, #{tenantId}, #{hotelId}, #{reservationId}, #{lineNo}, #{requestedRoomTypeId},
+                #{plannedRange}::daterange, #{status}, #{version}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findLine" resultMap="lineMap">
+        SELECT <include refid="lineColumns"/>
+        FROM reservation_line
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND id = #{id}
+    </select>
+
+    <select id="findLinesByReservation" resultMap="lineMap">
+        SELECT <include refid="lineColumns"/>
+        FROM reservation_line
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND reservation_id = #{reservationId}
+        ORDER BY line_no
+    </select>
+
+    <select id="findOccupanciesByReservation" resultMap="occupancyMap">
+        SELECT <include refid="occupancyColumns"/>
+        FROM room_occupancy
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND reservation_id = #{reservationId}
+        ORDER BY line_id, stay_range
+    </select>
+
+    <update id="updateLineStatus">
+        UPDATE reservation_line
+        SET status = #{status}, updated_at = #{at}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND id = #{id}
+    </update>
+
+    <update id="updateReservationStatus">
+        UPDATE reservation
+        SET status = #{status}, updated_at = #{at}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND id = #{id}
+    </update>
+
+    <!-- ============ 占用（统一 A/B） ============ -->
+
+    <insert id="insertOccupancy" parameterType="cn.sec.hn.openbackupsaas.reservation.domain.RoomOccupancy">
+        INSERT INTO room_occupancy (id, tenant_id, hotel_id, room_id, kind, reservation_id, line_id,
+                                    stay_range, status, expires_at, reason_code, version, created_at, updated_at)
+        VALUES (#{id}, #{tenantId}, #{hotelId}, #{roomId}, #{kind}, #{reservationId}, #{lineId},
+                #{stayRange}::daterange, #{status}, #{expiresAt}, #{reasonCode}, #{version},
+                #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findOccupancy" resultMap="occupancyMap">
+        SELECT <include refid="occupancyColumns"/>
+        FROM room_occupancy
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND id = #{id}
+    </select>
+
+    <select id="findOccupanciesOfRoom" resultMap="occupancyMap">
+        SELECT <include refid="occupancyColumns"/>
+        FROM room_occupancy
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND room_id = #{roomId}
+        ORDER BY stay_range
+    </select>
+
+    <update id="updateOccupancyStatus">
+        UPDATE room_occupancy
+        SET status = #{status}, updated_at = #{at}, version = version + 1
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId} AND id = #{id}
+    </update>
+
+    <!--
+      资源锁：锁序由本语句固定为 id 升序，调用方传参顺序不影响锁序。
+      结果映射在本文件内单独定义，不跨命名空间引用 room 模块的 resultMap——
+      跨文件引用会让"改了 room 的映射却看不出这里依赖它"变成隐形耦合。
+    -->
+    <resultMap id="lockedRoomMap" type="cn.sec.hn.openbackupsaas.room.domain.PhysicalRoom">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="room_type_id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="floor" javaType="java.lang.Integer"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.room.domain.RoomStatus"/>
+            <arg column="housekeeping_status" javaType="cn.sec.hn.openbackupsaas.room.domain.HousekeepingStatus"/>
+            <arg column="notes" javaType="java.lang.String"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="lockRooms" resultMap="lockedRoomMap">
+        SELECT id, tenant_id, hotel_id, room_type_id, code, floor, status, housekeeping_status,
+               notes, version, created_at, updated_at
+        FROM physical_room
+        WHERE tenant_id = #{tenantId} AND hotel_id = #{hotelId}
+          AND id IN
+        <foreach collection="roomIds" item="roomId" open="(" separator="," close=")">
+            #{roomId}
+        </foreach>
+        ORDER BY id
+        FOR UPDATE
+    </select>
+
+</mapper>

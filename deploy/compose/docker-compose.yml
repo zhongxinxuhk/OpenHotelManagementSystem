@@ -1,0 +1,120 @@
+# =====================================================================
+# PMS 中间件编排（S2-07 交付之一）
+#
+# 定位与边界（先读这段再改文件）：
+#   · 服务对象：本地开发、CI 门禁、单机预发布。**不是生产 HA、不是 RPO=0 方案**——
+#     生产拓扑（主从、故障转移、异地备份）在阶段 6 实施（S6-06）。
+#   · 只有中间件，没有应用服务。这是刻意的：应用进程的部署形态（jar 直跑 / 容器 /
+#     系统服务）归 S2-07 的部署门与 S6 的生产拓扑，现在不假装已定。
+#     把 app 塞进来还意味着镜像构建流水线要先存在——那是下一步的事。
+#   · 数据库角色分权（pms_migrator 建表 / pms_app 只 DML）复用
+#     openbackupsaas/scripts/db-bootstrap.sql——**单一事实源**，本地脚本、CI、
+#     这里跑的是同一份 SQL。改授权只改那一个文件。
+#
+# 与本地一次性集群（scripts/dev-db.sh）的关系：
+#   两套并存，默认端口刻意一致（PG 55432），同一时刻只能用一个。
+#   选择指南见本目录 README.md §「dev-db.sh 与 compose 怎么选」。
+#
+# 快速开始：
+#   cp .env.example .env    # 并至少设置三个密码
+#   docker compose up -d --wait
+#   docker compose ps       # 三个服务都应为 healthy（postgres / rabbitmq / mailpit）
+# =====================================================================
+
+name: pms
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: pms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PMS_DB_NAME:-pms}
+      POSTGRES_USER: postgres
+      # :? 语法 = 未设置直接报错。空密码的数据库在任何共享环境都是事故，这里不让它发生。
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD（postgres 超级用户口令）}
+      # 传给 initdb/02-set-passwords.sh：宿主机变量不会自动进入容器，必须显式声明。
+      # （漏声明时现象是"healthy 但角色无口令"，应用连不上——本轮实测踩过。）
+      PMS_DB_PASSWORD: ${PMS_DB_PASSWORD:-}
+      PMS_DB_MIGRATOR_PASSWORD: ${PMS_DB_MIGRATOR_PASSWORD:-}
+      TZ: ${TZ:-Australia/Brisbane}
+    ports:
+      # 宿主端口默认 55432：与应用配置的默认值（PMS_DB_PORT:55432）一致，
+      # compose 起好后应用不需要任何额外配置就能连上。
+      - "${PMS_DB_PORT:-55432}:5432"
+    volumes:
+      - pms-pgdata:/var/lib/postgresql/data
+      # 首次初始化（空数据卷）时按文件名顺序执行：
+      #   01-bootstrap.sh     —— 调用 db-bootstrap.sql 建库/建角色/分权（见下方"为什么包一层"）
+      #   02-set-passwords.sh —— 给两个业务角色设置口令（trust 只适用于 dev-db.sh，容器必须口令认证）
+      # 两个坑都真实踩过：
+      #   · 不能把 db-bootstrap.sql 直接挂进 initdb：它用 psql 变量（:dbname），
+      #     entrypoint 执行 .sql 不传变量，从建库起全部报错，且 initdb 对脚本错误**不中止**，
+      #     服务照样 healthy、分权悄悄缺失。
+      #   · 脚本必须挂成 initdb 目录的**顶层文件**：entrypoint 只 glob 顶层，
+      #     挂成子目录会被静默忽略（日志里连 running 都不出现）。
+      - ./initdb/01-bootstrap.sh:/docker-entrypoint-initdb.d/01-bootstrap.sh:ro
+      - ./initdb/02-set-passwords.sh:/docker-entrypoint-initdb.d/02-set-passwords.sh:ro
+      - ../../openbackupsaas/scripts/db-bootstrap.sql:/bootstrap/db-bootstrap.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${PMS_DB_NAME:-pms}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  rabbitmq:
+    # alpine 变体与标准镜像同源同功能（含管理界面），体积减半；
+    # 与本地冒烟（S2-01 起使用）及 CI 的大版本一致。
+    image: rabbitmq:3.13-management-alpine
+    container_name: pms-rabbitmq
+    restart: unless-stopped
+    environment:
+      # 默认用户不再是 guest：guest 只允许容器内回环连接，端口映射出去后必被拒；
+      # 与应用侧 PMS_RABBIT_USER 默认值对齐。
+      RABBITMQ_DEFAULT_USER: ${PMS_RABBIT_USER:-pms_mq}
+      RABBITMQ_DEFAULT_PASS: ${PMS_RABBIT_PASSWORD:?请在 .env 中设置 PMS_RABBIT_PASSWORD}
+      TZ: ${TZ:-Australia/Brisbane}
+    ports:
+      - "${PMS_RABBIT_PORT:-55672}:5672"
+      # 管理界面：本地/预发布排障用。生产不应对外暴露（走跳板或关闭映射）。
+      - "${PMS_RABBIT_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - pms-rabbit:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+
+  # 验证码邮件通道的收信端（ADR-019 §2.10 的 EMAIL 实现，R-20261102-01）。
+  # MailPit = SMTP 服务器 + Web 收件箱：应用经宿主 55025 投信，人在 8025 看信。
+  # 与 PostgreSQL、RabbitMQ 同属一份编排——本地、CI、预发的"可发验证码邮件"环境
+  # 不需要任何额外搭建。生产不用这个服务（指向真实中继），所以它没有数据卷：
+  # 重启即清空，对"验证码"这种一次性材料反而是正确的生命周期。
+  # MP_MAX_MESSAGES 有界：防长跑环境内存无限增长（冒烟与联调的量级远低于上限）。
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: pms-mailpit
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "5000"
+      TZ: ${TZ:-Australia/Brisbane}
+    ports:
+      # SMTP：与应用配置默认值（PMS_SMTP_PORT:55025）一致，起好后零配置可连。
+      - "${PMS_SMTP_PORT:-55025}:1025"
+      # Web 收件箱：本地联调肉眼看码用。预发不应对外暴露（与 Rabbit 管理界面同一条边界）。
+      - "${PMS_MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      # /readyz 是 MailPit 的就绪探针端点（/api/v1/health 在 v1.20 不存在，实测 404）；
+      # busybox wget 存在于其 alpine 基底。
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8025/readyz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  pms-pgdata:
+  pms-rabbit:

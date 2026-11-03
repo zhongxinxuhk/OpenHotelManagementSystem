@@ -1,0 +1,17 @@
+export default {
+  'menu.overview': 'System Overview',
+  'menu.guest': 'Guest Identity',
+  'menu.guest.loginPolicy': 'Login Methods',
+  'menu.guest.channels': 'Verification Channels',
+  'menu.system': 'System',
+  'menu.system.trends': 'Trends',
+  'menu.system.users': 'Platform Users & Permissions',
+  'menu.system.audit': 'System Audit',
+  'menu.ota': 'OTA Integration',
+  'menu.ota.adapters': 'Adapters',
+  'menu.login': 'Login',
+  'menu.exception': 'Exception',
+  'menu.exception.403': '403',
+  'menu.exception.404': '404',
+  'menu.exception.500': '500',
+};

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  死信与人工处置（S2-04）。
+
+  两条纪律：
+  1. 结案/重放都带前置状态条件：同一条报文不能被重放两次（第一次已把它变成 REPLAYED）。
+  2. 处置留痕与状态变更必须由调用方放在同一事务里（见 OpsService）：
+     只改状态不留痕 = 事后无法追责；只留痕不改状态 = 台账说谎。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.ops.mapper.OpsMapper">
+
+    <resultMap id="deadLetterMap" type="cn.sec.hn.openbackupsaas.ops.domain.DeadLetter">
+        <constructor>
+            <idArg column="dead_letter_id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="message_body" javaType="java.lang.String"/>
+            <arg column="error" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.ops.domain.DeadLetterStatus"/>
+            <arg column="received_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="interventionMap" type="cn.sec.hn.openbackupsaas.ops.domain.OpsIntervention">
+        <constructor>
+            <idArg column="intervention_id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="target_type" javaType="cn.sec.hn.openbackupsaas.ops.domain.OpsIntervention$TargetType"/>
+            <arg column="target_id" javaType="java.util.UUID"/>
+            <arg column="action" javaType="cn.sec.hn.openbackupsaas.ops.domain.OpsIntervention$Action"/>
+            <arg column="operator_id" javaType="java.util.UUID"/>
+            <arg column="operator_name" javaType="java.lang.String"/>
+            <arg column="reviewer_name" javaType="java.lang.String"/>
+            <arg column="reason" javaType="java.lang.String"/>
+            <arg column="before_state" javaType="java.lang.String"/>
+            <arg column="after_state" javaType="java.lang.String"/>
+            <arg column="occurred_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <select id="insertDeadLetter" resultType="java.util.UUID">
+        INSERT INTO dead_letter (tenant_id, source, message_body, error)
+        VALUES (#{tenantId}, #{source}, #{messageBody}, #{error})
+        RETURNING dead_letter_id
+    </select>
+
+    <select id="findDeadLetter" resultMap="deadLetterMap">
+        SELECT dead_letter_id, tenant_id, source, message_body, error, status, received_at
+        FROM dead_letter
+        WHERE dead_letter_id = #{deadLetterId}
+    </select>
+
+    <select id="findPendingDeadLetters" resultMap="deadLetterMap">
+        SELECT dead_letter_id, tenant_id, source, message_body, error, status, received_at
+        FROM dead_letter
+        WHERE status = 'PENDING'
+        ORDER BY received_at
+        LIMIT #{limit}
+    </select>
+
+    <update id="settleDeadLetter">
+        UPDATE dead_letter
+        SET status = #{status},
+            settled_at = now(),
+            -- 显式 jdbcType：detail 为 null 时 PostgreSQL 需要知道参数类型，否则报
+            -- "could not determine data type of parameter $3"（首跑就 500 在这）
+            error = CASE WHEN #{detail,jdbcType=VARCHAR} IS NULL THEN error
+                         ELSE #{detail,jdbcType=VARCHAR} END
+        WHERE dead_letter_id = #{deadLetterId}
+          AND status = 'PENDING'
+    </update>
+
+    <!--
+      重放：只从 DEAD / MANUAL_REVIEW 拉回。SUCCEEDED 不该被重放（会把已完成的再发一次），
+      RUNNING 不该被抢（可能正在执行），PENDING 不需要重放。
+    -->
+    <update id="replayExternalTask">
+        UPDATE external_task
+        SET status = 'PENDING',
+            max_attempts = attempts + #{extraAttempts},
+            next_attempt_at = now(),
+            lease_token = NULL,
+            lease_until = NULL,
+            completed_at = NULL,
+            last_error = #{reason},
+            updated_at = now()
+        WHERE task_id = #{taskId}
+          AND status IN ('DEAD', 'MANUAL_REVIEW')
+    </update>
+
+    <insert id="insertIntervention">
+        INSERT INTO ops_intervention (tenant_id, target_type, target_id, action, operator_id,
+                                      operator_name, reviewer_name, reason, before_state, after_state)
+        VALUES (#{i.tenantId}, #{i.targetType}, #{i.targetId}, #{i.action}, #{i.operatorId},
+                #{i.operatorName}, #{i.reviewerName}, #{i.reason}, #{i.beforeState}, #{i.afterState})
+    </insert>
+
+    <select id="findRecentInterventions" resultMap="interventionMap">
+        SELECT intervention_id, tenant_id, target_type, target_id, action, operator_id,
+               operator_name, reviewer_name, reason, before_state, after_state, occurred_at
+        FROM ops_intervention
+        ORDER BY occurred_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="countExternalTasksByStatus" resultType="long">
+        SELECT count(*)
+        FROM external_task
+        WHERE status IN
+        <foreach collection="statuses" item="status" open="(" separator="," close=")">
+            #{status}
+        </foreach>
+    </select>
+
+    <select id="countPendingDeadLetters" resultType="long">
+        SELECT count(*) FROM dead_letter WHERE status = 'PENDING'
+    </select>
+
+    <select id="countParkedInboxEvents" resultType="long">
+        SELECT count(*) FROM inbox_event WHERE outcome = 'PARKED_GAP'
+    </select>
+
+    <select id="findExternalTaskMeta" resultType="java.util.Map">
+        SELECT task_type, channel FROM external_task WHERE task_id = #{taskId}
+    </select>
+
+</mapper>

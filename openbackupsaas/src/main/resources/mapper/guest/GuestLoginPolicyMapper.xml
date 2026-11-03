@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  住客登录方式开关 SQL（ADR-019 §2.9）。
+  表里没有行 = 该方式不可用；种子行由 V16 写入（USERNAME=true，其余 false）。
+  本表在 DatabaseCleaner 的保留清单里（结构性配置）：测试改动策略必须自行恢复。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.guest.mapper.GuestLoginPolicyMapper">
+
+    <resultMap id="guestLoginPolicyMap" type="cn.sec.hn.openbackupsaas.guest.domain.GuestLoginPolicy">
+        <constructor>
+            <arg column="provider" javaType="java.lang.String"/>
+            <arg column="enabled" javaType="_boolean"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <select id="find" resultMap="guestLoginPolicyMap">
+        SELECT provider, enabled, updated_at, updated_by
+        FROM guest_login_policy
+        WHERE provider = #{provider}
+    </select>
+
+    <select id="findAll" resultMap="guestLoginPolicyMap">
+        SELECT provider, enabled, updated_at, updated_by
+        FROM guest_login_policy
+        ORDER BY provider
+    </select>
+
+    <update id="upsert">
+        INSERT INTO guest_login_policy (provider, enabled, updated_by, updated_at)
+        VALUES (#{provider}, #{enabled}, #{updatedBy}, #{at})
+        ON CONFLICT (provider)
+        DO UPDATE SET enabled = EXCLUDED.enabled,
+                      updated_by = EXCLUDED.updated_by,
+                      updated_at = EXCLUDED.updated_at
+    </update>
+
+</mapper>

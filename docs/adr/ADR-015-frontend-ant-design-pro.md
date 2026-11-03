@@ -8,6 +8,9 @@
 >
 > 关联：[前端工程规范](../development/frontend-antd-pro.md)、[功能清单 O 域](../development/feature-catalog.md)、[进度台账](../development/progress.md)。
 
+> **目录迁移（R-20261101-29）**：本文批准的技术选型不变，但工程目录已由 `frontend-admin-pro/`
+> 迁入 `frontend/merchant-web/`，作为多端结构中的"Web 商家端"。见 [ADR-017](./ADR-017-multi-surface-and-identity-planes.md)。
+
 ## 1. 背景
 
 ADR-011（2026-10-19）在现有 Vue 3 初始化工程上确定了「Vue 3.5 + TypeScript + Vite + Element Plus 2.14.7」作为管理端基线，只完成了一个 Element Plus 按钮的最小构建探针，尚无业务页面。

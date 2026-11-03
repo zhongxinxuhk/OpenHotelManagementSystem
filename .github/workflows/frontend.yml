@@ -1,16 +1,33 @@
 name: frontend
 
-# 前端门禁：tsc + biome lint + build（ADR-015 三件套）。
-# 本地 Agent 沙箱无法完成 npm ci（见 docs/verification/S3-01a），CI 是当前唯一可重复的依赖安装环境。
+# 前端门禁（ADR-015 三件套）：tsc + biome lint + 生产构建。
+#
+# 五工程矩阵（R-20261102-06 起多端并跑）：merchant-web / platform-admin /
+# platform-ops / guest / corp-portal。各端独立依赖（不建 workspace），
+# 同一份 package-lock 派生（版本严格一致），矩阵逐工程执行同一条门禁链。
+#
+# 为什么每一步都要在这里跑：三件套缺一不可——
+# tsc 抓类型、biome 抓风格与明显错误、build 抓"引用了不存在的文件"这类
+# 只有打包才暴露的问题（Welcome 页的悬挂 import 就是这么红过两轮的）。
 on:
   push:
     paths:
-      - 'frontend-admin-pro/**'
+      - 'frontend/**'
       - '.github/workflows/frontend.yml'
   pull_request:
+    branches:
+      - main
     paths:
-      - 'frontend-admin-pro/**'
+      - 'frontend/**'
       - '.github/workflows/frontend.yml'
+  workflow_dispatch:
+  # 与 backend 同理：beta 出包前被调用，全绿才允许打包（详见 .github/workflows/beta.yml）。
+  # 注意：beta 的发布物仍然只有 merchant-web 的 dist——其余四端是控制台骨架，
+  # 进入发布链前会各自补打包步骤；门禁先行是为了"未发布的端也不能红"。
+  workflow_call:
+
+permissions:
+  contents: read
 
 concurrency:
   group: frontend-${{ github.ref }}
@@ -19,24 +36,39 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - merchant-web
+          - platform-admin
+          - platform-ops
+          - guest
+          - corp-portal
     defaults:
       run:
-        working-directory: frontend-admin-pro
+        working-directory: frontend/${{ matrix.project }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: frontend-admin-pro/package-lock.json
+          cache-dependency-path: frontend/${{ matrix.project }}/package-lock.json
 
       - name: Install (locked)
         run: npm ci --no-audit --no-fund
 
       - name: Type check
+        # `npm run tsc` 内部是 `max setup && tsc --noEmit`。
+        # 不能省掉 max setup：@umijs/max 的 request / history / Link / useIntl 等插件导出
+        # 只存在于 umi 生成的 src/.umi 类型里。本地因为跑过 dev/build 一直有这份生成物，
+        # CI 是全新检出、没有它——2026-10-30 的 CI 实跑正是因此报了 40+ 个
+        # "Module '@umijs/max' has no exported member ..."。把顺序固化进脚本，
+        # 本地与 CI 走同一条命令，这类"只在干净环境出现"的问题才会在本地先暴露。
         run: npm run tsc
 
       - name: Lint
@@ -44,3 +76,24 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Assert build output is deployable
+        # 两条都是真实踩过的坑，不是形式检查：
+        #   1. 模板 public/CNAME 会让任意静态托管把域名指到 Ant Design 官方预览站；
+        #   2. 缺 index.html 说明打包没真正完成（而 build 未以非零码退出）。
+        run: |
+          test -f dist/index.html || { echo "::error::dist/index.html 缺失，构建不完整（${{ matrix.project }}）"; exit 1; }
+          if [ -f dist/CNAME ]; then
+            echo "::error::构建产物包含 CNAME（模板残留），部署会改写域名（${{ matrix.project }}）"
+            exit 1
+          fi
+          echo "${{ matrix.project }} dist 大小：$(du -sh dist | cut -f1)"
+
+      - name: Upload dist
+        if: success()
+        uses: actions/upload-artifact@v5
+        with:
+          name: frontend-dist-${{ matrix.project }}
+          path: frontend/${{ matrix.project }}/dist/**
+          if-no-files-found: warn
+          retention-days: 7

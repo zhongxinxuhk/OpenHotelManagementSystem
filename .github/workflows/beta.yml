@@ -1,0 +1,243 @@
+name: beta
+
+# =====================================================================
+# Beta 预发布通道：后端可执行 jar + 前端 dist → GitHub Pre-release
+#
+# 回答三件事：**出什么包**、**到哪去**、**凭什么相信这一版**。
+#
+# 1. 出什么包（不做容器化）
+#      · 后端：`pms-backend.tar.gz` —— 可执行 jar（内嵌 Tomcat）+ `bin/app.sh`
+#        + `compose/`（中间件编排）+ env 模板
+#      · 前端：`pms-frontend.tar.gz` —— `dist/` + `nginx/pms-web.conf`（宿主机 nginx 可直接用）
+#      · `SHA256SUMS`：上面两个 tar.gz 的校验和
+#
+# 2. 到哪去
+#      tag 固定为 `beta` 的 **GitHub Pre-release**。文件名固定（不带 run 号 / 日期），
+#      便于脚本抓取；发布前先精确删除上一次的同名 asset，不堆积历史附件。
+#
+# 3. 凭什么相信
+#      · 出包前**强制调用 backend / frontend 两个门禁**（`workflow_call`）——
+#        没有"跳过测试直接出 beta 包"的开关。可复用工作流检出的正是调用方同一个 commit，
+#        因此不可能出现"测 A 出包 B"。
+#      · 这里**不重跑测试**：JUnit（含真实 PostgreSQL / RabbitMQ 集成用例、零跳过断言）
+#        与 `npm run tsc` + `biome:lint` + `build` 已在门禁 job 同一 commit 上完成。
+#
+# 关于 x64 / arm64：jar 是字节码、dist 是 HTML/JS/CSS，**都不含机器码**，
+#   同一份产物在两种架构上通用，故不做按架构拆分。若将来引入 GraalVM native-image
+#   或架构相关原生依赖，再改成「原生 runner 矩阵构建 + manifest 合并」。
+# =====================================================================
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'openbackupsaas/**'
+      - 'frontend/**'
+      - 'deploy/app.sh'
+      - 'deploy/nginx/**'
+      - '.github/workflows/beta.yml'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '出包的 git ref（留空则用当前 ref）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: beta-${{ github.ref }}
+  # 出包不取消：让正在上传的产物跑完，避免留下半截 release
+  cancel-in-progress: false
+
+jobs:
+  # ---------- 门禁：出包的入场券 ----------
+  gate-backend:
+    uses: ./.github/workflows/backend.yml
+    permissions:
+      contents: read
+
+  gate-frontend:
+    uses: ./.github/workflows/frontend.yml
+    permissions:
+      contents: read
+
+  # ---------- 构建：jar + dist ----------
+  build:
+    needs: [gate-backend, gate-frontend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      # ---------- 后端 ----------
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: openbackupsaas/pom.xml
+
+      - name: Package backend jar
+        working-directory: openbackupsaas
+        # 不重跑测试：单元测试与真实 PostgreSQL / RabbitMQ 集成用例已由 gate-backend
+        # 在同一 commit 上跑过并断言零跳过；这里再跑只是加倍烧 CI 时间。
+        run: ./mvnw -B -ntp -Dstyle.color=never -DskipTests package
+
+      # ---------- 前端 ----------
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/merchant-web/package-lock.json
+
+      - name: Build frontend dist
+        working-directory: frontend/merchant-web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Assert build output is deployable
+        working-directory: frontend/merchant-web
+        run: |
+          test -f dist/index.html || { echo '::error::dist/index.html 缺失，构建不完整'; exit 1; }
+          if [ -f dist/CNAME ]; then
+            echo '::error::构建产物包含 CNAME（模板残留），部署会改写域名'
+            exit 1
+          fi
+          echo "dist 大小：$(du -sh dist | cut -f1)"
+
+      # ---------- 打包与校验和 ----------
+      - name: Assemble bundles and checksums
+        run: |
+          set -euo pipefail
+          short="$(git rev-parse --short=7 HEAD)"
+          built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          jar="$(ls openbackupsaas/target/openbackupsaas-*.jar | grep -v '\.jar\.original$' | head -1)"
+          test -n "${jar}" || { echo '::error::未找到可执行 jar'; exit 1; }
+
+          mkdir -p release-out
+          staged="$(mktemp -d)"
+
+          # ---------- 后端 ----------
+          api_dir="${staged}/pms-backend-${short}"
+          mkdir -p "${api_dir}/bin" "${api_dir}/lib" "${api_dir}/compose" "${api_dir}/nginx"
+          cp "${jar}" "${api_dir}/lib/"
+          cp deploy/app.sh "${api_dir}/bin/"
+          cp deploy/compose/docker-compose.yml "${api_dir}/compose/"
+          cp deploy/compose/.env.example "${api_dir}/compose/.env.example"
+          cp deploy/nginx/pms-web.conf "${api_dir}/nginx/"
+          printf '%s\n' \
+            "PMS 后端发行包" \
+            "  commit   : ${short}" \
+            "  built-at : ${built_at}" \
+            "" \
+            "jar 为字节码，x64 / arm64 通用；中间件由 compose/ 提供。" \
+            "" \
+            "用法：" \
+            "  1) cd compose && cp .env.example .env，然后设置四个密码" \
+            "  2) docker compose up -d --wait" \
+            "  3) 回到本目录：PMS_JAR=lib/$(basename "${jar}") bin/app.sh start api" \
+            > "${api_dir}/README.txt"
+          tar -czf "release-out/pms-backend.tar.gz" -C "${staged}" "pms-backend-${short}"
+
+          # ---------- 前端 ----------
+          web_dir="${staged}/pms-frontend-${short}"
+          mkdir -p "${web_dir}/dist" "${web_dir}/nginx"
+          cp -r frontend/merchant-web/dist/. "${web_dir}/dist/"
+          cp deploy/nginx/pms-web.conf "${web_dir}/nginx/"
+          printf '%s\n' \
+            "PMS 管理端前端发行包" \
+            "  commit   : ${short}" \
+            "  built-at : ${built_at}" \
+            "" \
+            "纯静态产物（HTML/JS/CSS），与宿主架构无关，x64 / arm64 同一份。" \
+            "部署：把 dist/ 内容放到 /usr/share/nginx/pms-web，" \
+            "再把 nginx/pms-web.conf 复制到 /etc/nginx/conf.d/ 后 reload。" \
+            > "${web_dir}/README.txt"
+          tar -czf "release-out/pms-frontend.tar.gz" -C "${staged}" "pms-frontend-${short}"
+
+          cd release-out
+          # 只算 tar.gz：jar 已包含在内，不重复列一份以免"同一文件两套校验和"
+          shasum -a 256 *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@v5
+        with:
+          name: pms-beta-bundles
+          path: |
+            release-out/*.tar.gz
+            release-out/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 90
+
+  # ---------- 发布：产物进 tag 为 beta 的 Pre-release ----------
+  release:
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download bundles
+        uses: actions/download-artifact@v5
+        with:
+          name: pms-beta-bundles
+          path: release-out
+
+      - name: Remove previous beta assets
+        # asset 名固定，重名会让 GH 拒绝上传。精确删掉上一次的三个，
+        # 而不是删整个 release —— 保留 tag 与历史发布时间更利于追溯。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release view beta >/dev/null 2>&1 || { echo "尚无 beta release，跳过清理"; exit 0; }
+          for a in pms-backend.tar.gz pms-frontend.tar.gz SHA256SUMS; do
+            gh release delete-asset beta "$a" --yes >/dev/null 2>&1 || echo "  上次无 $a"
+          done
+
+      - name: Publish beta pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: beta
+          name: 'PMS beta (${{ github.sha }})'
+          prerelease: true
+          target_commitish: ${{ github.sha }}
+          fail_on_unmatched_files: true
+          # 资产名固定（不带 run 号 / 日期）：一是便于脚本抓取，二是同名 asset 可覆盖。
+          files: |
+            release-out/pms-backend.tar.gz
+            release-out/pms-frontend.tar.gz
+            release-out/SHA256SUMS
+          body: |
+            ## 本次 beta 包含什么
+
+            - `pms-backend.tar.gz`：可执行 jar（`lib/openbackupsaas-*.jar`）+ `bin/app.sh`
+              + `compose/`（中间件编排）+ env 模板
+            - `pms-frontend.tar.gz`：前端 `dist/` + `nginx/pms-web.conf`
+            - `SHA256SUMS`：上述两个 tar.gz 的校验和
+
+            jar 是字节码、dist 是 HTML/JS/CSS，**都不含机器码**，x64 / arm64 共用同一份，
+            因此不做按架构拆分。
+
+            ## 怎么信这一版
+
+            - 提交：`${{ github.sha }}`
+            - 出包前已由 `backend` 与 `frontend` 两个门禁 workflow 在同一 commit 上验证通过：
+              JUnit（含真实 PostgreSQL / RabbitMQ 集成用例，断言零跳过）+ `npm run tsc` + `biome:lint` + `build`
+            - 完整性：`SHA256SUMS`
+
+            ## 部署形态
+
+            中间件由 `deploy/compose` 编排（Postgres / RabbitMQ），后端 api/worker **裸机**运行
+            （`bin/app.sh`），前端由宿主机 nginx 托管。**不再产出容器镜像**。
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

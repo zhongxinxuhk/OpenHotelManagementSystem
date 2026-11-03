@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  幂等记录 SQL（S1-07）。原则：
+  1. 占位靠唯一键冲突而不是加锁：并发的第二个 INSERT 必然失败，由服务层转成 409；
+  2. 没有 DELETE：保留期不得早于合法重试窗口，清理策略留 S6-03；
+  3. 状态推进只在终态写 completed_at，处理中不写；
+  4. jsonb 快照走文本绑定 + ::jsonb（驱动为 runtime 作用域）。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.command.mapper.IdempotencyMapper">
+
+    <resultMap id="idempotencyMap" type="cn.sec.hn.openbackupsaas.command.domain.IdempotencyRecord">
+        <constructor>
+            <idArg column="operation_id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="caller_namespace" javaType="java.lang.String"/>
+            <arg column="command_name" javaType="java.lang.String"/>
+            <arg column="idempotency_key" javaType="java.lang.String"/>
+            <arg column="hash_version" javaType="java.lang.Integer"/>
+            <arg column="request_hash" javaType="java.lang.String"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.command.domain.IdempotencyStatus"/>
+            <arg column="result_code" javaType="java.lang.String"/>
+            <arg column="result_ref" javaType="java.util.UUID"/>
+            <arg column="response_snapshot" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="completed_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="idempotencyColumns">
+        operation_id, tenant_id, hotel_id, caller_namespace, command_name, idempotency_key,
+        hash_version, request_hash, status, result_code, result_ref, response_snapshot,
+        created_at, completed_at
+    </sql>
+
+    <insert id="insertInProgress" parameterType="cn.sec.hn.openbackupsaas.command.domain.IdempotencyRecord">
+        INSERT INTO idempotency_record (operation_id, tenant_id, hotel_id, caller_namespace, command_name,
+                                        idempotency_key, hash_version, request_hash, status,
+                                        result_code, result_ref, response_snapshot, created_at, completed_at)
+        VALUES (#{operationId}, #{tenantId}, #{hotelId}, #{callerNamespace}, #{commandName},
+                #{idempotencyKey}, #{hashVersion}, #{requestHash}, #{status},
+                #{resultCode}, #{resultRef}, #{responseSnapshot}::jsonb, now(), #{completedAt})
+        ON CONFLICT DO NOTHING
+    </insert>
+
+    <insert id="insertFailed" parameterType="cn.sec.hn.openbackupsaas.command.domain.IdempotencyRecord">
+        INSERT INTO idempotency_record (operation_id, tenant_id, hotel_id, caller_namespace, command_name,
+                                        idempotency_key, hash_version, request_hash, status,
+                                        result_code, result_ref, response_snapshot, created_at, completed_at)
+        VALUES (#{operationId}, #{tenantId}, #{hotelId}, #{callerNamespace}, #{commandName},
+                #{idempotencyKey}, #{hashVersion}, #{requestHash}, #{status},
+                #{resultCode}, #{resultRef}, #{responseSnapshot}::jsonb, #{createdAt}, #{completedAt})
+        ON CONFLICT DO NOTHING
+    </insert>
+
+    <select id="findByScope" resultMap="idempotencyMap">
+        SELECT <include refid="idempotencyColumns"/>
+        FROM idempotency_record
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND caller_namespace = #{callerNamespace}
+          AND command_name = #{commandName}
+          AND idempotency_key = #{idempotencyKey}
+    </select>
+
+    <select id="findByOperation" resultMap="idempotencyMap">
+        SELECT <include refid="idempotencyColumns"/>
+        FROM idempotency_record
+        WHERE tenant_id = #{tenantId} AND operation_id = #{operationId}
+    </select>
+
+    <update id="markSucceeded">
+        UPDATE idempotency_record
+        SET status = 'SUCCEEDED',
+            result_ref = #{resultRef},
+            response_snapshot = #{responseSnapshot}::jsonb,
+            completed_at = #{at}
+        WHERE tenant_id = #{tenantId} AND operation_id = #{operationId} AND status = 'IN_PROGRESS'
+    </update>
+
+    <update id="markFailed">
+        UPDATE idempotency_record
+        SET status = 'FAILED',
+            result_code = #{resultCode},
+            completed_at = #{at}
+        WHERE tenant_id = #{tenantId} AND operation_id = #{operationId} AND status = 'IN_PROGRESS'
+    </update>
+
+    <select id="statusOf" resultType="cn.sec.hn.openbackupsaas.command.domain.IdempotencyStatus">
+        SELECT status
+        FROM idempotency_record
+        WHERE tenant_id = #{tenantId} AND operation_id = #{operationId}
+    </select>
+
+</mapper>

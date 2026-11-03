@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  到期承接 SQL（S1-10）。三条原则：
+
+  1. **到期判定只用数据库时钟**（now()）：多 Worker 分属不同机器，应用时钟漂移会直接
+     变成"谁先谁后"的业务差异。注意 now() 是事务开始时间，同一批扫描内取值一致。
+  2. **领取用 FOR UPDATE OF r SKIP LOCKED**：这是"多 Worker 重复扫描只释放一次"的落点。
+     不是先查后改，也不是抢占式 UPDATE，而是让第二个 Worker 直接看不见已被领取的行。
+     OF r 只锁订单表，不去锁子查询里的占用行，避免无谓的锁竞争。
+  3. **不改状态就不算领取成功**：真正迁移用带 status = 'PENDING' 的条件 UPDATE，
+     返回 0 即"别人先处理了"，服务层据此跳过。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.reservation.mapper.ReservationExpiryMapper">
+
+    <resultMap id="dueReservationMap"
+               type="cn.sec.hn.openbackupsaas.reservation.domain.DueReservation">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="version" javaType="java.lang.Long"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+      领取到期订单。
+
+      写法是"占用驱动 + 订单定位"，不是"遍历 PENDING 单逐单 EXISTS"：
+      后者虽然等价，但相关子查询的每一行都要按 reservation_id 回查占用，
+      于是 V4 为这个任务专门建的 idx_room_occupancy_expiring（(expires_at, reservation_id)
+      WHERE kind='RESERVATION' AND status='HELD'）永远用不上——实测规划器会改走
+      idx_room_occupancy_room。改成派生表 + DISTINCT 之后，内层是
+      "Index Only Scan using idx_room_occupancy_expiring / Index Cond: expires_at <= now()"，
+      扫描量与"已过期未释放的占用数"成正比，而不是与 PENDING 单总量成正比。
+
+      DISTINCT 放在派生表里而不是外层 SELECT：外层一旦出现 DISTINCT 就与
+      FOR UPDATE 冲突（PG 明确禁止），会直接报错而不是慢一点。
+    -->
+    <select id="claimDueReservations" resultMap="dueReservationMap">
+        SELECT r.id, r.tenant_id, r.hotel_id, r.version
+        FROM reservation r
+        JOIN (
+            SELECT DISTINCT o.reservation_id
+            FROM room_occupancy o
+            WHERE o.kind = 'RESERVATION'
+              AND o.status = 'HELD'
+              AND o.expires_at &lt;= now()
+        ) due ON due.reservation_id = r.id
+        WHERE r.status = 'PENDING'
+          AND NOT EXISTS (
+                SELECT 1
+                FROM room_occupancy h
+                WHERE h.tenant_id = r.tenant_id
+                  AND h.hotel_id = r.hotel_id
+                  AND h.reservation_id = r.id
+                  AND h.kind = 'RESERVATION'
+                  AND h.status = 'HELD'
+                  AND h.expires_at &gt; now()
+          )
+        ORDER BY r.id
+        LIMIT #{batchSize}
+        FOR UPDATE OF r SKIP LOCKED
+    </select>
+
+    <update id="expireIfPending">
+        UPDATE reservation
+        SET status = 'EXPIRED', updated_at = now(), version = version + 1
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND id = #{id}
+          AND status = 'PENDING'
+    </update>
+
+    <resultMap id="holdDueMap"
+               type="cn.sec.hn.openbackupsaas.reservation.domain.HoldDueState">
+        <constructor>
+            <arg column="held_count" javaType="java.lang.Long"/>
+            <arg column="undue_count" javaType="java.lang.Long"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+      二次校验：HELD 总数 与 其中未到期（expires_at 为空或仍在未来）的数量。
+      FILTER 而不是两条查询：同一行集合被数两遍，才不会出现"数第一条时还没有新 HELD、
+      数第二条时已经有了"的错觉。
+    -->
+    <select id="checkHoldDue" resultMap="holdDueMap">
+        SELECT count(*) AS held_count,
+               count(*) FILTER (WHERE expires_at IS NULL OR expires_at &gt; now()) AS undue_count
+        FROM room_occupancy
+        WHERE tenant_id = #{tenantId}
+          AND hotel_id = #{hotelId}
+          AND reservation_id = #{reservationId}
+          AND kind = 'RESERVATION'
+          AND status = 'HELD'
+    </select>
+
+</mapper>

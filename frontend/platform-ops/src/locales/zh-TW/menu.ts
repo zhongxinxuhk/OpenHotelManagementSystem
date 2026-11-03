@@ -1,0 +1,16 @@
+export default {
+  'menu.workbench': '營運工作台',
+  'menu.verification': '實名審核',
+  'menu.verification.queue': '審核佇列',
+  'menu.customer': '客服',
+  'menu.customer.tickets': '工單',
+  'menu.audit': '業務審計',
+  'menu.audit.operations': '操作留痕',
+  'menu.ota': 'OTA 對接',
+  'menu.ota.commercial': '商業授權',
+  'menu.login': '登入',
+  'menu.exception': '異常頁',
+  'menu.exception.403': '無存取權限',
+  'menu.exception.404': '頁面不存在',
+  'menu.exception.500': '服務異常',
+};

@@ -1,0 +1,51 @@
+# Prometheus 抓取配置（S2-06 告警采集端，部署形态：裸机 + 宿主机 nginx）
+#
+# 用法：把本文件作为 prometheus 的 --config.file。被抓取的 /actuator/prometheus
+# 由后端暴露（见 application.properties 的 management.endpoints.web.exposure.include）。
+# 业务指标统一前缀 pms.，抓取端按前缀过滤；积压/链路指标由 OutboxBacklogMonitor 与
+# micrometer 自动注册。
+#
+# 注意：本文件只定义"采什么、怎么评、告警发去哪"。告警真正送达值班人（钉钉/邮件/电话）
+# 由 Alertmanager 配置，需填入真实接收人——这属于 S2-07 预发宿主机的部署动作，不在此写死。
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: pms-prod
+
+rule_files:
+  - alert-rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - localhost:9093   # Alertmanager 地址，预发/生产部署时替换
+
+scrape_configs:
+  # 后端 API/Worker 进程的 /actuator/prometheus
+  - job_name: pms-backend
+    metrics_path: /actuator/prometheus
+    scheme: http
+    static_configs:
+      - targets:
+          - localhost:8080     # 与 server.port 一致；多实例时列全部
+        labels:
+          service: pms
+
+  # compose 起的 PostgreSQL 暴露的指标（如需，自行在 compose 里加 exporter）
+  - job_name: pms-postgres
+    static_configs:
+      - targets:
+          - localhost:9187     # postgres_exporter，可选
+        labels:
+          service: postgres
+
+  # RabbitMQ 指标（可选）
+  - job_name: pms-rabbitmq
+    static_configs:
+      - targets:
+          - localhost:15692    # rabbitmq_prometheus_plugin，可选
+        labels:
+          service: rabbitmq

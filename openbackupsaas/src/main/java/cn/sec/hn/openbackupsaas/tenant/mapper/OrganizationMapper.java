@@ -43,4 +43,13 @@ public interface OrganizationMapper {
     Optional<Hotel> findHotelByCode(@Param("tenantId") UUID tenantId, @Param("code") String code);
 
     List<Hotel> findHotels(@Param("tenantId") UUID tenantId);
+
+    /**
+     * 按 id 集合取门店，且必须同时带 tenantId。
+     *
+     * <p>用于"当前身份数据范围内的门店"这类查询：调用方把可信身份里的
+     * {@code hotelIds} 传进来，SQL 在库层就完成租户收窄与范围收窄。
+     * 空集合直接返回空列表，不退化成"返回全部门店"——那正是撤权变扩权的地方。
+     */
+    List<Hotel> findHotelsByIds(@Param("tenantId") UUID tenantId, @Param("ids") List<UUID> ids);
 }

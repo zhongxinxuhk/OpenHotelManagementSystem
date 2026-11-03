@@ -47,6 +47,42 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!--
+          可观测性（S2-06）：Prometheus 抓取端点（micrometer-registry-prometheus，runtime）
+          + OpenTelemetry 链路桥接（默认只做进程内上下文传播，**不外发 span**）。
+          采样率默认 0（见 application.properties 的 management.tracing.sampling.probability）；
+          需要把链路发到采集器时，再加 opentelemetry-exporter-otlp 并配置 management.otlp.tracing.endpoint。
+          原则同 Outbox：不能让"默认配置"就把内部调用细节发到一个没被批准的外部端点。
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
+        <!-- 可靠消息：阶段 2 唯一 Broker（ADR-011 §2「消息」行：只选 RabbitMQ，阶段 2 接入） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
+        <!--
+          验证码邮件通道（ADR-019 §2.10 的 EMAIL 实现，R-20261102-01）：
+          只取 spring-context-support 的 JavaMailSender 与 jakarta.mail，不启用
+          spring.mail.* 自动配置——这条通道只服务归属挑战，host/port/from 全部由
+          pms.guest.ownership.mail.* 域内配置驱动（PMS_SMTP_* 环境变量），
+          避免出现"全局邮件发件人"这种与用途无关的共享配置。
+          本地/CI 的收信端是 compose 里的 MailPit（deploy/compose/docker-compose.yml）。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- 数据访问：JDBC + MyBatis（单一持久化方案，不混用 JPA/jOOQ） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -83,6 +119,11 @@
         </dependency>
 
         <!-- 测试 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>

@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  Outbox 投递侧 SQL（S2-01）。
+
+  三条铁律写在最前面，改这段 SQL 前先读一遍：
+  1. 去重靠租约条件，不靠 SKIP LOCKED。
+     · 租约条件（lease_until IS NULL OR lease_until <= now()）才是"这条不归别人"的判据：
+       去掉它，两个 Worker 会各自领到同一批行（实测重复 10 条）。
+     · SKIP LOCKED 只解决"等待"：没有它，后到的 Worker 会阻塞在前一批行锁上，
+       直到对方提交；有它则立刻跳到别的行。它是吞吐优化，不是正确性保证。
+  2. 标记已发布必须带 lease_token 条件：租约过期说明可能已换人，无条件覆盖会掩盖"究竟发布没发布"。
+  3. payload 不可改写：这里只更新投递元数据（published_at / attempt_count / next_attempt_at /
+     lease_* / last_error）。改写 payload 等于伪造一条已发布的事实。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.journal.mapper.OutboxPublisherMapper">
+
+    <resultMap id="pendingEventMap" type="cn.sec.hn.openbackupsaas.journal.domain.PendingOutboxEvent">
+        <constructor>
+            <idArg column="event_id" javaType="java.util.UUID"/>
+            <arg column="tenant_id" javaType="java.util.UUID"/>
+            <arg column="hotel_id" javaType="java.util.UUID"/>
+            <arg column="aggregate_type" javaType="java.lang.String"/>
+            <arg column="aggregate_id" javaType="java.util.UUID"/>
+            <arg column="aggregate_version" javaType="java.lang.Long"/>
+            <arg column="event_ordinal" javaType="java.lang.Integer"/>
+            <arg column="event_type" javaType="java.lang.String"/>
+            <arg column="schema_version" javaType="java.lang.Integer"/>
+            <arg column="payload" javaType="java.lang.String"/>
+            <arg column="occurred_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="attempt_count" javaType="java.lang.Integer"/>
+            <arg column="lease_token" javaType="java.util.UUID"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+      领取 = 挑选 + 加锁 + 打租约，一条语句完成。
+
+      · 到期判据是 next_attempt_at <= now()：退避期未到的事件不参与竞争。
+      · 租约判据是 lease_until <= now()：别人正在发的行跳过（配合 SKIP LOCKED 也跳过行锁）。
+      · attempt_count 在这里就 +1：它统计"领取次数"。发布前崩溃同样计数，这是租约式
+        至少一次投递的正常代价——用"成功次数"会让崩溃后的行看起来像没试过，掩盖反复失败。
+      · RETURNING 的顺序没有保证，聚合内保序由调用方排序负责。
+      ·
+      · 为什么是 WITH ... AS MATERIALIZED 而不是 UPDATE ... FROM (子查询)：
+      · 后者在并发领取时被实测出"一次领走全部 20 条（LIMIT 10 失效）"——
+      · 计划里 Limit 明明在 LockRows 之上，行为却不符合，改用物化 CTE 后稳定。
+      · MATERIALIZED 是必须的：不加它，规划器仍可能把 CTE 拉平、限额随之失效。
+    -->
+    <select id="claimBatch" resultMap="pendingEventMap">
+        WITH claimed AS MATERIALIZED (
+            SELECT e.event_id
+            FROM outbox_event e
+            WHERE e.published_at IS NULL
+              AND e.next_attempt_at &lt;= now()
+              AND (e.lease_until IS NULL OR e.lease_until &lt;= now())
+            ORDER BY e.occurred_at, e.event_id
+            LIMIT #{batchSize}
+            FOR UPDATE SKIP LOCKED
+        )
+        UPDATE outbox_event o
+        SET lease_token = #{leaseToken},
+            lease_until = now() + make_interval(secs => #{leaseSeconds}),
+            attempt_count = o.attempt_count + 1
+        FROM claimed
+        WHERE o.event_id = claimed.event_id
+        RETURNING o.event_id, o.tenant_id, o.hotel_id, o.aggregate_type, o.aggregate_id,
+                  o.aggregate_version, o.event_ordinal, o.event_type, o.schema_version,
+                  o.payload::text AS payload, o.occurred_at, o.attempt_count, o.lease_token
+    </select>
+
+    <update id="markPublished">
+        UPDATE outbox_event
+        SET published_at = now(),
+            lease_token = NULL,
+            lease_until = NULL,
+            last_error = NULL
+        WHERE event_id = #{eventId}
+          AND lease_token = #{leaseToken}
+          AND published_at IS NULL
+    </update>
+
+    <update id="markFailed">
+        UPDATE outbox_event
+        SET lease_token = NULL,
+            lease_until = NULL,
+            last_error = #{error},
+            next_attempt_at = now() + make_interval(secs => #{backoffSeconds})
+        WHERE event_id = #{eventId}
+          AND lease_token = #{leaseToken}
+          AND published_at IS NULL
+    </update>
+
+    <!-- 走 V8 的部分索引 idx_outbox_event_due（WHERE published_at IS NULL） -->
+    <select id="countPending" resultType="long">
+        SELECT count(*)
+        FROM outbox_event
+        WHERE published_at IS NULL
+    </select>
+
+    <select id="oldestPendingSeconds" resultType="java.lang.Long">
+        SELECT floor(extract(epoch FROM now() - min(occurred_at)))::bigint
+        FROM outbox_event
+        WHERE published_at IS NULL
+    </select>
+
+</mapper>

@@ -1,0 +1,23 @@
+export default {
+  'menu.workspace': 'Área de trabalho',
+  'menu.workspace.today': 'Hoje',
+  'menu.hotel': 'Hotel',
+  'menu.hotel.reservation': 'Reservas',
+  'menu.hotel.room': 'Quartos',
+  'menu.hotel.inventory': 'Disponibilidade',
+  'menu.hotel.assignment': 'Atribuição',
+  'menu.hotel.create': 'Nova propriedade',
+  'menu.ota': 'OTA',
+  'menu.ota.integration': 'Canais',
+  'menu.identity': 'Equipe e papéis',
+  'menu.identity.user': 'Equipe',
+  'menu.identity.role': 'Papéis',
+  'menu.ops': 'Operações',
+  'menu.ops.queue': 'Fila de operações',
+  'menu.login': 'Entrar',
+  'menu.exception': 'Exceções',
+  'menu.exception.403': 'Sem permissão',
+  'menu.exception.404': 'Página não encontrada',
+  'menu.exception.500': 'Erro do servidor',
+
+};

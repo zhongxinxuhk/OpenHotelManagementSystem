@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  订单查询 SQL（S1-11）。四条原则：
+
+  1. **过滤下推**：状态、来源、订单号前缀、房号、入住区间全部在 SQL 里做。
+     把订单捞进内存再筛，数据量一大就变成"每翻一页扫全店"，而且看起来只是慢。
+  2. **count 与列表共用同一段 where**：条件若各写一份，迟早会出现
+     "第 2 页有数据但 total=1" 这种自相矛盾的分页。
+  3. **排序必须唯一**：只按 created_at 排序时，同一时刻创建的两单在不同页之间
+     可能重复或漏掉，所以固定 `created_at DESC, id DESC`，且不接受客户端传入排序。
+  4. **只查需要展示的字段**：整单跨度与行数由聚合子查询算出，不把订单行全拉回应用层再 min/max。
+-->
+<mapper namespace="cn.sec.hn.openbackupsaas.reservation.mapper.ReservationQueryMapper">
+
+    <resultMap id="summaryMap" type="cn.sec.hn.openbackupsaas.reservation.domain.ReservationSummary">
+        <constructor>
+            <idArg column="id" javaType="java.util.UUID"/>
+            <arg column="reservation_no" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="cn.sec.hn.openbackupsaas.reservation.domain.ReservationSourceType"/>
+            <arg column="status" javaType="cn.sec.hn.openbackupsaas.reservation.domain.ReservationStatus"/>
+            <arg column="version" javaType="java.lang.Long"/>
+            <arg column="line_count" javaType="java.lang.Integer"/>
+            <arg column="check_in" javaType="java.time.LocalDate"/>
+            <arg column="check_out" javaType="java.time.LocalDate"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="updated_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+      过滤条件。两个"存在性"子查询都从订单行出发：
+        - 入住区间用 daterange 交集（&&）判断，不是"某一天落在区间内"——
+          查 5/1—5/3 的客人，5/2 入住 5/4 离店的单也必须命中。
+        - 房号过滤匹配该订单任意一条占用（含已释放），用于"这间房以前住过谁"的追溯。
+    -->
+    <sql id="listFilter">
+        r.tenant_id = #{q.tenantId}
+        AND r.hotel_id = #{q.hotelId}
+        <if test="q.statuses != null and q.statuses.size() > 0">
+            AND r.status IN
+            <foreach collection="q.statuses" item="status" open="(" separator="," close=")">
+                #{status}
+            </foreach>
+        </if>
+        <if test="q.sourceType != null">
+            AND r.source_type = #{q.sourceType}
+        </if>
+        <if test="q.reservationNoPrefix != null and q.reservationNoPrefix != ''">
+            AND r.reservation_no LIKE #{q.reservationNoPrefix} || '%' ESCAPE '\'
+        </if>
+        <if test="q.roomCode != null and q.roomCode != ''">
+            AND EXISTS (
+                SELECT 1
+                FROM reservation_line l
+                JOIN room_occupancy o ON o.line_id = l.id AND o.kind = 'RESERVATION'
+                JOIN physical_room pr ON pr.id = o.room_id AND pr.hotel_id = o.hotel_id
+                WHERE l.reservation_id = r.id
+                  AND pr.code = #{q.roomCode}
+            )
+        </if>
+        <if test="q.stayFrom != null and q.stayTo != null">
+            AND EXISTS (
+                SELECT 1
+                FROM reservation_line l
+                WHERE l.reservation_id = r.id
+                  AND l.planned_range &amp;&amp; daterange(#{q.stayFrom}::date, #{q.stayTo}::date, '[)')
+            )
+        </if>
+    </sql>
+
+    <select id="findSummaries" resultMap="summaryMap">
+        SELECT r.id,
+               r.reservation_no,
+               r.source_type,
+               r.status,
+               r.version,
+               (SELECT count(*)::int FROM reservation_line l WHERE l.reservation_id = r.id) AS line_count,
+               (SELECT min(lower(l.planned_range)) FROM reservation_line l WHERE l.reservation_id = r.id) AS check_in,
+               (SELECT max(upper(l.planned_range)) FROM reservation_line l WHERE l.reservation_id = r.id) AS check_out,
+               r.created_at,
+               r.updated_at
+        FROM reservation r
+        WHERE <include refid="listFilter"/>
+        ORDER BY r.created_at DESC, r.id DESC
+        LIMIT #{q.size} OFFSET #{q.offset}
+    </select>
+
+    <select id="countSummaries" resultType="long">
+        SELECT count(*)
+        FROM reservation r
+        WHERE <include refid="listFilter"/>
+    </select>
+
+    <resultMap id="roomAssignmentMap" type="cn.sec.hn.openbackupsaas.reservation.domain.RoomAssignment">
+        <constructor>
+            <idArg column="line_id" javaType="java.util.UUID"/>
+            <arg column="room_id" javaType="java.util.UUID"/>
+            <arg column="room_code" javaType="java.lang.String"/>
+            <arg column="occupancy_status" javaType="cn.sec.hn.openbackupsaas.reservation.domain.OccupancyStatus"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findRoomAssignments" resultMap="roomAssignmentMap">
+        SELECT o.line_id, o.room_id, pr.code AS room_code, o.status AS occupancy_status
+        FROM room_occupancy o
+        JOIN physical_room pr ON pr.id = o.room_id AND pr.hotel_id = o.hotel_id
+        WHERE o.tenant_id = #{tenantId}
+          AND o.hotel_id = #{hotelId}
+          AND o.reservation_id = #{reservationId}
+          AND o.kind = 'RESERVATION'
+        ORDER BY o.line_id, o.created_at
+    </select>
+
+</mapper>
